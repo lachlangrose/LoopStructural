@@ -65,7 +65,7 @@ from ...utils.helper import (
 from ...modelling.intrusions import IntrusionBuilder
 
 from ...modelling.intrusions import IntrusionFrameBuilder
-
+from ._bounding_box import BoundingBox
 
 logger = getLogger(__name__)
 
@@ -151,30 +151,30 @@ class GeologicalModel:
         self._data = None
         self.data = data
         self.nsteps = nsteps
+        self.bounding_box = BoundingBox(origin, maximum, scale=rescale)
+        # # we want to rescale the model area so that the maximum length is
+        # # 1
+        # self.origin = np.array(origin).astype(float)
+        # originstr = f"Model origin: {self.origin[0]} {self.origin[1]} {self.origin[2]}"
+        # logger.info(originstr)
+        # self.maximum = np.array(maximum).astype(float)
+        # maximumstr = "Model maximum: {} {} {}".format(
+        #     self.maximum[0], self.maximum[1], self.maximum[2]
+        # )
+        # logger.info(maximumstr)
 
-        # we want to rescale the model area so that the maximum length is
-        # 1
-        self.origin = np.array(origin).astype(float)
-        originstr = f"Model origin: {self.origin[0]} {self.origin[1]} {self.origin[2]}"
-        logger.info(originstr)
-        self.maximum = np.array(maximum).astype(float)
-        maximumstr = "Model maximum: {} {} {}".format(
-            self.maximum[0], self.maximum[1], self.maximum[2]
-        )
-        logger.info(maximumstr)
+        # lengths = self.maximum - self.origin
+        # self.scale_factor = 1.0
+        # self.bounding_box = np.zeros((2, 3))
+        # self.bounding_box[1, :] = self.maximum - self.origin
+        # self.bounding_box[1, :] = self.maximum - self.origin
+        # if rescale:
+        #     self.scale_factor = float(np.max(lengths))
+        #     logger.info(
+        #         "Rescaling model using scale factor {}".format(self.scale_factor)
+        #     )
 
-        lengths = self.maximum - self.origin
-        self.scale_factor = 1.0
-        self.bounding_box = np.zeros((2, 3))
-        self.bounding_box[1, :] = self.maximum - self.origin
-        self.bounding_box[1, :] = self.maximum - self.origin
-        if rescale:
-            self.scale_factor = float(np.max(lengths))
-            logger.info(
-                "Rescaling model using scale factor {}".format(self.scale_factor)
-            )
-
-        self.bounding_box /= self.scale_factor
+        # self.bounding_box /= self.scale_factor
         self.support = {}
         self.reuse_supports = reuse_supports
         if self.reuse_supports:
