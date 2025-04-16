@@ -26,7 +26,7 @@ jobs:
           conda install -c conda-forge conda-build scikit-build numpy cython anaconda-client conda-libmamba-solver -y
           conda build -c conda-forge -c loop3d --output-folder conda conda  --python ${{matrix.python-version}}
           ls -l
-          conda convert -p all conda/linux-64/*.tar.bz2 -f -o conda
+          conda convert -p all conda/linux-64/*.conda -f -o conda
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
