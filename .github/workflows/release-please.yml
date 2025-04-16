@@ -18,7 +18,10 @@ jobs:
         id: release
         with:
           path: LoopStructural
-          
+      - name: Debug release output
+        run: echo "release_created=${{ steps.release.outputs.release_created }}" 
+      - name: Debug release output
+        run: echo "release_created=${{ steps.release.outputs.releases_created }}" 
     outputs:
       release_created: ${{ steps.release.outputs.releases_created }}
   package:
