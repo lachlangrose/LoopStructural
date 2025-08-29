@@ -3,7 +3,7 @@ from loopsolver.admm_method import ADMM
 from dataclasses import dataclass
 from scipy.sparse.linalg import lsmr
 from scipy.sparse import vstack, csr_matrix
-
+import tqdm
 
 @dataclass
 class Config:
@@ -33,7 +33,8 @@ def admm_solve(
     x0: np.ndarray,
     admm_weight: float = 0.1,
     nmajor=200,
-    linsys_solver_kwargs={"maxiter": 100},
+    linsys_solver_kwargs={},
+    linsys_solver="lsmr",
 ):
     if A.shape[1] != x0.shape[0]:
         raise ValueError("Number of columns in interpolation matrix does not match x0")
@@ -49,7 +50,6 @@ def admm_solve(
         raise ValueError("Bounds must have two columns")
     if A.shape[0] != b.shape[0]:
         raise ValueError("Number of rows in interpolation matrix and b are different")
-
     n_ie = bounds.shape[0]
     qx_val = np.zeros((Q.shape[0], 1))
     model = np.zeros(A.shape[1])
@@ -67,19 +67,24 @@ def admm_solve(
     # scale the Q matrix by the admm f
     Q *= admm_weight
     matrix = vstack([A, Q])
-    for _i in progressbar(range(nmajor)):
+    for k in linsys_solver_kwargs:
+        if not hasattr(linsys_solver_kwargs[k], '__len__') or len(linsys_solver_kwargs[k]) != nmajor:
+            linsys_solver_kwargs[k] = [linsys_solver_kwargs[k]] * nmajor
+    for _i in tqdm.tqdm(range(nmajor)):
         # current model value
         Mx = matrix @ model  # np.dot(A, model)
-
-        qx_val[:, 0] = Mx[A_size:,] / admm_weight
-        x0_ADMM = admm_method.admm_method_iterate_admm_array(xmin, xmax, qx_val)
-        # print(x0_ADMM, qx_val.shape)
-        # raise Exception
         b[:A_size] = b0[:A_size] - Mx[:A_size]
-        b[A_size:] = -admm_weight * (qx_val[:, 0] - x0_ADMM)
-        cost_data1 = np.linalg.norm(b[:A_size])
-        cost_data2 = np.linalg.norm(b0[A_size:])
-        model_norm = np.linalg.norm(model)
+
+        if Q.shape[0] > 0:
+
+            qx_val[:, 0] = Mx[A_size:,] / admm_weight
+            x0_ADMM = admm_method.admm_method_iterate_admm_array(xmin, xmax, qx_val)
+            # print(x0_ADMM, qx_val.shape)
+            # raise Exception
+            b[A_size:] = -admm_weight * (qx_val[:, 0] - x0_ADMM)
+        # cost_data1 = np.linalg.norm(b[:A_size])
+        # cost_data2 = np.linalg.norm(b0[A_size:])
+        # model_norm = np.linalg.norm(model)
         if Config.verbose:
             cost_data = -1.0
             cost_data_model = 0.0
@@ -98,6 +103,7 @@ def admm_solve(
             print("cost_data_model = ", cost_data_model)
             print("cost_admm = ", cost_admm)
             print("----------------------------------------")
-        x = lsmr(matrix, b, **linsys_solver_kwargs)
+        linsys_kwargs = {k:v[_i] for k,v in linsys_solver_kwargs.items()}
+        x = lsmr(matrix, b, **linsys_kwargs)
         model += x[0]
     return model
