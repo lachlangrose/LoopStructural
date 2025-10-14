@@ -132,20 +132,61 @@ class GeologicalModel:
 
     def to_dict(self):
         """
-        Convert the geological model to a json string
+        Convert the geological model to a dictionary suitable for JSON serialization
 
         Returns
         -------
-        json : str
-            json string of the geological model
+        dict
+            Dictionary representation of the geological model including all features
+            and their interpolators
         """
         json = {}
         json["model"] = {}
-        json["model"]["features"] = [f.name for f in self.features]
+        json["model"]["features"] = []
+        
+        # Serialize each feature with its complete state
+        for feature in self.features:
+            try:
+                feature_dict = feature.to_dict()
+                json["model"]["features"].append(feature_dict)
+            except Exception as e:
+                logger.warning(f"Failed to serialize feature {feature.name}: {e}")
+                # Fallback to just the name if serialization fails
+                json["model"]["features"].append({"name": feature.name, "serialization_error": str(e)})
+        
         json['model']['bounding_box'] = self.bounding_box.to_dict()
-        json["model"]["stratigraphic_column"] = self.stratigraphic_column
-        # json["features"] = [f.to_json() for f in self.features]
+        
+        # Serialize stratigraphic column if it has to_dict method
+        if hasattr(self.stratigraphic_column, 'to_dict'):
+            json["model"]["stratigraphic_column"] = self.stratigraphic_column.to_dict()
+        else:
+            json["model"]["stratigraphic_column"] = str(self.stratigraphic_column)
+            
         return json
+    
+    @classmethod
+    def from_dict(cls, data_dict):
+        """Create a geological model from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the model's state
+            
+        Returns
+        -------
+        GeologicalModel
+            Reconstructed model instance
+            
+        Raises
+        ------
+        NotImplementedError
+            Full deserialization requires feature reconstruction
+        """
+        raise NotImplementedError(
+            "from_dict for GeologicalModel requires feature deserialization "
+            "which needs interpolator factory support"
+        )
 
     def __str__(self):
         return f"GeologicalModel with {len(self.features)} features"

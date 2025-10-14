@@ -93,9 +93,44 @@ class GeologicalFeature(BaseFeature):
             including interpolator configuration
         """
         json = super().to_json()
-        print(self.name, json)
-        json["interpolator"] = self.interpolator.to_json()
+        json["interpolator"] = self.interpolator.to_dict()
         return json
+    
+    def to_dict(self):
+        """Convert the geological feature to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the feature's complete state including interpolator
+        """
+        return self.to_json()
+    
+    @classmethod
+    def from_dict(cls, data_dict, model=None):
+        """Create a geological feature from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the feature's state
+        model : GeologicalModel, optional
+            The geological model containing this feature
+            
+        Returns
+        -------
+        GeologicalFeature
+            Reconstructed feature instance
+            
+        Raises
+        ------
+        NotImplementedError
+            Requires interpolator reconstruction which is not yet fully implemented
+        """
+        raise NotImplementedError(
+            "from_dict for GeologicalFeature requires interpolator factory support "
+            "which needs to be implemented for full deserialization"
+        )
     
     def is_valid(self):
         return self.interpolator.valid

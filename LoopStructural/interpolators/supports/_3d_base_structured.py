@@ -80,11 +80,18 @@ class BaseStructuredSupport(BaseSupport):
         return self.n_elements
 
     def to_dict(self):
+        """Convert the support to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the support's state with numpy arrays converted to lists
+        """
         return {
-            "origin": self.origin,
-            "nsteps": self.nsteps,
-            "step_vector": self.step_vector,
-            "rotation_xy": self.rotation_xy,
+            "origin": self.origin.tolist() if isinstance(self.origin, np.ndarray) else self.origin,
+            "nsteps": self.nsteps.tolist() if isinstance(self.nsteps, np.ndarray) else self.nsteps,
+            "step_vector": self.step_vector.tolist() if isinstance(self.step_vector, np.ndarray) else self.step_vector,
+            "rotation_xy": self.rotation_xy.tolist() if isinstance(self.rotation_xy, np.ndarray) else self.rotation_xy,
         }
 
     @abstractmethod

@@ -483,12 +483,48 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         pass
 
     def to_dict(self):
+        """Convert the interpolator to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the interpolator's state, with numpy arrays converted to lists
+        """
+        # Convert data dict with numpy arrays to serializable format
+        serialized_data = {}
+        for key, value in self.data.items():
+            if isinstance(value, np.ndarray):
+                serialized_data[key] = value.tolist()
+            else:
+                serialized_data[key] = value
+                
         return {
-            "type": self.type,
-            "data": self.data,
+            "type": self.type.name if hasattr(self.type, 'name') else str(self.type),
+            "data": serialized_data,
             "up_to_date": self.up_to_date,
             "valid": self.valid,
         }
+    
+    @classmethod
+    def from_dict(cls, data_dict):
+        """Create an interpolator from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the interpolator's state
+            
+        Returns
+        -------
+        GeologicalInterpolator
+            Reconstructed interpolator instance
+            
+        Raises
+        ------
+        NotImplementedError
+            This method should be implemented by subclasses
+        """
+        raise NotImplementedError("from_dict must be implemented by subclasses")
 
     def clean(self):
         """

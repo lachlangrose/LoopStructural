@@ -470,8 +470,15 @@ class StructuredGrid(BaseStructuredSupport):
         return
 
     def to_dict(self):
+        """Convert the structured grid support to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the support's state
+        """
         return {
-            "type": self.type.numerator,
+            "type": self.type.name if hasattr(self.type, 'name') else str(self.type),
             **super().to_dict(),
         }
 
