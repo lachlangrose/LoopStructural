@@ -164,6 +164,27 @@ class GeologicalModel:
             
         return json
     
+    def save_to_json(self, filename: str):
+        """Save the geological model to a JSON file.
+        
+        This method serializes the entire model including all features, 
+        interpolators, and their solutions to a JSON file.
+        
+        Parameters
+        ----------
+        filename : str
+            Path to the output JSON file
+            
+        Examples
+        --------
+        >>> model.save_to_json('my_model.json')
+        """
+        import json
+        model_dict = self.to_dict()
+        with open(filename, 'w') as f:
+            json.dump(model_dict, f, indent=2)
+        logger.info(f"Model saved to {filename}")
+    
     @classmethod
     def from_dict(cls, data_dict):
         """Create a geological model from a dictionary.
@@ -187,6 +208,30 @@ class GeologicalModel:
             "from_dict for GeologicalModel requires feature deserialization "
             "which needs interpolator factory support"
         )
+    
+    @classmethod
+    def load_from_json(cls, filename: str):
+        """Load a geological model from a JSON file.
+        
+        Parameters
+        ----------
+        filename : str
+            Path to the JSON file
+            
+        Returns
+        -------
+        GeologicalModel
+            Reconstructed model instance
+            
+        Raises
+        ------
+        NotImplementedError
+            Deserialization is not yet fully implemented
+        """
+        import json
+        with open(filename, 'r') as f:
+            data_dict = json.load(f)
+        return cls.from_dict(data_dict)
 
     def __str__(self):
         return f"GeologicalModel with {len(self.features)} features"

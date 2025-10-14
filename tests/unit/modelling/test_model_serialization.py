@@ -184,5 +184,48 @@ def test_empty_model_serialization():
     assert isinstance(json_str, str)
 
 
+def test_save_to_json_file():
+    """Test saving model to a JSON file"""
+    import os
+    import tempfile
+    
+    data, bb = load_claudius()
+    model = GeologicalModel(bb[0, :], bb[1, :])
+    model.set_model_data(data)
+    
+    strati = model.create_and_add_foliation(
+        'strati', 
+        interpolatortype='PLI', 
+        nelements=500, 
+        buffer=0.3
+    )
+    model.update()
+    
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        temp_file = f.name
+    
+    try:
+        # Save the model
+        model.save_to_json(temp_file)
+        
+        # Verify file exists
+        assert os.path.exists(temp_file), "JSON file should be created"
+        
+        # Verify file contains valid JSON
+        with open(temp_file, 'r') as f:
+            loaded_data = json.load(f)
+        
+        # Verify structure
+        assert "model" in loaded_data
+        assert "features" in loaded_data["model"]
+        assert len(loaded_data["model"]["features"]) > 0
+        
+    finally:
+        # Clean up
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
