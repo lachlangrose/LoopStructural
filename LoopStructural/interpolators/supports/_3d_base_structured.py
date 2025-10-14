@@ -87,9 +87,13 @@ class BaseStructuredSupport(BaseSupport):
         dict
             Dictionary containing the support's state with numpy arrays converted to lists
         """
+        # nsteps is stored internally as nsteps+1, so we need to subtract 1 for serialization
+        # so that when it's deserialized and incremented again, we get the correct value
+        nsteps_for_serialization = (self.nsteps - 1).tolist() if isinstance(self.nsteps, np.ndarray) else list(np.array(self.nsteps) - 1)
+        
         return {
             "origin": self.origin.tolist() if isinstance(self.origin, np.ndarray) else self.origin,
-            "nsteps": self.nsteps.tolist() if isinstance(self.nsteps, np.ndarray) else self.nsteps,
+            "nsteps": nsteps_for_serialization,
             "step_vector": self.step_vector.tolist() if isinstance(self.step_vector, np.ndarray) else self.step_vector,
             "rotation_xy": self.rotation_xy.tolist() if isinstance(self.rotation_xy, np.ndarray) else self.rotation_xy,
         }
