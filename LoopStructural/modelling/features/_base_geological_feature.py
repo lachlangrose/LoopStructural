@@ -81,8 +81,18 @@ class BaseFeature(metaclass=ABCMeta):
         json["name"] = self.name
         json["regions"] = [r.to_json() for r in self.regions]
         json["faults"] = [f.name for f in self.faults]
-        json["type"] = self.type
+        json["type"] = self.type.value if hasattr(self.type, 'value') else str(self.type)
         return json
+    
+    def to_dict(self):
+        """Convert the feature to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary representation of the feature
+        """
+        return self.to_json()
 
     def __str__(self):
         _str = "-----------------------------------------------------\n"

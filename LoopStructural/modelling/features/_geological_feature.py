@@ -93,9 +93,59 @@ class GeologicalFeature(BaseFeature):
             including interpolator configuration
         """
         json = super().to_json()
-        print(self.name, json)
-        json["interpolator"] = self.interpolator.to_json()
+        json["interpolator"] = self.interpolator.to_dict()
         return json
+    
+    def to_dict(self):
+        """Convert the geological feature to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the feature's complete state including interpolator
+        """
+        return self.to_json()
+    
+    @classmethod
+    def from_dict(cls, data_dict, model=None):
+        """Create a geological feature from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the feature's state
+        model : GeologicalModel, optional
+            The geological model containing this feature
+            
+        Returns
+        -------
+        GeologicalFeature
+            Reconstructed feature instance
+        """
+        from ...interpolators import GeologicalInterpolator
+        
+        # Extract feature properties
+        name = data_dict.get('name')
+        if not name:
+            raise ValueError("Feature name not specified in data_dict")
+        
+        # Reconstruct interpolator
+        interpolator = None
+        if 'interpolator' in data_dict:
+            interpolator = GeologicalInterpolator.from_dict(data_dict['interpolator'])
+        
+        # Create feature instance
+        # Note: builder is set to None since we're reconstructing from saved state
+        feature = cls(
+            name=name,
+            builder=None,
+            regions=[],  # TODO: Reconstruct regions if needed
+            faults=[],   # TODO: Reconstruct faults if needed
+            interpolator=interpolator,
+            model=model
+        )
+        
+        return feature
     
     def is_valid(self):
         return self.interpolator.valid

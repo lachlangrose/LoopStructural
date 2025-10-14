@@ -483,12 +483,75 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         pass
 
     def to_dict(self):
+        """Convert the interpolator to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the interpolator's state, with numpy arrays converted to lists
+        """
+        # Convert data dict with numpy arrays to serializable format
+        serialized_data = {}
+        for key, value in self.data.items():
+            if isinstance(value, np.ndarray):
+                serialized_data[key] = value.tolist()
+            else:
+                serialized_data[key] = value
+                
         return {
-            "type": self.type,
-            "data": self.data,
+            "type": self.type.name if hasattr(self.type, 'name') else str(self.type),
+            "data": serialized_data,
             "up_to_date": self.up_to_date,
             "valid": self.valid,
         }
+    
+    @classmethod
+    def from_dict(cls, data_dict):
+        """Create an interpolator from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the interpolator's state
+            
+        Returns
+        -------
+        GeologicalInterpolator
+            Reconstructed interpolator instance
+        """
+        from . import InterpolatorFactory
+        from . import InterpolatorType
+        
+        # Get interpolator type
+        interp_type_str = data_dict.get('type')
+        if not interp_type_str:
+            raise ValueError("Interpolator type not specified in data_dict")
+        
+        # Convert string to InterpolatorType enum if needed
+        if isinstance(interp_type_str, str):
+            try:
+                interp_type = InterpolatorType[interp_type_str]
+            except KeyError:
+                raise ValueError(f"Unknown interpolator type: {interp_type_str}")
+        else:
+            interp_type = interp_type_str
+        
+        # Get the interpolator class
+        from . import interpolator_map
+        interpolator_class = interpolator_map.get(interp_type)
+        
+        if interpolator_class is None:
+            raise ValueError(f"No interpolator class found for type: {interp_type}")
+        
+        # For discrete interpolators, use their from_dict method
+        if hasattr(interpolator_class, 'from_dict') and interpolator_class != cls:
+            return interpolator_class.from_dict(data_dict)
+        
+        # For other interpolators, this is a base implementation
+        raise NotImplementedError(
+            f"from_dict not implemented for {interpolator_class.__name__}. "
+            "Use a specific interpolator class."
+        )
 
     def clean(self):
         """

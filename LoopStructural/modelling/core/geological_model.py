@@ -132,20 +132,140 @@ class GeologicalModel:
 
     def to_dict(self):
         """
-        Convert the geological model to a json string
+        Convert the geological model to a dictionary suitable for JSON serialization
 
         Returns
         -------
-        json : str
-            json string of the geological model
+        dict
+            Dictionary representation of the geological model including all features
+            and their interpolators
         """
         json = {}
         json["model"] = {}
-        json["model"]["features"] = [f.name for f in self.features]
+        json["model"]["features"] = []
+        
+        # Serialize each feature with its complete state
+        for feature in self.features:
+            try:
+                feature_dict = feature.to_dict()
+                json["model"]["features"].append(feature_dict)
+            except Exception as e:
+                logger.warning(f"Failed to serialize feature {feature.name}: {e}")
+                # Fallback to just the name if serialization fails
+                json["model"]["features"].append({"name": feature.name, "serialization_error": str(e)})
+        
         json['model']['bounding_box'] = self.bounding_box.to_dict()
-        json["model"]["stratigraphic_column"] = self.stratigraphic_column
-        # json["features"] = [f.to_json() for f in self.features]
+        
+        # Serialize stratigraphic column if it has to_dict method
+        if hasattr(self.stratigraphic_column, 'to_dict'):
+            json["model"]["stratigraphic_column"] = self.stratigraphic_column.to_dict()
+        else:
+            json["model"]["stratigraphic_column"] = str(self.stratigraphic_column)
+            
         return json
+    
+    def save_to_json(self, filename: str):
+        """Save the geological model to a JSON file.
+        
+        This method serializes the entire model including all features, 
+        interpolators, and their solutions to a JSON file.
+        
+        Parameters
+        ----------
+        filename : str
+            Path to the output JSON file
+            
+        Examples
+        --------
+        >>> model.save_to_json('my_model.json')
+        """
+        import json
+        model_dict = self.to_dict()
+        with open(filename, 'w') as f:
+            json.dump(model_dict, f, indent=2)
+        logger.info(f"Model saved to {filename}")
+    
+    @classmethod
+    def from_dict(cls, data_dict):
+        """Create a geological model from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the model's state
+            
+        Returns
+        -------
+        GeologicalModel
+            Reconstructed model instance
+        """
+        from ...datatypes import BoundingBox
+        from ...modelling.features import GeologicalFeature
+        
+        model_data = data_dict.get('model', {})
+        
+        # Reconstruct bounding box
+        bbox_dict = model_data.get('bounding_box')
+        if not bbox_dict:
+            raise ValueError("Bounding box not found in model data")
+        
+        bbox = BoundingBox.from_dict(bbox_dict)
+        
+        # Create model
+        model = cls(bbox.origin, bbox.maximum)
+        model.bounding_box.nsteps = bbox.nsteps
+        
+        # Reconstruct features
+        features_data = model_data.get('features', [])
+        for feature_dict in features_data:
+            # Skip if it's just an error marker
+            if 'serialization_error' in feature_dict:
+                logger.warning(
+                    f"Skipping feature {feature_dict.get('name')} due to "
+                    f"serialization error: {feature_dict['serialization_error']}"
+                )
+                continue
+                
+            try:
+                feature = GeologicalFeature.from_dict(feature_dict, model=model)
+                model.features.append(feature)
+                model.feature_name_index[feature.name] = feature
+            except Exception as e:
+                logger.warning(f"Failed to reconstruct feature {feature_dict.get('name')}: {e}")
+        
+        # TODO: Reconstruct stratigraphic column if it has from_dict method
+        if 'stratigraphic_column' in model_data:
+            strat_col = model_data['stratigraphic_column']
+            if isinstance(strat_col, dict):
+                # Try to reconstruct from dict if it's a proper dict
+                from ...modelling.core.stratigraphic_column import StratigraphicColumn
+                if hasattr(StratigraphicColumn, 'from_dict'):
+                    try:
+                        model.stratigraphic_column = StratigraphicColumn.from_dict(strat_col)
+                    except Exception as e:
+                        logger.warning(f"Failed to reconstruct stratigraphic column: {e}")
+        
+        return model
+    
+    @classmethod
+    def load_from_json(cls, filename: str):
+        """Load a geological model from a JSON file.
+        
+        Parameters
+        ----------
+        filename : str
+            Path to the JSON file
+            
+        Returns
+        -------
+        GeologicalModel
+            Reconstructed model instance
+        """
+        import json
+        with open(filename, 'r') as f:
+            data_dict = json.load(f)
+        logger.info(f"Loading model from {filename}")
+        return cls.from_dict(data_dict)
 
     def __str__(self):
         return f"GeologicalModel with {len(self.features)} features"

@@ -14,8 +14,8 @@ logger = getLogger(__name__)
 class TetMesh(BaseStructuredSupport):
     """ """
 
-    def __init__(self, origin=np.zeros(3), nsteps=np.ones(3) * 10, step_vector=np.ones(3)):
-        BaseStructuredSupport.__init__(self, origin, nsteps, step_vector)
+    def __init__(self, origin=np.zeros(3), nsteps=np.ones(3) * 10, step_vector=np.ones(3), rotation_xy=None):
+        BaseStructuredSupport.__init__(self, origin, nsteps, step_vector, rotation_xy)
         self.type = SupportType.TetMesh
         self.tetra_mask_even = np.array(
             [[7, 1, 2, 4], [6, 2, 4, 7], [5, 1, 4, 7], [0, 1, 2, 4], [3, 1, 2, 7]]
@@ -34,6 +34,19 @@ class TetMesh(BaseStructuredSupport):
         self._elements = None
 
         self._init_face_table()
+
+    def to_dict(self):
+        """Convert the TetMesh support to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the support's state
+        """
+        return {
+            "type": self.type.name if hasattr(self.type, 'name') else str(self.type),
+            **super().to_dict(),
+        }
 
     def onGeometryChange(self):
         self._elements = None

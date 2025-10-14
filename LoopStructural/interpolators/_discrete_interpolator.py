@@ -746,13 +746,69 @@ class DiscreteInterpolator(GeologicalInterpolator):
         return np.zeros((0, 3))
 
     def to_dict(self):
+        """Convert the discrete interpolator to a dictionary for serialization.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the interpolator's state, including support and solution
+        """
+        base_dict = super().to_dict()
         return {
-            "type": self.type.name,
+            **base_dict,
             "support": self.support.to_dict(),
-            "c": self.c,
-            **super().to_dict(),
-            # 'region_function':self.region_function,
+            "c": self.c.tolist() if isinstance(self.c, np.ndarray) else self.c,
         }
+    
+    @classmethod
+    def from_dict(cls, data_dict, support=None):
+        """Create a discrete interpolator from a dictionary.
+        
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the interpolator's state
+        support : BaseSupport, optional
+            Support structure. If None, will be reconstructed from data_dict['support']
+            
+        Returns
+        -------
+        DiscreteInterpolator
+            Reconstructed interpolator instance
+        """
+        from .supports import SupportFactory
+        
+        # Reconstruct support if not provided
+        if support is None and 'support' in data_dict:
+            support = SupportFactory.from_dict(data_dict['support'])
+        
+        if support is None:
+            raise ValueError("Support must be provided or included in data_dict")
+        
+        # Create instance
+        instance = cls(support)
+        
+        # Restore data
+        if 'data' in data_dict:
+            restored_data = {}
+            for key, value in data_dict['data'].items():
+                if isinstance(value, list):
+                    restored_data[key] = np.array(value)
+                else:
+                    restored_data[key] = value
+            instance.data = restored_data
+        
+        # Restore solution coefficients
+        if 'c' in data_dict:
+            instance.c = np.array(data_dict['c'])
+        
+        # Restore status flags
+        if 'up_to_date' in data_dict:
+            instance.up_to_date = data_dict['up_to_date']
+        if 'valid' in data_dict:
+            instance.valid = data_dict['valid']
+            
+        return instance
 
     def vtk(self):
         return self.support.vtk({'c': self.c})
