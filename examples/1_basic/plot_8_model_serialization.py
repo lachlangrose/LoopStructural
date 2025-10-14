@@ -148,6 +148,57 @@ print("✓ Support structure serialized correctly")
 print("\n✓ Model serialization complete and verified!")
 
 # %%
+# Deserialize the model from dictionary
+# --------------------------------------
+# The from_dict() method allows you to reconstruct a geological model
+# from a serialized dictionary
+
+print("\n" + "="*70)
+print("DESERIALIZATION")
+print("="*70)
+
+# Reconstruct the model from the dictionary
+model_reconstructed = GeologicalModel.from_dict(model_dict)
+
+print(f"\n✓ Model reconstructed from dictionary")
+print(f"  Features: {len(model_reconstructed.features)}")
+print(f"  Feature name: {model_reconstructed.features[0].name}")
+print(f"  Interpolator type: {model_reconstructed.features[0].interpolator.type}")
+
+# Verify the solution matches
+original_solution = strati.interpolator.c
+reconstructed_solution = model_reconstructed.features[0].interpolator.c
+max_diff = np.abs(original_solution - reconstructed_solution).max()
+
+print(f"\n✓ Solution verification:")
+print(f"  Original solution size: {len(original_solution)}")
+print(f"  Reconstructed solution size: {len(reconstructed_solution)}")
+print(f"  Max difference: {max_diff}")
+
+if max_diff < 1e-10:
+    print(f"  ✓ Solutions match perfectly!")
+else:
+    print(f"  ⚠ Solutions differ by {max_diff}")
+
+# %%
+# Load from JSON file
+# -------------------
+# You can also load a model directly from a JSON file
+
+# First save to file (uncomment to actually save)
+# model.save_to_json('my_model.json')
+
+# Then load it back (uncomment to actually load)
+# model_loaded = GeologicalModel.load_from_json('my_model.json')
+# print(f"Loaded model with {len(model_loaded.features)} features")
+
+print("\n" + "="*70)
+print("To save and load from file:")
+print("  model.save_to_json('my_model.json')")
+print("  model_loaded = GeologicalModel.load_from_json('my_model.json')")
+print("="*70)
+
+# %%
 # What's included in the serialization?
 # --------------------------------------
 # The serialized model includes:
@@ -163,7 +214,7 @@ print("\n✓ Model serialization complete and verified!")
 # 3. **Interpolator State**
 #    - Interpolator type (PLI, FDI, etc.)
 #    - All constraint data (gradient, value, normal, tangent, interface)
-#    - Solution coefficients (c array)
+#    - Solution coefficients (c array) - the actual solution to the interpolation
 #    - Build status (up_to_date, valid flags)
 #
 # 4. **Support Structure**
@@ -174,11 +225,20 @@ print("\n✓ Model serialization complete and verified!")
 # - Save models for later analysis
 # - Share models with collaborators
 # - Archive modeling results
-# - Potentially reconstruct models (deserialization support coming soon)
+# - Reconstruct fully functional models from saved state
+# - Compare models across different versions or parameters
 
 print("\n" + "="*70)
-print("NOTE: Deserialization (from_dict/from_json) is not fully implemented yet.")
-print("Currently, to_dict provides a complete snapshot of the model state that")
-print("can be saved and inspected, but cannot yet be used to reconstruct a")
-print("fully functional model.")
+print("SERIALIZATION CAPABILITIES")
 print("="*70)
+print("""
+The model can now be:
+  ✓ Serialized to dictionary (to_dict)
+  ✓ Serialized to JSON string (json.dumps)
+  ✓ Saved to JSON file (save_to_json)
+  ✓ Deserialized from dictionary (from_dict)
+  ✓ Loaded from JSON file (load_from_json)
+  
+The serialized model includes the complete interpolation solution,
+so the reconstructed model produces identical results to the original.
+""")

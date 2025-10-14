@@ -518,13 +518,40 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         -------
         GeologicalInterpolator
             Reconstructed interpolator instance
-            
-        Raises
-        ------
-        NotImplementedError
-            This method should be implemented by subclasses
         """
-        raise NotImplementedError("from_dict must be implemented by subclasses")
+        from . import InterpolatorFactory
+        from . import InterpolatorType
+        
+        # Get interpolator type
+        interp_type_str = data_dict.get('type')
+        if not interp_type_str:
+            raise ValueError("Interpolator type not specified in data_dict")
+        
+        # Convert string to InterpolatorType enum if needed
+        if isinstance(interp_type_str, str):
+            try:
+                interp_type = InterpolatorType[interp_type_str]
+            except KeyError:
+                raise ValueError(f"Unknown interpolator type: {interp_type_str}")
+        else:
+            interp_type = interp_type_str
+        
+        # Get the interpolator class
+        from . import interpolator_map
+        interpolator_class = interpolator_map.get(interp_type)
+        
+        if interpolator_class is None:
+            raise ValueError(f"No interpolator class found for type: {interp_type}")
+        
+        # For discrete interpolators, use their from_dict method
+        if hasattr(interpolator_class, 'from_dict') and interpolator_class != cls:
+            return interpolator_class.from_dict(data_dict)
+        
+        # For other interpolators, this is a base implementation
+        raise NotImplementedError(
+            f"from_dict not implemented for {interpolator_class.__name__}. "
+            "Use a specific interpolator class."
+        )
 
     def clean(self):
         """

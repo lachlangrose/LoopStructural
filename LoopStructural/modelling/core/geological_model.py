@@ -198,16 +198,54 @@ class GeologicalModel:
         -------
         GeologicalModel
             Reconstructed model instance
-            
-        Raises
-        ------
-        NotImplementedError
-            Full deserialization requires feature reconstruction
         """
-        raise NotImplementedError(
-            "from_dict for GeologicalModel requires feature deserialization "
-            "which needs interpolator factory support"
-        )
+        from ...datatypes import BoundingBox
+        from ...modelling.features import GeologicalFeature
+        
+        model_data = data_dict.get('model', {})
+        
+        # Reconstruct bounding box
+        bbox_dict = model_data.get('bounding_box')
+        if not bbox_dict:
+            raise ValueError("Bounding box not found in model data")
+        
+        bbox = BoundingBox.from_dict(bbox_dict)
+        
+        # Create model
+        model = cls(bbox.origin, bbox.maximum)
+        model.bounding_box.nsteps = bbox.nsteps
+        
+        # Reconstruct features
+        features_data = model_data.get('features', [])
+        for feature_dict in features_data:
+            # Skip if it's just an error marker
+            if 'serialization_error' in feature_dict:
+                logger.warning(
+                    f"Skipping feature {feature_dict.get('name')} due to "
+                    f"serialization error: {feature_dict['serialization_error']}"
+                )
+                continue
+                
+            try:
+                feature = GeologicalFeature.from_dict(feature_dict, model=model)
+                model.features.append(feature)
+                model.feature_name_index[feature.name] = feature
+            except Exception as e:
+                logger.warning(f"Failed to reconstruct feature {feature_dict.get('name')}: {e}")
+        
+        # TODO: Reconstruct stratigraphic column if it has from_dict method
+        if 'stratigraphic_column' in model_data:
+            strat_col = model_data['stratigraphic_column']
+            if isinstance(strat_col, dict):
+                # Try to reconstruct from dict if it's a proper dict
+                from ...modelling.core.stratigraphic_column import StratigraphicColumn
+                if hasattr(StratigraphicColumn, 'from_dict'):
+                    try:
+                        model.stratigraphic_column = StratigraphicColumn.from_dict(strat_col)
+                    except Exception as e:
+                        logger.warning(f"Failed to reconstruct stratigraphic column: {e}")
+        
+        return model
     
     @classmethod
     def load_from_json(cls, filename: str):
@@ -222,15 +260,11 @@ class GeologicalModel:
         -------
         GeologicalModel
             Reconstructed model instance
-            
-        Raises
-        ------
-        NotImplementedError
-            Deserialization is not yet fully implemented
         """
         import json
         with open(filename, 'r') as f:
             data_dict = json.load(f)
+        logger.info(f"Loading model from {filename}")
         return cls.from_dict(data_dict)
 
     def __str__(self):

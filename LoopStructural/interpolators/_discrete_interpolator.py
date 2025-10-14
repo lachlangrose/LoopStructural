@@ -775,13 +775,40 @@ class DiscreteInterpolator(GeologicalInterpolator):
         -------
         DiscreteInterpolator
             Reconstructed interpolator instance
-            
-        Raises
-        ------
-        NotImplementedError
-            This method should be implemented by subclasses that know their support type
         """
-        raise NotImplementedError("from_dict must be implemented by subclasses with specific support types")
+        from .supports import SupportFactory
+        
+        # Reconstruct support if not provided
+        if support is None and 'support' in data_dict:
+            support = SupportFactory.from_dict(data_dict['support'])
+        
+        if support is None:
+            raise ValueError("Support must be provided or included in data_dict")
+        
+        # Create instance
+        instance = cls(support)
+        
+        # Restore data
+        if 'data' in data_dict:
+            restored_data = {}
+            for key, value in data_dict['data'].items():
+                if isinstance(value, list):
+                    restored_data[key] = np.array(value)
+                else:
+                    restored_data[key] = value
+            instance.data = restored_data
+        
+        # Restore solution coefficients
+        if 'c' in data_dict:
+            instance.c = np.array(data_dict['c'])
+        
+        # Restore status flags
+        if 'up_to_date' in data_dict:
+            instance.up_to_date = data_dict['up_to_date']
+        if 'valid' in data_dict:
+            instance.valid = data_dict['valid']
+            
+        return instance
 
     def vtk(self):
         return self.support.vtk({'c': self.c})

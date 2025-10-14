@@ -121,16 +121,31 @@ class GeologicalFeature(BaseFeature):
         -------
         GeologicalFeature
             Reconstructed feature instance
-            
-        Raises
-        ------
-        NotImplementedError
-            Requires interpolator reconstruction which is not yet fully implemented
         """
-        raise NotImplementedError(
-            "from_dict for GeologicalFeature requires interpolator factory support "
-            "which needs to be implemented for full deserialization"
+        from ...interpolators import GeologicalInterpolator
+        
+        # Extract feature properties
+        name = data_dict.get('name')
+        if not name:
+            raise ValueError("Feature name not specified in data_dict")
+        
+        # Reconstruct interpolator
+        interpolator = None
+        if 'interpolator' in data_dict:
+            interpolator = GeologicalInterpolator.from_dict(data_dict['interpolator'])
+        
+        # Create feature instance
+        # Note: builder is set to None since we're reconstructing from saved state
+        feature = cls(
+            name=name,
+            builder=None,
+            regions=[],  # TODO: Reconstruct regions if needed
+            faults=[],   # TODO: Reconstruct faults if needed
+            interpolator=interpolator,
+            model=model
         )
+        
+        return feature
     
     def is_valid(self):
         return self.interpolator.valid

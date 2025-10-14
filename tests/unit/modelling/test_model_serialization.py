@@ -227,5 +227,104 @@ def test_save_to_json_file():
             os.remove(temp_file)
 
 
+def test_model_from_dict():
+    """Test deserializing a model from a dictionary"""
+    data, bb = load_claudius()
+    model = GeologicalModel(bb[0, :], bb[1, :])
+    model.set_model_data(data)
+    
+    strati = model.create_and_add_foliation(
+        'strati', 
+        interpolatortype='PLI', 
+        nelements=500, 
+        buffer=0.3
+    )
+    model.update()
+    
+    # Serialize
+    model_dict = model.to_dict()
+    
+    # Deserialize
+    model2 = GeologicalModel.from_dict(model_dict)
+    
+    # Verify structure
+    assert len(model2.features) == len(model.features)
+    assert model2.features[0].name == model.features[0].name
+    assert model2.features[0].interpolator.type == model.features[0].interpolator.type
+    
+    # Verify solution coefficients
+    c_diff = np.abs(model.features[0].interpolator.c - model2.features[0].interpolator.c).max()
+    assert c_diff < 1e-10, f"Solution coefficients should match, but differ by {c_diff}"
+
+
+def test_model_load_from_json():
+    """Test loading a model from a JSON file"""
+    import os
+    import tempfile
+    
+    data, bb = load_claudius()
+    model = GeologicalModel(bb[0, :], bb[1, :])
+    model.set_model_data(data)
+    
+    strati = model.create_and_add_foliation(
+        'strati', 
+        interpolatortype='PLI', 
+        nelements=500, 
+        buffer=0.3
+    )
+    model.update()
+    
+    # Save original solution
+    orig_c = model.features[0].interpolator.c.copy()
+    
+    # Save and load
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        temp_file = f.name
+    
+    try:
+        model.save_to_json(temp_file)
+        model2 = GeologicalModel.load_from_json(temp_file)
+        
+        # Verify
+        assert len(model2.features) == 1
+        assert model2.features[0].name == 'strati'
+        
+        # Verify solution
+        c_diff = np.abs(orig_c - model2.features[0].interpolator.c).max()
+        assert c_diff < 1e-10, f"Solution coefficients should match"
+        
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
+
+def test_fdi_serialization():
+    """Test serialization/deserialization with Finite Difference Interpolator"""
+    data, bb = load_claudius()
+    model = GeologicalModel(bb[0, :], bb[1, :])
+    model.set_model_data(data)
+    
+    strati = model.create_and_add_foliation(
+        'strati', 
+        interpolatortype='FDI', 
+        nelements=500, 
+        buffer=0.3
+    )
+    model.update()
+    
+    # Serialize and deserialize
+    model_dict = model.to_dict()
+    model2 = GeologicalModel.from_dict(model_dict)
+    
+    # Verify
+    assert len(model2.features) == 1
+    assert model2.features[0].name == 'strati'
+    assert model2.features[0].interpolator.type.name == 'FINITE_DIFFERENCE'
+    
+    # Verify solution
+    c_diff = np.abs(model.features[0].interpolator.c - model2.features[0].interpolator.c).max()
+    assert c_diff < 1e-10
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
