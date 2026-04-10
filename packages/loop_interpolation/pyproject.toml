@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loop-interpolation"
+description = "Interpolation utilities for LoopStructural"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["numpy", "scipy"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["loop_interpolation", "loop_interpolation.*"]

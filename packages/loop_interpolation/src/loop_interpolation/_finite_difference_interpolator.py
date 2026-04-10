@@ -4,11 +4,11 @@ FiniteDifference interpolator
 
 import numpy as np
 
-from ..utils import get_vectors
+from loop_common.math import get_vectors
 from ._discrete_interpolator import DiscreteInterpolator
-from ..interpolators import InterpolatorType
+from ._interpolatortype import InterpolatorType
 from scipy.spatial import KDTree
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
@@ -114,7 +114,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             "operators", self.support.get_operators(weights=self.interpolation_weights)
         )
 
-        self.use_regularisation_weight_scale = kwargs.get('use_regularisation_weight_scale', False)
+        self.use_regularisation_weight_scale = kwargs.get("use_regularisation_weight_scale", False)
         self.add_norm_constraints(self.interpolation_weights["npw"])
         self.add_gradient_constraints(self.interpolation_weights["gpw"])
         self.add_value_constraints(self.interpolation_weights["cpw"])
@@ -122,9 +122,9 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         self.add_interface_constraints(self.interpolation_weights["ipw"])
         self.add_value_inequality_constraints()
         self.add_inequality_pairs_constraints(
-            pairs=kwargs.get('inequality_pairs', None),
-            upper_bound=kwargs.get('inequality_pair_upper_bound', np.finfo(float).eps),
-            lower_bound=kwargs.get('inequality_pair_lower_bound', -np.inf),
+            pairs=kwargs.get("inequality_pairs", None),
+            upper_bound=kwargs.get("inequality_pair_upper_bound", np.finfo(float).eps),
+            lower_bound=kwargs.get("inequality_pair_lower_bound", -np.inf),
         )
         for k, o in operators.items():
             self.assemble_inner(o[0], o[1], name=k)
@@ -370,7 +370,6 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             # self.regularisation_scale[global_indexes[idc[inside,:].astype(int),]]=10
             w /= 3
             for d in range(self.support.dimension):
-
                 self.add_constraints_to_least_squares(
                     T[:, d, :],
                     points[inside, self.support.dimension + d],
@@ -411,7 +410,6 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
 
         """
         if points.shape[0] > 0:
-
             # calculate unit vector for orientation data
             node_idx, inside = self.support.position_to_cell_corners(
                 points[:, : self.support.dimension]
@@ -454,8 +452,6 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
                 )
             self.up_to_date = False
 
-
-
     # def assemble_borders(self, operator, w, name='regularisation'):
     #     """
     #     Adds a constraint to the border of the model to force the value to be equal to the value at the border
@@ -476,8 +472,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
 
     #     global_indexes = self.support.neighbour_global_indexes()
 
-
-    def assemble_inner(self, operator, w, name='regularisation'):
+    def assemble_inner(self, operator, w, name="regularisation"):
         """
 
         Parameters

@@ -8,10 +8,10 @@ import logging
 
 import numpy as np
 from scipy import sparse  # import sparse.coo_matrix, sparse.bmat, sparse.eye
-from ..interpolators import InterpolatorType
+from ._interpolatortype import InterpolatorType
 
-from ..interpolators import GeologicalInterpolator
-from ..utils import getLogger
+from ._geological_interpolator import GeologicalInterpolator
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
@@ -66,6 +66,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
         self.add_ridge_regulatisation = True
         self.ridge_factor = 1e-8
         self.solver_history = None
+
     def set_nelements(self, nelements: int) -> int:
         return self.support.set_nelements(nelements)
 
@@ -248,11 +249,11 @@ class DiscreteInterpolator(GeologicalInterpolator):
 
         rows = np.tile(rows, (A.shape[-1], 1)).T
         self.constraints[name] = {
-            'matrix': sparse.coo_matrix(
+            "matrix": sparse.coo_matrix(
                 (A.flatten(), (rows.flatten(), idc.flatten())), shape=(n_rows, self.dof)
             ).tocsc(),
-            'b': B.flatten(),
-            'w': w,
+            "b": B.flatten(),
+            "w": w,
         }
 
     @abstractmethod
@@ -306,7 +307,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
         rows = np.tile(rows, (A.shape[-1], 1)).T
 
         self.ineq_constraints[name] = {
-            'matrix': sparse.coo_matrix(
+            "matrix": sparse.coo_matrix(
                 (A.flatten(), (rows.flatten(), idc.flatten())), shape=(rows.shape[0], self.dof)
             ).tocsc(),
             "bounds": bounds,
@@ -321,12 +322,12 @@ class DiscreteInterpolator(GeologicalInterpolator):
             rows = np.tile(rows, (a.shape[-1], 1)).T
             a = a[inside]
             cols = self.support.elements[element[inside]]
-            self.add_inequality_constraints_to_matrix(a, points[:, 3:5], cols, 'inequality_value')
+            self.add_inequality_constraints_to_matrix(a, points[:, 3:5], cols, "inequality_value")
 
     def add_inequality_pairs_constraints(
         self,
         w: float = 1.0,
-        upper_bound=1.,#np.finfo(float).eps,
+        upper_bound=1.0,  # np.finfo(float).eps,
         lower_bound=-np.inf,
         pairs: Optional[list] = None,
     ):
@@ -355,11 +356,11 @@ class DiscreteInterpolator(GeologicalInterpolator):
                 lower_interpolation = self.support.get_element_for_location(lower_points)
                 if (~upper_interpolation[3]).sum() > 0:
                     logger.warning(
-                        f'Upper points not in mesh {upper_points[~upper_interpolation[3]]}'
+                        f"Upper points not in mesh {upper_points[~upper_interpolation[3]]}"
                     )
                 if (~lower_interpolation[3]).sum() > 0:
                     logger.warning(
-                        f'Lower points not in mesh {lower_points[~lower_interpolation[3]]}'
+                        f"Lower points not in mesh {lower_points[~lower_interpolation[3]]}"
                     )
                 ij = np.array(
                     [
@@ -393,7 +394,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
                 bounds[:, 1] = upper_bound
 
                 self.add_inequality_constraints_to_matrix(
-                    a, bounds, cols, f'inequality_pairs_{pair[0]}_{pair[1]}'
+                    a, bounds, cols, f"inequality_pairs_{pair[0]}_{pair[1]}"
                 )
 
     def add_inequality_feature(
@@ -507,13 +508,14 @@ class DiscreteInterpolator(GeologicalInterpolator):
         for c in self.constraints.values():
             if len(c["w"]) == 0:
                 continue
-            mats.append(c['matrix'].multiply(c['w'][:, None]))
-            bs.append(c['b'] * c['w'])
+            mats.append(c["matrix"].multiply(c["w"][:, None]))
+            bs.append(c["b"] * c["w"])
         A = sparse.vstack(mats)
         logger.info(f"Interpolation matrix is {A.shape[0]} x {A.shape[1]}")
 
         B = np.hstack(bs)
         return A, B
+
     def compute_column_scaling_matrix(self, A: sparse.csr_matrix) -> sparse.dia_matrix:
         """Compute column scaling matrix S for matrix A so that A @ S has columns with unit norm.
 
@@ -577,8 +579,8 @@ class DiscreteInterpolator(GeologicalInterpolator):
         mats = []
         bounds = []
         for c in self.ineq_constraints.values():
-            mats.append(c['matrix'])
-            bounds.append(c['bounds'])
+            mats.append(c["matrix"])
+            bounds.append(c["bounds"])
         if len(mats) == 0:
             return sparse.csr_matrix((0, self.dof), dtype=float), np.zeros((0, 3))
         Q = sparse.vstack(mats)
@@ -626,40 +628,40 @@ class DiscreteInterpolator(GeologicalInterpolator):
 
         Q, bounds = self.build_inequality_matrix()
         if callable(solver):
-            logger.warning('Using custom solver')
+            logger.warning("Using custom solver")
             self.c = solver(A.tocsr(), b)
             self.up_to_date = True
         elif isinstance(solver, str) or solver is None:
-            if solver not in ['cg', 'lsmr', 'admm']:
+            if solver not in ["cg", "lsmr", "admm"]:
                 logger.warning(
-                    f'Unknown solver {solver} using cg. \n Available solvers are cg and lsmr or a custom solver as a callable function'
+                    f"Unknown solver {solver} using cg. \n Available solvers are cg and lsmr or a custom solver as a callable function"
                 )
-                solver = 'cg'
-        if solver == 'cg':
+                solver = "cg"
+        if solver == "cg":
             logger.info("Solving using cg")
-            if 'atol' not in solver_kwargs or 'rtol' not in solver_kwargs:
+            if "atol" not in solver_kwargs or "rtol" not in solver_kwargs:
                 if tol is not None:
-                    solver_kwargs['atol'] = tol
+                    solver_kwargs["atol"] = tol
 
             logger.info(f"Solver kwargs: {solver_kwargs}")
 
             res = sparse.linalg.cg(A.T @ A, A.T @ b, **solver_kwargs)
             if res[1] > 0:
                 logger.warning(
-                    f'CG reached iteration limit ({res[1]})and did not converge, check input data. Setting solution to last iteration'
+                    f"CG reached iteration limit ({res[1]})and did not converge, check input data. Setting solution to last iteration"
                 )
             self.c = res[0]
             self.up_to_date = True
 
-        elif solver == 'lsmr':
+        elif solver == "lsmr":
             logger.info("Solving using lsmr")
             # if 'atol' not in solver_kwargs:
             #     if tol is not None:
             #         solver_kwargs['atol'] = tol
-            if 'btol' not in solver_kwargs:
+            if "btol" not in solver_kwargs:
                 if tol is not None:
-                    solver_kwargs['btol'] = tol
-                    solver_kwargs['atol'] = 0.
+                    solver_kwargs["btol"] = tol
+                    solver_kwargs["atol"] = 0.0
                     logger.info(f"Setting lsmr btol to {tol}")
             logger.info(f"Solver kwargs: {solver_kwargs}")
             res = sparse.linalg.lsmr(A, b, **solver_kwargs)
@@ -677,33 +679,33 @@ class DiscreteInterpolator(GeologicalInterpolator):
                 self.c = res[0]
             self.up_to_date = True
 
-        elif solver == 'admm':
+        elif solver == "admm":
             logger.info("Solving using admm")
 
-            if 'x0' in solver_kwargs:
-                x0 = solver_kwargs['x0'](self.support)
+            if "x0" in solver_kwargs:
+                x0 = solver_kwargs["x0"](self.support)
             else:
                 x0 = np.zeros(A.shape[1])
-            solver_kwargs.pop('x0', None)
+            solver_kwargs.pop("x0", None)
             if Q is None:
                 logger.warning("No inequality constraints, using lsmr")
-                return self.solve_system('lsmr', solver_kwargs)
+                return self.solve_system("lsmr", solver_kwargs)
 
             try:
                 from loopsolver import admm_solve
 
                 try:
-                    linsys_solver = solver_kwargs.pop('linsys_solver', 'lsmr')
+                    linsys_solver = solver_kwargs.pop("linsys_solver", "lsmr")
                     admm_kwargs = {
-                        'batch_size': solver_kwargs.pop('batch_size', None),
-                        'batch_fraction': solver_kwargs.pop('batch_fraction', None),
-                        'random_seed': solver_kwargs.pop('random_seed', None),
-                        'adaptive_rho': solver_kwargs.pop('adaptive_rho', False),
-                        'adaptive_rho_mu': solver_kwargs.pop('adaptive_rho_mu', 10.0),
-                        'adaptive_rho_tau': solver_kwargs.pop('adaptive_rho_tau', 2.0),
-                        'adaptive_rho_min': solver_kwargs.pop('adaptive_rho_min', 1e-4),
-                        'adaptive_rho_max': solver_kwargs.pop('adaptive_rho_max', 1e3),
-                        'return_history': solver_kwargs.pop('return_history', False),
+                        "batch_size": solver_kwargs.pop("batch_size", None),
+                        "batch_fraction": solver_kwargs.pop("batch_fraction", None),
+                        "random_seed": solver_kwargs.pop("random_seed", None),
+                        "adaptive_rho": solver_kwargs.pop("adaptive_rho", False),
+                        "adaptive_rho_mu": solver_kwargs.pop("adaptive_rho_mu", 10.0),
+                        "adaptive_rho_tau": solver_kwargs.pop("adaptive_rho_tau", 2.0),
+                        "adaptive_rho_min": solver_kwargs.pop("adaptive_rho_min", 1e-4),
+                        "adaptive_rho_max": solver_kwargs.pop("adaptive_rho_max", 1e3),
+                        "return_history": solver_kwargs.pop("return_history", False),
                     }
                     res = admm_solve(
                         A,
@@ -711,8 +713,8 @@ class DiscreteInterpolator(GeologicalInterpolator):
                         Q,
                         bounds,
                         x0=x0,
-                        admm_weight=solver_kwargs.pop('admm_weight', 0.01),
-                        nmajor=solver_kwargs.pop('nmajor', 200),
+                        admm_weight=solver_kwargs.pop("admm_weight", 0.01),
+                        nmajor=solver_kwargs.pop("nmajor", 200),
                         linsys_solver_kwargs=solver_kwargs,
                         linsys_solver=linsys_solver,
                         **admm_kwargs,
@@ -811,4 +813,4 @@ class DiscreteInterpolator(GeologicalInterpolator):
     def vtk(self):
         if self.up_to_date is False:
             self.update()
-        return self.support.vtk({'c': self.c})
+        return self.support.vtk({"c": self.c})

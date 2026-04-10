@@ -6,11 +6,11 @@ used in LoopStructural geological modelling framework.
 
 from abc import ABCMeta, abstractmethod
 from LoopStructural.utils.exceptions import LoopTypeError
-from ..interpolators import InterpolatorType
+from ._interpolatortype import InterpolatorType
 import numpy as np
 
 from typing import Optional
-from ..utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
@@ -29,7 +29,7 @@ class GeologicalInterpolator(metaclass=ABCMeta):
     n_g : int
         Number of gradient constraints
     n_i : int
-        Number of interface/value constraints  
+        Number of interface/value constraints
     n_n : int
         Number of normal constraints
     n_t : int
@@ -263,7 +263,7 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         ----------
         points : np.ndarray
             Array containing gradient constraints with shape (n_points, 7-8).
-            Columns should be [X, Y, Z, gx, gy, gz, weight]. If weight is not 
+            Columns should be [X, Y, Z, gx, gy, gz, weight]. If weight is not
             provided, a weight of 1.0 is assumed for all points.
 
         Raises

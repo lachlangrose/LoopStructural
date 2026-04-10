@@ -6,11 +6,18 @@ from typing import Optional, Callable
 
 import numpy as np
 
-from ..interpolators import PiecewiseLinearInterpolator, InterpolatorType
-from ..modelling.features.fold import FoldEvent
-from ..utils import getLogger, rng
+from ._p1interpolator import P1Interpolator as PiecewiseLinearInterpolator
+from ._interpolatortype import InterpolatorType
+
+# from ..modelling.features.fold import FoldEvent
+from loop_common.logging import get_logger as getLogger
+from loop_common.math import rng
 
 logger = getLogger(__name__)
+
+
+class FoldEvent(object):
+    pass
 
 
 class DiscreteFoldInterpolator(PiecewiseLinearInterpolator):

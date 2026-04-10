@@ -5,7 +5,6 @@ for geological modelling, including finite difference, piecewise linear,
 and radial basis function interpolators.
 """
 
-
 __all__ = [
     "InterpolatorType",
     "GeologicalInterpolator",
@@ -26,13 +25,13 @@ __all__ = [
 ]
 from ._interpolatortype import InterpolatorType
 
-from ..utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
-from ..interpolators._geological_interpolator import GeologicalInterpolator
-from ..interpolators._discrete_interpolator import DiscreteInterpolator
-from ..interpolators.supports import (
+from ._geological_interpolator import GeologicalInterpolator
+from ._discrete_interpolator import DiscreteInterpolator
+from loop_common.supports import (
     TetMesh,
     StructuredGrid,
     UnStructuredTetMesh,
@@ -44,21 +43,23 @@ from ..interpolators.supports import (
 )
 
 
-from ..interpolators._finite_difference_interpolator import (
+from ._finite_difference_interpolator import (
     FiniteDifferenceInterpolator,
 )
-from ..interpolators._p1interpolator import (
+from ._p1interpolator import (
     P1Interpolator as PiecewiseLinearInterpolator,
 )
-from ..interpolators._discrete_fold_interpolator import (
+from ._discrete_fold_interpolator import (
     DiscreteFoldInterpolator,
 )
-from ..interpolators._p2interpolator import P2Interpolator
-from ..interpolators._p1interpolator import P1Interpolator
-from ..interpolators._constant_norm import ConstantNormP1Interpolator, ConstantNormFDIInterpolator
+from ._p2interpolator import P2Interpolator
+from ._p1interpolator import P1Interpolator
+from ._constant_norm import ConstantNormP1Interpolator, ConstantNormFDIInterpolator
+
 try:
-    from ..interpolators._surfe_wrapper import SurfeRBFInterpolator
+    from ._surfe_wrapper import SurfeRBFInterpolator
 except ImportError:
+
     class SurfeRBFInterpolator(GeologicalInterpolator):
         """
         Dummy class to handle the case where Surfe is not installed.
@@ -68,7 +69,8 @@ except ImportError:
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "Surfe cannot be imported. Please install Surfe. pip install surfe/ conda install -c loop3d surfe"
-            ) 
+            )
+
 
 # Ensure compatibility between the fallback and imported class
 SurfeRBFInterpolator = SurfeRBFInterpolator
@@ -80,10 +82,9 @@ interpolator_string_map = {
     "P2": InterpolatorType.PIECEWISE_QUADRATIC,
     "P1": InterpolatorType.PIECEWISE_LINEAR,
     "DFI": InterpolatorType.DISCRETE_FOLD,
-    'surfe': InterpolatorType.SURFE,
+    "surfe": InterpolatorType.SURFE,
     "FDI_CN": InterpolatorType.FINITE_DIFFERENCE_CONSTANT_NORM,
     "P1_CN": InterpolatorType.PIECEWISE_LINEAR_CONSTANT_NORM,
-
 }
 
 # Define the mapping after all imports
@@ -115,18 +116,15 @@ support_interpolator_map = {
         3: SupportType.DataSupported,
         2: SupportType.DataSupported,
     },
-    InterpolatorType.PIECEWISE_LINEAR_CONSTANT_NORM:{
+    InterpolatorType.PIECEWISE_LINEAR_CONSTANT_NORM: {
         3: SupportType.TetMesh,
         2: SupportType.P1Unstructured2d,
     },
     InterpolatorType.FINITE_DIFFERENCE_CONSTANT_NORM: {
         3: SupportType.StructuredGrid,
         2: SupportType.StructuredGrid2D,
-    }
+    },
 }
 
 from ._interpolator_factory import InterpolatorFactory
 from ._interpolator_builder import InterpolatorBuilder
-
-
-

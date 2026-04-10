@@ -9,7 +9,7 @@ import numpy as np
 from . import SupportType
 from ._base_support import BaseSupport
 from typing import Dict, Tuple
-from .._operator import Operator
+from ..math.finite_difference_stencil import Operator
 
 logger = logging.getLogger(__name__)
 
@@ -378,12 +378,12 @@ class StructuredGrid2D(BaseSupport):
         ----------
         pos : np.array
             (N, 2) array of xy coordinates representing the positions of N points.
-    
+
         Returns
         -------
         globalidx : np.array
-            (N, 4) array of global indices corresponding to the 4 corner nodes of the cell 
-            each point lies in. If a point lies outside the support, its corresponding entry 
+            (N, 4) array of global indices corresponding to the 4 corner nodes of the cell
+            each point lies in. If a point lies outside the support, its corresponding entry
             will be set to -1.
         inside : np.array
             (N,) boolean array indicating whether each point is inside the support domain.
@@ -527,8 +527,8 @@ class StructuredGrid2D(BaseSupport):
         """
         # in a map we only want the xy operators
         operators = {
-            'dxy': (Operator.Dxy_mask[1, :, :], weights['dxy'] * 2),
-            'dxx': (Operator.Dxx_mask[1, :, :], weights['dxx']),
-            'dyy': (Operator.Dyy_mask[1, :, :], weights['dyy']),
+            "dxy": (Operator.Dxy_mask[1, :, :], weights["dxy"] * 2),
+            "dxx": (Operator.Dxx_mask[1, :, :], weights["dxx"]),
+            "dyy": (Operator.Dyy_mask[1, :, :], weights["dyy"]),
         }
         return operators

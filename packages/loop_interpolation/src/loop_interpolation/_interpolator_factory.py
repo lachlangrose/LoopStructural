@@ -1,5 +1,5 @@
 from typing import Optional, Union
-from .supports import SupportFactory
+from loop_common.supports import SupportFactory
 from . import (
     interpolator_map,
     InterpolatorType,

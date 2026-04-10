@@ -7,7 +7,7 @@ from typing import Optional, Callable
 
 import numpy as np
 
-from ..interpolators import DiscreteInterpolator
+from ._discrete_interpolator import DiscreteInterpolator
 from . import InterpolatorType
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class P2Interpolator(DiscreteInterpolator):
             "ipw": 1.0,
         }
         self.type = InterpolatorType.PIECEWISE_QUADRATIC
+
     def setup_interpolator(self, **kwargs):
         """
         Searches through kwargs for any interpolation weights and updates
