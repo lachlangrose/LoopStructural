@@ -7,7 +7,7 @@ from LoopStructural.interpolators import (
     InterpolatorType,
 )
 from LoopStructural.datatypes import BoundingBox
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 

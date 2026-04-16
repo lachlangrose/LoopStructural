@@ -1,4 +1,4 @@
-from LoopStructural.interpolators.supports import support_map, SupportType
+from loop_common.supports import support_map, SupportType
 import numpy as np
 from typing import Optional
 

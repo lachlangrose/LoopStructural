@@ -6,7 +6,7 @@ import numpy as np
 from ._3d_base_structured import BaseStructuredSupport
 from . import SupportType
 from scipy.sparse import coo_matrix, tril
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 

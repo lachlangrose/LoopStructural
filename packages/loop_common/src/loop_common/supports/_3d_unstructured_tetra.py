@@ -9,7 +9,7 @@ import numpy as np
 from scipy.sparse import csr_matrix, coo_matrix, tril
 
 from . import StructuredGrid
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 from . import SupportType
 from ._base_support import BaseSupport
 

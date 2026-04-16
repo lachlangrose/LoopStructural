@@ -1,7 +1,6 @@
-from LoopStructural.utils.exceptions import LoopException
 from abc import abstractmethod
 import numpy as np
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 from . import SupportType
 from typing import Tuple
 
@@ -9,6 +8,9 @@ logger = getLogger(__name__)
 
 from ._base_support import BaseSupport
 
+class LoopException(Exception):
+    """Custom exception for LoopStructural errors."""
+    pass
 
 class BaseStructuredSupport(BaseSupport):
     """ """

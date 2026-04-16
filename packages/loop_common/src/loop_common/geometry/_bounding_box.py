@@ -1,15 +1,17 @@
 from __future__ import annotations
 from typing import Optional, Union, Dict
-from LoopStructural.utils.exceptions import LoopValueError
-from LoopStructural.utils import rng
-from LoopStructural.datatypes._structured_grid import StructuredGrid
+# from LoopStructural.utils.exceptions import LoopValueError
+from loop_common.math import rng
+from loop_common.supports import StructuredGrid
 import numpy as np
 import copy
 
-from LoopStructural.utils.logging import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
-
+class LoopValueError(ValueError):
+    """Custom error for invalid values in LoopStructural."""
+    pass
 
 class BoundingBox:
     def __init__(

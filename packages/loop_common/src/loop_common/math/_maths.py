@@ -1,8 +1,10 @@
-from LoopStructural.utils.typing import NumericInput
 import numpy as np
+import numpy.typing as npt
+
 import numbers
 from typing import Tuple
 
+NumericInput = npt.ArrayLike
 
 def strikedip2vector(strike: NumericInput, dip: NumericInput) -> np.ndarray:
     """Convert strike and dip to a vector

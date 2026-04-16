@@ -5,13 +5,13 @@ Cartesian grid for fold interpolator
 
 import numpy as np
 
-from LoopStructural.interpolators._operator import Operator
+from ..math.finite_difference_stencil import Operator
 
 from ._3d_base_structured import BaseStructuredSupport
 from typing import Dict, Tuple
 from . import SupportType
 
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as  getLogger
 
 logger = getLogger(__name__)
 

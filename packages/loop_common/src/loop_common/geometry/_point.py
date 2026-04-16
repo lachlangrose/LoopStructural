@@ -3,7 +3,7 @@ import numpy as np
 
 from typing import Optional, Union
 import io
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
