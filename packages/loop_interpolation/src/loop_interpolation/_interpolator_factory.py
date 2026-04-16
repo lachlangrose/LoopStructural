@@ -1,12 +1,12 @@
 from typing import Optional, Union
 from loop_common.supports import SupportFactory
+from loop_common.geometry import BoundingBox
 from . import (
     interpolator_map,
     InterpolatorType,
     support_interpolator_map,
     interpolator_string_map,
 )
-from LoopStructural.datatypes import BoundingBox
 import numpy as np
 
 
@@ -29,7 +29,6 @@ class InterpolatorFactory:
             interpolatortype = interpolator_string_map[interpolatortype]
         if support is None:
             # raise Exception("Support must be specified")
-
             supporttype = support_interpolator_map[interpolatortype][boundingbox.dimensions]
 
             support = SupportFactory.create_support_from_bbox(

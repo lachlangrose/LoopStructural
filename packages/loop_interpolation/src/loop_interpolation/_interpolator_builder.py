@@ -1,12 +1,7 @@
-from LoopStructural.interpolators import (
-    InterpolatorFactory,
-    InterpolatorType,
-)
-from LoopStructural.datatypes import BoundingBox
-from typing import  Union, Optional
+from loop_interpolation import InterpolatorFactory, InterpolatorType, GeologicalInterpolator
+from loop_common.geometry import BoundingBox
+from typing import Union, Optional
 import numpy as np
-
-from LoopStructural.interpolators._geological_interpolator import GeologicalInterpolator
 
 
 class InterpolatorBuilder:
@@ -37,14 +32,14 @@ class InterpolatorBuilder:
         self.buffer = buffer
         self.kwargs = kwargs
         self.interpolator = InterpolatorFactory.create_interpolator(
-                    interpolatortype=self.interpolatortype,
-                    boundingbox=self.bounding_box,
-                    nelements=self.nelements,
-                    buffer=self.buffer,
-                    **self.kwargs,
-                )
+            interpolatortype=self.interpolatortype,
+            boundingbox=self.bounding_box,
+            nelements=self.nelements,
+            buffer=self.buffer,
+            **self.kwargs,
+        )
 
-    def add_value_constraints(self, value_constraints: np.ndarray) -> 'InterpolatorBuilder':
+    def add_value_constraints(self, value_constraints: np.ndarray) -> "InterpolatorBuilder":
         """Add value constraints to the interpolator
 
         Parameters
@@ -55,15 +50,15 @@ class InterpolatorBuilder:
         Returns
         -------
         InterpolatorBuilder
-            reference to the builder 
+            reference to the builder
         """
         if self.interpolator:
             self.interpolator.set_value_constraints(value_constraints)
         return self
 
-    def add_gradient_constraints(self, gradient_constraints: np.ndarray) -> 'InterpolatorBuilder':
+    def add_gradient_constraints(self, gradient_constraints: np.ndarray) -> "InterpolatorBuilder":
         """Add gradient constraints to the interpolator.
-        
+
         Where g1 and g2 are two vectors that are orthogonal to the gradient:
         f'(X) · g1 = 0 and f'(X) · g2 = 0
 
@@ -82,7 +77,7 @@ class InterpolatorBuilder:
             self.interpolator.set_gradient_constraints(gradient_constraints)
         return self
 
-    def add_normal_constraints(self, normal_constraints: np.ndarray) -> 'InterpolatorBuilder':
+    def add_normal_constraints(self, normal_constraints: np.ndarray) -> "InterpolatorBuilder":
         """Add normal constraints to the interpolator
         Where n is the normal vector to the surface
         $f'(X).dx = nx$
@@ -101,16 +96,22 @@ class InterpolatorBuilder:
         if self.interpolator:
             self.interpolator.set_normal_constraints(normal_constraints)
         return self
-    def add_inequality_constraints(self, inequality_constraints: np.ndarray) -> 'InterpolatorBuilder':
+
+    def add_inequality_constraints(
+        self, inequality_constraints: np.ndarray
+    ) -> "InterpolatorBuilder":
         if self.interpolator:
             self.interpolator.set_value_inequality_constraints(inequality_constraints)
         return self
-    def add_inequality_pair_constraints(self, inequality_pair_constraints: np.ndarray) -> 'InterpolatorBuilder':
+
+    def add_inequality_pair_constraints(
+        self, inequality_pair_constraints: np.ndarray
+    ) -> "InterpolatorBuilder":
         if self.interpolator:
             self.interpolator.set_inequality_pairs_constraints(inequality_pair_constraints)
         return self
 
-    def setup_interpolator(self, **kwargs) -> 'InterpolatorBuilder':
+    def setup_interpolator(self, **kwargs) -> "InterpolatorBuilder":
         """This adds all of the constraints to the interpolator and
         sets the regularisation constraints
 
@@ -123,7 +124,7 @@ class InterpolatorBuilder:
             self.interpolator.setup(**kwargs)
         return self
 
-    def build(self)->GeologicalInterpolator:
+    def build(self) -> GeologicalInterpolator:
         """Builds the interpolator and returns it
 
         Returns
