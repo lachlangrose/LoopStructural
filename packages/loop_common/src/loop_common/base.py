@@ -42,7 +42,7 @@ class LoopEntity(BaseModel):
         extra="forbid",  # Prevent accidental typos from creating new fields
     )
 
-    uid: str = Field(
+    uuid: str = Field(
         default_factory=lambda: str(uuid.uuid4()), description="Permanent unique identifier"
     )
 
