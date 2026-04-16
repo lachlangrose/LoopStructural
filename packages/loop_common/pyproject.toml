@@ -8,7 +8,7 @@ description = "Common utilities for LoopStructural"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = ["numpy", "pandas"]
+dependencies = ["numpy", "pandas","pydantic"]
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["loop_common", "loop_common.*"]
