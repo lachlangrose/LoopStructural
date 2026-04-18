@@ -347,6 +347,17 @@ class GeologicalSchema(LoopEntity):
             raise ImportError("matplotlib is required to visualize the schema graph") from exc
 
         graph_to_plot = self.dag.copy()
+
+        def _simple_edge_label(value) -> str:
+            if isinstance(value, Enum):
+                return str(value.value)
+            if value is None:
+                return ""
+            text = str(value)
+            if text.startswith("RelationType."):
+                text = text.split(".", 1)[1].lower()
+            return text
+
         node_types = {
             node: (self.get_feature_type(node) or "Unknown") for node in graph_to_plot.nodes()
         }
@@ -357,7 +368,8 @@ class GeologicalSchema(LoopEntity):
             for node in graph_to_plot.nodes()
         }
         edge_labels = {
-            (u, v): data.get("relation", "") for u, v, data in graph_to_plot.edges(data=True)
+            (u, v): _simple_edge_label(data.get("relation", ""))
+            for u, v, data in graph_to_plot.edges(data=True)
         }
 
         if include_data:
@@ -383,7 +395,7 @@ class GeologicalSchema(LoopEntity):
                             f"{observation_name}\n{obs_uid[:8]}" if with_uuid else observation_name
                         )
                     graph_to_plot.add_edge(feature_uid, obs_node, relation=role)
-                    edge_labels[(feature_uid, obs_node)] = role
+                    edge_labels[(feature_uid, obs_node)] = _simple_edge_label(role)
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
