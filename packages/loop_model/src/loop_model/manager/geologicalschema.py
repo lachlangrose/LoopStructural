@@ -264,10 +264,20 @@ class GeologicalSchema(LoopEntity):
         figsize: tuple[float, float] = (10, 8),
         seed: int = 42,
         with_uuid: bool = False,
+        save_path: str | None = None,
+        dpi: int = 300,
         ax=None,
         show: bool = True,
     ):
-        """Plot the schema DAG with feature-type node shapes and relation edge labels."""
+        """Plot the schema DAG with feature-type node shapes and relation edge labels.
+
+        Parameters
+        ----------
+        save_path : str | None
+            Optional output path (e.g. .png, .svg). If provided, the figure is saved.
+        dpi : int
+            Resolution for raster outputs when saving.
+        """
         try:
             from importlib import import_module
 
@@ -368,6 +378,9 @@ class GeologicalSchema(LoopEntity):
         ax.set_axis_off()
         ax.legend(title="Feature Type", loc="best")
         fig.tight_layout()
+
+        if save_path is not None:
+            fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
 
         if show:
             plt.show()
