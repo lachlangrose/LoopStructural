@@ -142,6 +142,31 @@ class GeologicalSchema(LoopEntity):
     def _add_relation(self, master_uuid: str, slave_uuid: str, relation_type: str):
         self.dag.add_edge(master_uuid, slave_uuid, relation=relation_type)
 
+    def add_relation(
+        self,
+        master_uuid: str | None = None,
+        slave_uuid: str | None = None,
+        relation_type: str | RelationType | None = None,
+        **kwargs,
+    ):
+        """Backward-compatible public relation API.
+
+        Supports both old names (master_id, slave_id, relation) and current names
+        (master_uuid, slave_uuid, relation_type).
+        """
+        master_uuid = master_uuid or kwargs.get("master_id")
+        slave_uuid = slave_uuid or kwargs.get("slave_id")
+        relation_type = relation_type or kwargs.get("relation")
+
+        if master_uuid is None or slave_uuid is None or relation_type is None:
+            raise ValueError(
+                "add_relation requires master/slave identifiers and a relation type. "
+                "Use master_uuid/slave_uuid/relation_type or master_id/slave_id/relation."
+            )
+
+        relation = relation_type.value if isinstance(relation_type, RelationType) else relation_type
+        self._add_relation(master_uuid, slave_uuid, relation)
+
     def add_faulted_by_relation(self, master_uuid: str, slave_uuid: str):
         if master_uuid == slave_uuid:
             raise ValueError("A feature cannot fault itself.")
@@ -264,6 +289,9 @@ class GeologicalSchema(LoopEntity):
         figsize: tuple[float, float] = (10, 8),
         seed: int = 42,
         with_uuid: bool = False,
+        include_data: bool = False,
+        youngest_top: bool = True,
+        vertical_gap: float = 1.0,
         save_path: str | None = None,
         dpi: int = 300,
         ax=None,
@@ -273,6 +301,12 @@ class GeologicalSchema(LoopEntity):
 
         Parameters
         ----------
+        include_data : bool
+            If True, add observation/data nodes linked to features by their data role.
+        youngest_top : bool
+            If True, enforce vertical layering from youngest at top to oldest at bottom.
+        vertical_gap : float
+            Vertical spacing between age layers when youngest_top is enabled.
         save_path : str | None
             Optional output path (e.g. .png, .svg). If provided, the figure is saved.
         dpi : int
@@ -285,23 +319,78 @@ class GeologicalSchema(LoopEntity):
         except ImportError as exc:
             raise ImportError("matplotlib is required to visualize the schema graph") from exc
 
+        graph_to_plot = self.dag.copy()
+        node_types = {
+            node: (self.get_feature_type(node) or "Unknown") for node in graph_to_plot.nodes()
+        }
+        node_labels = {
+            node: (
+                f"{self.features[node].name}\n{node[:8]}" if with_uuid else self.features[node].name
+            )
+            for node in graph_to_plot.nodes()
+        }
+        edge_labels = {
+            (u, v): data.get("relation", "") for u, v, data in graph_to_plot.edges(data=True)
+        }
+
+        if include_data:
+            for feature_uid, feature in self.features.items():
+                for data_link in feature.data_links:
+                    if isinstance(data_link, DataRole):
+                        obs_uid = data_link.obs_uid
+                        role = data_link.role
+                    else:
+                        obs_uid = data_link
+                        role = "data"
+
+                    observation_name = obs_uid
+                    if self.project is not None and obs_uid in self.project.observations:
+                        obs = self.project.observations[obs_uid]
+                        observation_name = getattr(obs, "name", None) or obs_uid
+
+                    obs_node = f"obs:{obs_uid}"
+                    if obs_node not in graph_to_plot:
+                        graph_to_plot.add_node(obs_node)
+                        node_types[obs_node] = "Observation"
+                        node_labels[obs_node] = (
+                            f"{observation_name}\n{obs_uid[:8]}" if with_uuid else observation_name
+                        )
+                    graph_to_plot.add_edge(feature_uid, obs_node, relation=role)
+                    edge_labels[(feature_uid, obs_node)] = role
+
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
         else:
             fig = ax.figure
 
         if layout == "spring":
-            pos = nx.spring_layout(self.dag, seed=seed)
+            pos = nx.spring_layout(graph_to_plot, seed=seed)
         elif layout == "kamada_kawai":
-            pos = nx.kamada_kawai_layout(self.dag)
+            pos = nx.kamada_kawai_layout(graph_to_plot)
         elif layout == "shell":
-            pos = nx.shell_layout(self.dag)
+            pos = nx.shell_layout(graph_to_plot)
         elif layout == "spectral":
-            pos = nx.spectral_layout(self.dag)
+            pos = nx.spectral_layout(graph_to_plot)
         else:
             raise ValueError(
                 "Unknown layout. Expected one of: spring, kamada_kawai, shell, spectral."
             )
+
+        if youngest_top:
+            try:
+                layer_by_node = {}
+                for layer, generation in enumerate(nx.topological_generations(graph_to_plot)):
+                    for node in generation:
+                        layer_by_node[node] = layer
+
+                # Keep x from selected layout, enforce y by age layer.
+                for node in graph_to_plot.nodes():
+                    x = pos[node][0]
+                    y = -vertical_gap * layer_by_node.get(node, 0)
+                    pos[node] = (x, y)
+            except nx.NetworkXUnfeasible:
+                # If cycles are present, keep original layout.
+                pass
 
         shape_map = {
             "Unit": "o",
@@ -309,6 +398,7 @@ class GeologicalSchema(LoopEntity):
             "Fold": "D",
             "Foliation": "^",
             "Intrusion": "v",
+            "Observation": "8",
             "Unknown": "h",
         }
         color_map = {
@@ -317,15 +407,14 @@ class GeologicalSchema(LoopEntity):
             "Fold": "#60BD68",
             "Foliation": "#B276B2",
             "Intrusion": "#F17CB0",
+            "Observation": "#4D4D4D",
             "Unknown": "#9C9C9C",
         }
-
-        node_types = {node: (self.get_feature_type(node) or "Unknown") for node in self.dag.nodes()}
 
         for feature_type in sorted(set(node_types.values())):
             nodes = [node for node, t in node_types.items() if t == feature_type]
             nx.draw_networkx_nodes(
-                self.dag,
+                graph_to_plot,
                 pos,
                 nodelist=nodes,
                 node_shape=shape_map.get(feature_type, "h"),
@@ -338,7 +427,7 @@ class GeologicalSchema(LoopEntity):
             )
 
         nx.draw_networkx_edges(
-            self.dag,
+            graph_to_plot,
             pos,
             ax=ax,
             arrows=True,
@@ -348,14 +437,8 @@ class GeologicalSchema(LoopEntity):
             edge_color="#666666",
         )
 
-        node_labels = {
-            node: (
-                f"{self.features[node].name}\n{node[:8]}" if with_uuid else self.features[node].name
-            )
-            for node in self.dag.nodes()
-        }
         nx.draw_networkx_labels(
-            self.dag,
+            graph_to_plot,
             pos,
             labels=node_labels,
             font_size=9,
@@ -363,9 +446,8 @@ class GeologicalSchema(LoopEntity):
             ax=ax,
         )
 
-        edge_labels = {(u, v): data.get("relation", "") for u, v, data in self.dag.edges(data=True)}
         nx.draw_networkx_edge_labels(
-            self.dag,
+            graph_to_plot,
             pos,
             edge_labels=edge_labels,
             font_size=8,

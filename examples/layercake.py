@@ -24,11 +24,13 @@ for i, name in enumerate(unit_names):
         name=name,
         unit_type="stratigraphy",
         order=i,  # 0 is oldest
-        data_links=[contact_data[i].uid],  # Link to the PointSet UID
+        data_links=[contact_data[i].uuid],  # Link to the PointSet UID
     )
     schema.add_feature(unit)
     units.append(unit)
 
 # Define the stratigraphic relationship (A overlies B)
 for i in range(len(units) - 1):
-    schema.add_relation(master_id=units[i + 1].uid, slave_id=units[i].uid, relation="overlies")
+    schema.add_relation(master_id=units[i + 1].uuid, slave_id=units[i].uuid, relation="overlies")
+
+schema.visualize_graph(include_data=True)
