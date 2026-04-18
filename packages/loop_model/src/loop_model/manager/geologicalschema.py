@@ -7,7 +7,7 @@ from ..features import GeologicalFeature, Unit, Fault
 from .role import DataRole
 from typing import TYPE_CHECKING, List
 import networkx as nx
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, ValidationError
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -38,7 +38,14 @@ class GeologicalSchema(LoopEntity):
         if self.project is None:
             from .project import LoopProject
 
-            self.project = LoopProject(schema=self)
+            try:
+                self.project = LoopProject(schema=self)
+            except ValidationError:
+                # In notebooks, module reloads can create class-identity mismatches
+                # between GeologicalSchema and LoopProject's cached schema type.
+                project = LoopProject()
+                object.__setattr__(project, "schema", self)
+                object.__setattr__(self, "project", project)
         return self.project
 
     def _require_project(self) -> "LoopProject":
@@ -175,6 +182,10 @@ class GeologicalSchema(LoopEntity):
         ):
             self._add_relation(master_uuid, slave_uuid, RelationType.FAULTS)
 
+    def add_fault_relation(self, master_uuid: str, slave_uuid: str):
+        """Backward-compatible alias for add_faulted_by_relation."""
+        self.add_faulted_by_relation(master_uuid=master_uuid, slave_uuid=slave_uuid)
+
     def add_fault_abuts_relation(self, master_uuid: str, slave_uuid: str):
         if master_uuid == slave_uuid:
             raise ValueError("A feature cannot abut itself.")
@@ -265,13 +276,29 @@ class GeologicalSchema(LoopEntity):
 
     def _validate_type(self, feature_uuid: str, expected_type: list[str] | str) -> bool:
         actual_type = self.get_feature_type(feature_uuid)
+
+        type_aliases = {
+            "Unit": {"Unit", "GeologicalUnit"},
+            "GeologicalUnit": {"Unit", "GeologicalUnit"},
+            "Fault": {"Fault"},
+            "Fold": {"Fold"},
+            "Foliation": {"Foliation"},
+            "Intrusion": {"Intrusion"},
+        }
+
+        def _matches(actual: str | None, expected: str) -> bool:
+            if actual is None:
+                return False
+            expanded = type_aliases.get(expected, {expected})
+            return actual in expanded
+
         if isinstance(expected_type, list):
-            if actual_type not in expected_type:
+            if not any(_matches(actual_type, expected) for expected in expected_type):
                 raise TypeError(
                     f"Feature {feature_uuid} is of type {actual_type}, expected one of {expected_type}."
                 )
         else:
-            if actual_type != expected_type:
+            if not _matches(actual_type, expected_type):
                 raise TypeError(
                     f"Feature {feature_uuid} is of type {actual_type}, expected {expected_type}."
                 )
