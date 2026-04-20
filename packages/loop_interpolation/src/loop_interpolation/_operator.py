@@ -4,7 +4,7 @@ Finite difference masks
 
 import numpy as np
 
-from ..utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 
@@ -19,6 +19,13 @@ class Operator(object):
     Dx_mask = np.array([z, [[0.0, 0.0, 0.0], [-0.5, 0.0, 0.5], [0.0, 0.0, 0.0]], z])
     Dy_mask = Dx_mask.swapaxes(1, 2)
     Dz_mask = Dx_mask.swapaxes(0, 2)
+
+    Dx_forward_mask = np.array([z, [[0.0, 0.0, 0.0], [-1.0, 1.0, 0.0], [0.0, 0.0, 0.0]], z])
+    Dx_backward_mask = np.array([z, [[0.0, 0.0, 0.0], [0.0, -1.0, 1.0], [0.0, 0.0, 0.0]], z])
+    Dy_forward_mask = Dx_forward_mask.swapaxes(1, 2)
+    Dy_backward_mask = Dx_backward_mask.swapaxes(1, 2)
+    Dz_forward_mask = Dx_forward_mask.swapaxes(0, 2)
+    Dz_backward_mask = Dx_backward_mask.swapaxes(0, 2)
 
     Dxx_mask = np.array([z, [[0, 0, 0], [1, -2, 1], [0, 0, 0]], z])
     Dyy_mask = Dxx_mask.swapaxes(1, 2)

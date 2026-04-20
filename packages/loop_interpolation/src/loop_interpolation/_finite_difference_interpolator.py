@@ -7,6 +7,7 @@ import numpy as np
 from loop_common.math import get_vectors
 from ._discrete_interpolator import DiscreteInterpolator
 from ._interpolatortype import InterpolatorType
+from ._operator import Operator
 from scipy.spatial import KDTree
 from loop_common.logging import get_logger as getLogger
 
@@ -128,6 +129,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         )
         for k, o in operators.items():
             self.assemble_inner(o[0], o[1], name=k)
+        self.assemble_borders()
 
     def copy(self):
         """
@@ -452,25 +454,225 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
                 )
             self.up_to_date = False
 
-    # def assemble_borders(self, operator, w, name='regularisation'):
-    #     """
-    #     Adds a constraint to the border of the model to force the value to be equal to the value at the border
+    def _full_neighbour_mask(self):
+        if self.support.dimension == 2:
+            return np.array([[-1, 0, 1, -1, 0, 1, -1, 0, 1], [1, 1, 1, 0, 0, 0, -1, -1, -1]])
+        return np.array(
+            [
+                [
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                    -1,
+                    0,
+                    1,
+                ],
+                [
+                    -1,
+                    -1,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    1,
+                    1,
+                    -1,
+                    -1,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    1,
+                    1,
+                    -1,
+                    -1,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    1,
+                    1,
+                ],
+                [
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                ],
+            ]
+        )
 
-    #     Parameters
-    #     ----------
-    #     operator : Operator
-    #         operator to use for the regularisation
-    #     w : double
-    #         weight of the regularisation
+    def _boundary_indexes(self, axis, upper=False):
+        if self.support.nsteps[axis] < 3:
+            return None
+        indexes = self.support.global_index_to_node_index(np.arange(self.support.n_nodes))
+        boundary_index = self.support.nsteps[axis] - 2 if upper else 1
+        return indexes[indexes[:, axis] == boundary_index, :].T
 
-    #     Returns
-    #     -------
+    def _assemble_operator(self, operator, w, name="regularisation", indexes=None):
+        active = operator.flatten() != 0
+        if not np.any(active):
+            return
 
-    #     """
-    #     # First get the global indicies of the pairs of neighbours this should be an
-    #     # N*27 array for 3d and an N*9 array for 2d
+        full_mask = self._full_neighbour_mask()
+        active_mask = full_mask[:, active]
+        operator_values = operator.flatten()[active]
 
-    #     global_indexes = self.support.neighbour_global_indexes()
+        neighbour_kwargs = {"mask": active_mask}
+        if indexes is not None:
+            neighbour_kwargs["indexes"] = indexes
+        global_indexes = self.support.neighbour_global_indexes(**neighbour_kwargs)
+        if global_indexes is None or global_indexes.size == 0:
+            return
+
+        centre_kwargs = {"mask": np.zeros((self.support.dimension, 1), dtype=int)}
+        if indexes is not None:
+            centre_kwargs["indexes"] = indexes
+        centre_indexes = self.support.neighbour_global_indexes(**centre_kwargs)
+
+        a = np.tile(operator_values, (global_indexes.shape[1], 1))
+        idc = global_indexes.T
+
+        gi = np.zeros(self.support.n_nodes, dtype=int)
+        gi[:] = -1
+        gi[self.region] = np.arange(0, self.dof, dtype=int)
+        idc = gi[idc]
+        centre_idc = gi[centre_indexes.T[:, 0]]
+        inside = np.logical_and(~np.any(idc == -1, axis=1), centre_idc != -1)
+        if not np.any(inside):
+            return
+
+        B = np.zeros(global_indexes.shape[1])
+        self.add_constraints_to_least_squares(
+            a[inside, :],
+            B[inside],
+            idc[inside, :],
+            w=(self.regularisation_scale[centre_idc[inside].astype(int)] * w)
+            if self.use_regularisation_weight_scale
+            else w,
+            name=name,
+        )
+
+    def assemble_borders(self):
+        operators = []
+        if self.support.dimension == 2:
+            operators = [
+                (
+                    Operator.Dx_forward_mask[1, :, :],
+                    self.interpolation_weights["dx"],
+                    "dx_lower",
+                    self._boundary_indexes(0, upper=False),
+                ),
+                (
+                    Operator.Dx_backward_mask[1, :, :],
+                    self.interpolation_weights["dx"],
+                    "dx_upper",
+                    self._boundary_indexes(0, upper=True),
+                ),
+                (
+                    Operator.Dy_forward_mask[1, :, :],
+                    self.interpolation_weights["dy"],
+                    "dy_lower",
+                    self._boundary_indexes(1, upper=False),
+                ),
+                (
+                    Operator.Dy_backward_mask[1, :, :],
+                    self.interpolation_weights["dy"],
+                    "dy_upper",
+                    self._boundary_indexes(1, upper=True),
+                ),
+            ]
+        else:
+            operators = [
+                (
+                    Operator.Dx_forward_mask,
+                    self.interpolation_weights["dx"],
+                    "dx_lower",
+                    self._boundary_indexes(0, upper=False),
+                ),
+                (
+                    Operator.Dx_backward_mask,
+                    self.interpolation_weights["dx"],
+                    "dx_upper",
+                    self._boundary_indexes(0, upper=True),
+                ),
+                (
+                    Operator.Dy_forward_mask,
+                    self.interpolation_weights["dy"],
+                    "dy_lower",
+                    self._boundary_indexes(1, upper=False),
+                ),
+                (
+                    Operator.Dy_backward_mask,
+                    self.interpolation_weights["dy"],
+                    "dy_upper",
+                    self._boundary_indexes(1, upper=True),
+                ),
+                (
+                    Operator.Dz_forward_mask,
+                    self.interpolation_weights["dz"],
+                    "dz_lower",
+                    self._boundary_indexes(2, upper=False),
+                ),
+                (
+                    Operator.Dz_backward_mask,
+                    self.interpolation_weights["dz"],
+                    "dz_upper",
+                    self._boundary_indexes(2, upper=True),
+                ),
+            ]
+
+        for operator, weight, name, indexes in operators:
+            if weight == 0 or indexes is None or indexes.shape[1] == 0:
+                continue
+            self._assemble_operator(operator, weight, name=name, indexes=indexes)
 
     def assemble_inner(self, operator, w, name="regularisation"):
         """
@@ -484,31 +686,5 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         -------
 
         """
-        # First get the global indicies of the pairs of neighbours this should be an
-        # N*27 array for 3d and an N*9 array for 2d
-
-        global_indexes = self.support.neighbour_global_indexes()  # np.array([ii,jj]))
-
-        a = np.tile(operator.flatten(), (global_indexes.shape[1], 1))
-        idc = global_indexes.T
-
-        gi = np.zeros(self.support.n_nodes)
-        gi[:] = -1
-        gi[self.region] = np.arange(0, self.dof)
-        idc = gi[idc]
-        inside = ~np.any(idc == -1, axis=1)  # np.ones(a.shape[0],dtype=bool)#
-        # a[idc==-1] = 0
-        # idc[idc==-1] = 0
-        B = np.zeros(global_indexes.shape[1])
-        self.add_constraints_to_least_squares(
-            a[inside, :],
-            B[inside],
-            idc[inside, :],
-            w=(
-                self.regularisation_scale[idc[inside, 13].astype(int)] * w
-                if self.use_regularisation_weight_scale
-                else w
-            ),
-            name=name,
-        )
+        self._assemble_operator(operator, w, name=name)
         return
