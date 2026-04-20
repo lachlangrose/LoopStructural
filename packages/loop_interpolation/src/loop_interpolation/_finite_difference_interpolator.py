@@ -5,6 +5,7 @@ FiniteDifference interpolator
 import numpy as np
 
 from loop_common.math import get_vectors
+from loop_common.supports import SupportType
 from ._discrete_interpolator import DiscreteInterpolator
 from ._interpolatortype import InterpolatorType
 from ._operator import Operator
@@ -679,12 +680,65 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
 
         Parameters
         ----------
-        operator : Operator
+        operator : Operator mask (ndarray) or None for rectilinear grids
         w : double
 
         Returns
         -------
 
         """
+        if operator is None:
+            # Rectilinear grid: operator rows are built from the grid itself
+            # using the operator name as a hint for which derivative to assemble.
+            self._assemble_rectilinear_operator(name, w)
+            return
         self._assemble_operator(operator, w, name=name)
         return
+
+    def _assemble_rectilinear_operator(self, name: str, w: float):
+        """Assemble a scaled FD regularisation operator for a rectilinear grid.
+
+        Parameters
+        ----------
+        name : str
+            Operator name, e.g. 'dxx', 'dyy', 'dzz', 'dxy', 'dyz', 'dxz'.
+        w : float
+            Weight applied to every row.
+        """
+        axis_map = {
+            "dxx": (0, -1),
+            "dyy": (1, -1),
+            "dzz": (2, -1),
+            "dxy": (0, 1),
+            "dxz": (0, 2),
+            "dyz": (1, 2),
+        }
+        if name not in axis_map:
+            logger.warning(f"Unknown rectilinear operator name '{name}', skipping.")
+            return
+        axis, cross = axis_map[name]
+        A_values, col_global, row_global = self.support.build_scaled_operator_rows(axis, cross)
+
+        gi = np.full(self.support.n_nodes, -1, dtype=int)
+        gi[self.region] = np.arange(self.dof, dtype=int)
+
+        idc = gi[col_global]  # map to DOF indices
+        centre_dof = gi[row_global]
+
+        inside = np.logical_and(~np.any(idc == -1, axis=1), centre_dof != -1)
+        if not np.any(inside):
+            return
+
+        B = np.zeros(np.sum(inside))
+        row_w = (
+            self.regularisation_scale[centre_dof[inside].astype(int)] * w
+            if self.use_regularisation_weight_scale
+            else w
+        )
+        self.add_constraints_to_least_squares(
+            A_values[inside, :],
+            B,
+            idc[inside, :],
+            w=row_w,
+            name=name,
+        )

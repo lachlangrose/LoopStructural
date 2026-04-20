@@ -1,9 +1,7 @@
-from LoopStructural.interpolators import (
-    FiniteDifferenceInterpolator as FDI,
-    PiecewiseLinearInterpolator as PLI,
-)
-from LoopStructural.interpolators import StructuredGrid, TetMesh
-from LoopStructural.datatypes import BoundingBox
+from loop_interpolation import FiniteDifferenceInterpolator as FDI
+from loop_interpolation import PiecewiseLinearInterpolator as PLI
+from loop_interpolation import StructuredGrid, TetMesh
+from loop_common.geometry import BoundingBox
 import pytest
 import numpy as np
 
