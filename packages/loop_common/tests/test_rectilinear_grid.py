@@ -11,6 +11,7 @@ from loop_common.supports import RectilinearGrid
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def uniform_grid():
     """RectilinearGrid with uniform spacing — should behave like StructuredGrid."""
@@ -32,6 +33,7 @@ def nonuniform_grid():
 # ---------------------------------------------------------------------------
 # Construction
 # ---------------------------------------------------------------------------
+
 
 def test_create_uniform(uniform_grid):
     assert uniform_grid is not None
@@ -60,6 +62,7 @@ def test_1d_arrays_required():
 # Nodes
 # ---------------------------------------------------------------------------
 
+
 def test_nodes_shape(nonuniform_grid):
     grid = nonuniform_grid
     assert grid.nodes.shape == (grid.n_nodes, 3)
@@ -80,6 +83,7 @@ def test_nodes_values(nonuniform_grid):
 # inside / position_to_cell_index
 # ---------------------------------------------------------------------------
 
+
 def test_barycentre_inside(nonuniform_grid):
     grid = nonuniform_grid
     assert np.all(grid.inside(grid.barycentre))
@@ -87,12 +91,14 @@ def test_barycentre_inside(nonuniform_grid):
 
 def test_outside_points_not_inside(nonuniform_grid):
     grid = nonuniform_grid
-    outside_pts = np.array([
-        [-1.0, 1.0, 1.0],
-        [6.0, 1.0, 1.0],
-        [1.0, -1.0, 1.0],
-        [1.0, 4.0, 1.0],
-    ])
+    outside_pts = np.array(
+        [
+            [-1.0, 1.0, 1.0],
+            [6.0, 1.0, 1.0],
+            [1.0, -1.0, 1.0],
+            [1.0, 4.0, 1.0],
+        ]
+    )
     assert not np.any(grid.inside(outside_pts))
 
 
@@ -125,6 +131,7 @@ def test_cell_index_correctness():
 # Local coordinates
 # ---------------------------------------------------------------------------
 
+
 def test_local_coords_at_node_corners():
     """At node positions, local coords must be exactly 0 or 1."""
     x = np.array([0.0, 1.0, 3.0])
@@ -142,7 +149,7 @@ def test_local_coords_at_node_corners():
 
 
 def test_local_coords_midpoint():
-    x = np.array([0.0, 2.0, 6.0])   # second cell has width 4
+    x = np.array([0.0, 2.0, 6.0])  # second cell has width 4
     y = np.array([0.0, 1.0])
     z = np.array([0.0, 1.0])
     grid = RectilinearGrid(x, y, z)
@@ -155,6 +162,7 @@ def test_local_coords_midpoint():
 # ---------------------------------------------------------------------------
 # DOF coefficients (trilinear partition of unity)
 # ---------------------------------------------------------------------------
+
 
 def test_dof_coefs_sum_to_one(nonuniform_grid):
     grid = nonuniform_grid
@@ -173,6 +181,7 @@ def test_dof_coefs_non_negative(nonuniform_grid):
 # evaluate_value — interpolate a linear scalar field exactly
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("axis", [0, 1, 2])
 def test_evaluate_value_linear(nonuniform_grid, axis):
     """Trilinear interpolation must reproduce a linear field f = x_axis exactly."""
@@ -186,6 +195,7 @@ def test_evaluate_value_linear(nonuniform_grid, axis):
 # ---------------------------------------------------------------------------
 # evaluate_gradient — gradient of a linear field must be a unit basis vector
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("axis", [0, 1, 2])
 def test_evaluate_gradient_linear(nonuniform_grid, axis):
@@ -201,6 +211,7 @@ def test_evaluate_gradient_linear(nonuniform_grid, axis):
 # ---------------------------------------------------------------------------
 # cell_centres
 # ---------------------------------------------------------------------------
+
 
 def test_cell_centres_inside(nonuniform_grid):
     grid = nonuniform_grid
@@ -222,6 +233,7 @@ def test_cell_centres_x_values():
 # ---------------------------------------------------------------------------
 # build_scaled_operator_rows
 # ---------------------------------------------------------------------------
+
 
 def test_pure_second_derivative_shape(nonuniform_grid):
     grid = nonuniform_grid
@@ -282,6 +294,7 @@ def test_global_indices_in_range(nonuniform_grid):
 # ---------------------------------------------------------------------------
 # get_operators sentinel
 # ---------------------------------------------------------------------------
+
 
 def test_get_operators_returns_none_masks(nonuniform_grid):
     weights = {k: 1.0 for k in ["dxx", "dyy", "dzz", "dxy", "dyz", "dxz"]}

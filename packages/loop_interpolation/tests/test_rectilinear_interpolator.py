@@ -12,6 +12,7 @@ from loop_common.supports import RectilinearGrid
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def small_uniform_rect_grid():
     """4-cell uniform RectilinearGrid (same geometry as StructuredGrid(nsteps=[4,4,4]))."""
@@ -36,6 +37,7 @@ def nonuniform_rect_grid():
 # Basic construction
 # ---------------------------------------------------------------------------
 
+
 def test_fdi_creation_with_rectilinear_grid(small_uniform_rect_grid):
     fdi = FiniteDifferenceInterpolator(small_uniform_rect_grid)
     assert fdi is not None
@@ -51,6 +53,7 @@ def test_setup_interpolator_no_error(small_uniform_rect_grid):
 # Regularisation constraints are built for RectilinearGrid
 # ---------------------------------------------------------------------------
 
+
 def test_rectilinear_regularisation_constraints_exist():
     x = np.linspace(0.0, 4.0, 5)
     y = np.linspace(0.0, 4.0, 5)
@@ -58,9 +61,17 @@ def test_rectilinear_regularisation_constraints_exist():
     grid = RectilinearGrid(x, y, z)
     fdi = FiniteDifferenceInterpolator(grid)
     fdi.setup_interpolator(
-        dxx=1.0, dyy=1.0, dzz=1.0,
-        dxy=0.0, dyz=0.0, dxz=0.0,
-        cpw=0.0, gpw=0.0, npw=0.0, tpw=0.0, ipw=0.0,
+        dxx=1.0,
+        dyy=1.0,
+        dzz=1.0,
+        dxy=0.0,
+        dyz=0.0,
+        dxz=0.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=0.0,
+        tpw=0.0,
+        ipw=0.0,
     )
     for name in ["dxx", "dyy", "dzz"]:
         assert name in fdi.constraints, f"Missing constraint '{name}'"
@@ -74,9 +85,17 @@ def test_rectilinear_mixed_regularisation_constraints_exist():
     grid = RectilinearGrid(x, y, z)
     fdi = FiniteDifferenceInterpolator(grid)
     fdi.setup_interpolator(
-        dxx=0.0, dyy=0.0, dzz=0.0,
-        dxy=1.0, dyz=1.0, dxz=1.0,
-        cpw=0.0, gpw=0.0, npw=0.0, tpw=0.0, ipw=0.0,
+        dxx=0.0,
+        dyy=0.0,
+        dzz=0.0,
+        dxy=1.0,
+        dyz=1.0,
+        dxz=1.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=0.0,
+        tpw=0.0,
+        ipw=0.0,
     )
     for name in ["dxy", "dyz", "dxz"]:
         assert name in fdi.constraints, f"Missing constraint '{name}'"
@@ -90,10 +109,20 @@ def test_border_regularisation_constraints_exist():
     grid = RectilinearGrid(x, y, z)
     fdi = FiniteDifferenceInterpolator(grid)
     fdi.setup_interpolator(
-        dxx=0.0, dyy=0.0, dzz=0.0,
-        dxy=0.0, dyz=0.0, dxz=0.0,
-        dx=1.0, dy=1.0, dz=1.0,
-        cpw=0.0, gpw=0.0, npw=0.0, tpw=0.0, ipw=0.0,
+        dxx=0.0,
+        dyy=0.0,
+        dzz=0.0,
+        dxy=0.0,
+        dyz=0.0,
+        dxz=0.0,
+        dx=1.0,
+        dy=1.0,
+        dz=1.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=0.0,
+        tpw=0.0,
+        ipw=0.0,
     )
     for name in ["dx_lower", "dx_upper", "dy_lower", "dy_upper", "dz_lower", "dz_upper"]:
         assert name in fdi.constraints, f"Missing border constraint '{name}'"
@@ -102,6 +131,7 @@ def test_border_regularisation_constraints_exist():
 # ---------------------------------------------------------------------------
 # Interpolation accuracy on a planar field
 # ---------------------------------------------------------------------------
+
 
 def _make_planar_data(grid, n=200, seed=42):
     """Return (pts, vals, normals) for the planar field f = x + 0.5*y."""
@@ -163,6 +193,7 @@ def test_planar_interpolation_with_gradient_constraints(solver):
 # Uniform RectilinearGrid should match StructuredGrid accuracy
 # ---------------------------------------------------------------------------
 
+
 def test_uniform_rectilinear_matches_structured_grid():
     """
     A uniform RectilinearGrid must give essentially the same result as
@@ -209,4 +240,3 @@ def test_uniform_rectilinear_matches_structured_grid():
 # ---------------------------------------------------------------------------
 # Region masking
 # ---------------------------------------------------------------------------
-
