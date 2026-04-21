@@ -46,9 +46,7 @@ def _coerce_directional_term(
             name=name,
         )
 
-    raise TypeError(
-        "Directional regularisation must be a DirectionalRegularisation or dict entry"
-    )
+    raise TypeError("Directional regularisation must be a DirectionalRegularisation or dict entry")
 
 
 def coerce_directional_regularisation(
@@ -92,7 +90,11 @@ def coerce_regularisation_config(
         directional = coerce_directional_regularisation(regularisation)
     elif isinstance(regularisation, dict):
         isotropic_value = regularisation.get("isotropic", regularisation.get("weight", None))
-        if isotropic_value is not None and "direction" not in regularisation and "vector" not in regularisation:
+        if (
+            isotropic_value is not None
+            and "direction" not in regularisation
+            and "vector" not in regularisation
+        ):
             isotropic = float(isotropic_value)
         directional = coerce_directional_regularisation(
             regularisation.get("directional", ()),

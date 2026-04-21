@@ -184,6 +184,7 @@ class DiscreteFoldInterpolator(PiecewiseLinearInterpolator):
             logger.info(
                 f"Adding fold regularisation constraint to  w = {fold_regularisation[0]} {fold_regularisation[1]} {fold_regularisation[2]}"
             )
+
             def _masked_fold_direction(component_index: int):
                 def _provider(points: np.ndarray) -> np.ndarray:
                     deformed, axis, normal = self.fold.get_deformed_orientation(points)

@@ -15,6 +15,17 @@ from ._diagnostics import (
     ConstraintFamilyDiagnostics,
     RegionCoverageDiagnostics,
 )
+from ._validation import (
+    validate_value_constraint,
+    validate_gradient_constraint,
+    validate_normal_constraint,
+    validate_tangent_constraint,
+    validate_interface_constraint,
+    validate_inequality_value_constraint,
+    validate_inequality_pairs_constraint,
+    check_unsupported_combinations,
+    ValidationError,
+)
 
 logger = getLogger(__name__)
 
@@ -248,22 +259,27 @@ class GeologicalInterpolator(metaclass=ABCMeta):
 
         Raises
         ------
-        ValueError
-            If points array doesn't have the minimum required columns
+        ValidationError
+            If points array fails shape, dtype, finiteness, or logical checks
 
         Notes
         -----
         Value constraints specify known scalar field values at specific locations.
         These are typically used for interface points or measured data values.
+        All values must be finite (not NaN or inf), and array must be convertible
+        to float64.
         """
-        points = self.check_array(points)
-        if points.shape[1] == self.dimensions + 1:
-            points = np.hstack([points, np.ones((points.shape[0], 1))])
-        if points.shape[1] < self.dimensions + 2:
-            raise ValueError("Value points must at least have X,Y,Z,val,w")
-        self.data["value"] = points.copy()
-        self.n_i = points.shape[0]
-        self.up_to_date = False
+        try:
+            check_unsupported_combinations(self.data, "value")
+            points = validate_value_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions + 1:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.data["value"] = points.copy()
+            self.n_i = points.shape[0]
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set value constraints: {e}") from e
 
     def set_gradient_constraints(self, points: np.ndarray):
         """Set gradient constraints for the interpolation.
@@ -277,85 +293,194 @@ class GeologicalInterpolator(metaclass=ABCMeta):
 
         Raises
         ------
-        ValueError
-            If points array doesn't have the minimum required columns
+        ValidationError
+            If points array fails shape, dtype, finiteness, or logical checks.
+            Also raised if gradient vectors have zero magnitude.
 
         Notes
         -----
         Gradient constraints specify the direction and magnitude of the scalar
         field gradient at specific locations. These are typically derived from
         structural measurements like bedding or foliation orientations.
+        All values must be finite (not NaN or inf), and gradient vectors must
+        have non-zero magnitude.
         """
-        if points.shape[1] == self.dimensions * 2:
-            points = np.hstack([points, np.ones((points.shape[0], 1))])
-        if points.shape[1] < self.dimensions * 2 + 1:
-            raise ValueError("Gradient constraints must at least have X,Y,Z,gx,gy,gz")
-        self.n_g = points.shape[0]
-        self.data["gradient"] = points.copy()
-        self.up_to_date = False
+        try:
+            check_unsupported_combinations(self.data, "gradient")
+            points = validate_gradient_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions * 2:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.n_g = points.shape[0]
+            self.data["gradient"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set gradient constraints: {e}") from e
 
     def set_normal_constraints(self, points: np.ndarray):
-        """
+        """Set normal constraints for the interpolation.
 
         Parameters
         ----------
         points : np.ndarray
-            array containing the value constraints usually 7-8 columns.
-            X,Y,Z,nx,ny,nz,(weight, default : 1 for each row)
+            Array containing normal constraints with shape (n_points, 7-8).
+            Columns should be [X, Y, Z, nx, ny, nz, weight]. If weight is not
+            provided, a weight of 1.0 is assumed for all points.
 
-        Returns
-        -------
+        Raises
+        ------
+        ValidationError
+            If points array fails shape, dtype, finiteness, or logical checks.
+            Also raised if normal vectors have zero magnitude.
 
         Notes
-        -------
+        -----
+        Normal constraints specify surface normal directions at specific locations.
+        All values must be finite (not NaN or inf), and normal vectors must
+        have non-zero magnitude.
         If no weights are provided, w = 1 is assigned to each normal constraint.
-
         """
-        if points.shape[1] == self.dimensions * 2:
-            points = np.hstack([points, np.ones((points.shape[0], 1))])
-            logger.info("No weight provided for normal constraints, all weights are set to 1")
-        if points.shape[1] < self.dimensions * 2 + 1:
-            raise ValueError("Normal constraints must at least have X,Y,Z,nx,ny,nz")
-        self.n_n = points.shape[0]
-        self.data["normal"] = points.copy()
-        self.up_to_date = False
+        try:
+            check_unsupported_combinations(self.data, "normal")
+            points = validate_normal_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions * 2:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+                logger.info("No weight provided for normal constraints, all weights are set to 1")
+            self.n_n = points.shape[0]
+            self.data["normal"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set normal constraints: {e}") from e
 
     def set_tangent_constraints(self, points: np.ndarray):
-        """
+        """Set tangent constraints for the interpolation.
 
         Parameters
         ----------
         points : np.ndarray
-            array containing the value constraints usually 7-8 columns.
-            X,Y,Z,nx,ny,nz,weight
+            Array containing tangent constraints with shape (n_points, 7-8).
+            Columns should be [X, Y, Z, tx, ty, tz, weight]. If weight is not
+            provided, a weight of 1.0 is assumed for all points.
 
-        Returns
-        -------
+        Raises
+        ------
+        ValidationError
+            If points array fails shape, dtype, finiteness, or logical checks.
+            Also raised if tangent vectors have zero magnitude.
 
+        Notes
+        -----
+        Tangent constraints specify tangent directions at specific locations.
+        All values must be finite (not NaN or inf), and tangent vectors must
+        have non-zero magnitude. If no weights are provided, w = 1 is assigned
+        to each tangent constraint.
         """
-        if points.shape[1] == self.dimensions * 2:
-            points = np.hstack([points, np.ones((points.shape[0], 1))])
-        if points.shape[1] < self.dimensions * 2 + 1:
-            raise ValueError("Tangent constraints must at least have X,Y,Z,tx,ty,tz")
-        self.data["tangent"] = points.copy()
-        self.up_to_date = False
+        try:
+            check_unsupported_combinations(self.data, "tangent")
+            points = validate_tangent_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions * 2:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.data["tangent"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set tangent constraints: {e}") from e
 
     def set_interface_constraints(self, points: np.ndarray):
-        self.data["interface"] = points.copy()
-        self.up_to_date = False
+        """Set interface constraints for the interpolation.
+
+        Parameters
+        ----------
+        points : np.ndarray
+            Array containing interface constraints with shape (n_points, 4-5).
+            Columns should be [X, Y, Z, interface_id, weight]. If weight is not
+            provided, a weight of 1.0 is assumed for all points.
+
+        Raises
+        ------
+        ValidationError
+            If points array fails shape, dtype, or finiteness checks.
+
+        Notes
+        -----
+        Interface constraints mark surface boundaries between different units.
+        All values must be finite (not NaN or inf).
+        """
+        try:
+            check_unsupported_combinations(self.data, "interface")
+            points = validate_interface_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions + 1:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.data["interface"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set interface constraints: {e}") from e
 
     def set_value_inequality_constraints(self, points: np.ndarray):
-        if points.shape[1] < self.dimensions + 2:
-            raise ValueError("Inequality constraints must at least have X,Y,Z,lower,upper")
-        self.data["inequality"] = points.copy()
-        self.up_to_date = False
+        """Set inequality value constraints for the interpolation.
+
+        Parameters
+        ----------
+        points : np.ndarray
+            Array containing inequality constraints with shape (n_points, 5-6).
+            Columns should be [X, Y, Z, lower_bound, upper_bound, weight].
+            If weight is not provided, a weight of 1.0 is assumed for all points.
+
+        Raises
+        ------
+        ValidationError
+            If points array fails shape, dtype, finiteness, or logical checks.
+            Also raised if lower_bound >= upper_bound for any constraint.
+
+        Notes
+        -----
+        Inequality constraints specify bounds on scalar field values at points.
+        For each constraint, lower_bound must be strictly less than upper_bound.
+        All values must be finite (not NaN or inf).
+        """
+        try:
+            check_unsupported_combinations(self.data, "inequality")
+            points = validate_inequality_value_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions + 2:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.data["inequality"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set inequality value constraints: {e}") from e
 
     def set_inequality_pairs_constraints(self, points: np.ndarray):
-        if points.shape[1] < self.dimensions + 1:
-            raise ValueError("Inequality pairs constraints must at least have X,Y,Z,rock_id")
+        """Set inequality pairs constraints for the interpolation.
 
-        self.data["inequality_pairs"] = points.copy()
-        self.up_to_date = False
+        Parameters
+        ----------
+        points : np.ndarray
+            Array containing inequality pairs constraints with shape (n_points, 4-5).
+            Columns should be [X, Y, Z, rock_id, weight]. If weight is not
+            provided, a weight of 1.0 is assumed for all points.
+
+        Raises
+        ------
+        ValidationError
+            If points array fails shape, dtype, or finiteness checks.
+
+        Notes
+        -----
+        Inequality pairs constraints enforce ordering relationships between pairs
+        of points. All values must be finite (not NaN or inf).
+        """
+        try:
+            check_unsupported_combinations(self.data, "inequality_pairs")
+            points = validate_inequality_pairs_constraint(points, dimensions=self.dimensions)
+            # Add default weights if not provided
+            if points.shape[1] == self.dimensions + 1:
+                points = np.hstack([points, np.ones((points.shape[0], 1))])
+            self.data["inequality_pairs"] = points.copy()
+            self.up_to_date = False
+        except ValidationError as e:
+            raise ValidationError(f"Failed to set inequality pairs constraints: {e}") from e
 
     def get_value_constraints(self):
         """

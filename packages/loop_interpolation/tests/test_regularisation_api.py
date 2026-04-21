@@ -37,7 +37,10 @@ def _make_tet_mesh() -> TetMesh:
 @pytest.mark.parametrize(
     ("factory", "setup_kwargs"),
     (
-        (lambda: FiniteDifferenceInterpolator(_make_structured_grid()), {"dxx": 0.0, "dyy": 0.0, "dzz": 0.0, "dxy": 0.0, "dyz": 0.0, "dxz": 0.0}),
+        (
+            lambda: FiniteDifferenceInterpolator(_make_structured_grid()),
+            {"dxx": 0.0, "dyy": 0.0, "dzz": 0.0, "dxy": 0.0, "dyz": 0.0, "dxz": 0.0},
+        ),
         (lambda: PiecewiseLinearInterpolator(_make_tet_mesh()), {"cgw": 0.0}),
     ),
 )
@@ -64,7 +67,9 @@ def test_shared_directional_regularisation_dict_works_across_support_types(facto
         **setup_kwargs,
     )
 
-    matching = [name for name in interpolator.constraints if name.startswith("shared vertical smoothing")]
+    matching = [
+        name for name in interpolator.constraints if name.startswith("shared vertical smoothing")
+    ]
     assert matching
     assert all(interpolator.constraints[name]["matrix"].shape[0] > 0 for name in matching)
 

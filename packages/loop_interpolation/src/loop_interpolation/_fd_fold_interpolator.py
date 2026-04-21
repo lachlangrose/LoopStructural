@@ -198,6 +198,7 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
                 f"Adding fold regularisation  w = {fold_regularisation[0]}, "
                 f"{fold_regularisation[1]}, {fold_regularisation[2]}"
             )
+
             def _masked_direction(vectors):
                 masked = np.asarray(vectors, dtype=float).copy()
                 masked[~active] = 0.0
