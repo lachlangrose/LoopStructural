@@ -441,11 +441,14 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             ) = self.support.get_element_gradient_for_location(
                 points[inside, : self.support.dimension]
             )
-            T[norm > 0, :, :] /= norm[norm > 0, None, None]
+            # norm_inside indexes norm over the inside-filtered subset so
+            # the boolean mask aligns with T (shape n_inside x ...).
+            norm_inside = norm[inside]
+            T[norm_inside > 0, :, :] /= norm_inside[norm_inside > 0, None, None]
 
             # dot product of vector and element gradient = 0
             A = np.einsum("ij,ijk->ik", vectors[inside, : self.support.dimension], T)
-            b_ = np.zeros(points[inside, :].shape[0]) + b
+            b_ = np.zeros(np.sum(inside)) + b
             self.add_constraints_to_least_squares(A, b_, idc[inside, :], w=w, name=name)
 
             if np.sum(inside) <= 0:
@@ -786,14 +789,17 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             )
             return
 
+        has_scaled_rows = hasattr(self.support, "build_scaled_operator_rows")
+
         # Map global node indices to DOF indices for the active region.
         gi = np.full(self.support.n_nodes, -1, dtype=int)
         gi[self.region] = np.arange(self.dof, dtype=int)
 
         # Six second-derivative operator types and the matching direction-
-        # weight formula.  Each operator is added as a separate block of rows
-        # so that the stencil sizes (3 pts for pure, 4 pts for mixed) can
-        # differ without requiring a common column layout.
+        # weight formula.  For RectilinearGrid we use build_scaled_operator_rows
+        # which gives per-node stencil coefficients scaled by the local spacing.
+        # For StructuredGrid (uniform spacing) we use the fixed Operator masks via
+        # neighbour_global_indexes, which mirrors how _assemble_operator works.
         axis_map = {
             "dxx": (0, -1),
             "dyy": (1, -1),
@@ -802,16 +808,49 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             "dxz": (0, 2),
             "dyz": (1, 2),
         }
+        # Operator masks for the mask-based path (StructuredGrid).
+        op_masks = {
+            "dxx": Operator.Dxx_mask,
+            "dyy": Operator.Dyy_mask,
+            "dzz": Operator.Dzz_mask,
+            "dxy": Operator.Dxy_mask,
+            "dxz": Operator.Dxz_mask,
+            "dyz": Operator.Dyz_mask,
+        }
 
         for op_key, (ax, cx) in axis_map.items():
-            A_values, col_global, row_nodes = self.support.build_scaled_operator_rows(ax, cx)
+            if has_scaled_rows:
+                # --- RectilinearGrid path: per-node scaled stencil rows -------
+                A_values, col_global, row_nodes = self.support.build_scaled_operator_rows(ax, cx)
+                idc = gi[col_global]
+                centre_dof = gi[row_nodes]
+                inside = np.logical_and(~np.any(idc == -1, axis=1), centre_dof != -1)
+                if not np.any(inside):
+                    continue
+            else:
+                # --- StructuredGrid path: fixed stencil mask ------------------
+                operator = op_masks[op_key]
+                active = operator.flatten() != 0
+                if not np.any(active):
+                    continue
+                full_mask = self._full_neighbour_mask()
+                active_mask = full_mask[:, active]
+                operator_values = operator.flatten()[active]
 
-            # Map column global indices to DOF space.
-            idc = gi[col_global]
-            centre_dof = gi[row_nodes]
-            inside = np.logical_and(~np.any(idc == -1, axis=1), centre_dof != -1)
-            if not np.any(inside):
-                continue
+                global_indexes = self.support.neighbour_global_indexes(mask=active_mask)
+                if global_indexes is None or global_indexes.size == 0:
+                    continue
+                centre_indexes = self.support.neighbour_global_indexes(
+                    mask=np.zeros((self.support.dimension, 1), dtype=int)
+                )
+                col_global = global_indexes
+                row_nodes = centre_indexes.T[:, 0]  # global index of each interior centre node
+                A_values = np.tile(operator_values, (col_global.shape[1], 1))
+                idc = gi[col_global.T]
+                centre_dof = gi[row_nodes]
+                inside = np.logical_and(~np.any(idc == -1, axis=1), centre_dof != -1)
+                if not np.any(inside):
+                    continue
 
             # Direction-component weight for this operator type.
             vx = vector[row_nodes[inside], 0]

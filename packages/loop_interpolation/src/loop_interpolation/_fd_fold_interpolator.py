@@ -13,6 +13,9 @@ from loop_common.logging import get_logger as getLogger
 logger = getLogger(__name__)
 
 
+_DEFAULT_FOLD_REGULARISATION = object()
+
+
 class FoldEvent:
     """Stub – replaced at runtime by the real FoldEvent from loop_model."""
 
@@ -89,7 +92,7 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
         self,
         fold_orientation: Optional[float] = 10.0,
         fold_axis_w: Optional[float] = 10.0,
-        fold_regularisation=None,
+        fold_regularisation=_DEFAULT_FOLD_REGULARISATION,
         fold_normalisation: Optional[float] = 1.0,
         fold_norm: Optional[float] = 1.0,
         mask_fn: Optional[Callable] = None,
@@ -134,14 +137,12 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
             for which the function returns ``True`` are excluded from all fold
             constraints.
         """
-        if fold_regularisation is None:
+        if fold_regularisation is _DEFAULT_FOLD_REGULARISATION:
             fold_regularisation = [0.1, 0.01, 0.01]
 
         # Evaluate fold geometry at every grid node.
         node_positions = self.support.nodes  # (n_nodes, 3)
-        deformed_orientation, fold_axis, dgz = self.fold.get_deformed_orientation(
-            node_positions
-        )
+        deformed_orientation, fold_axis, dgz = self.fold.get_deformed_orientation(node_positions)
         # deformed_orientation : (n_nodes, 3) – vector lying in the axial plane
         # fold_axis            : (n_nodes, 3) – fold hinge direction
         # dgz                  : (n_nodes, 3) – fold normal (across-fold direction)
@@ -179,10 +180,6 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
         # 3. Fold normalisation: ∇f · dgz = fold_norm
         if fold_normalisation is not None and fold_norm is not None:
             logger.info(f"Adding fold normalisation constraint  w = {fold_normalisation}")
-            # Build a (n_active, 6) array: xyz | nx ny nz scaled to fold_norm
-            norm_pts = np.hstack(
-                [active_pos, dgz[active] * float(fold_norm)]
-            )
             # Reuse the existing add_norm_constraints pathway via the data
             # store, or use add_gradient_orthogonal_constraints with b=fold_norm.
             self.add_gradient_orthogonal_constraints(
