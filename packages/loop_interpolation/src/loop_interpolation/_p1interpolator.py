@@ -5,12 +5,20 @@ Piecewise linear interpolator
 import logging
 
 import numpy as np
+from scipy.spatial import KDTree
 
 
 from ._discrete_interpolator import DiscreteInterpolator
 from . import InterpolatorType
 
 logger = logging.getLogger(__name__)
+
+
+def compute_weighting(grid_points, constraint_points, alpha=10.0, sigma=1.0):
+    """Compute spatially decaying regularisation weights around constraints."""
+    tree = KDTree(constraint_points)
+    distances, _ = tree.query(grid_points, k=1)
+    return 1 + alpha * np.exp(-(distances**2) / (2 * sigma**2))
 
 
 class P1Interpolator(DiscreteInterpolator):
@@ -40,6 +48,26 @@ class P1Interpolator(DiscreteInterpolator):
             "ipw": 1.0,
         }
         self.type = InterpolatorType.PIECEWISE_LINEAR
+        self.use_regularisation_weight_scale = False
+        self.regularisation_weight_sigma = None
+
+    def _update_regularisation_scale_from_norm_constraints(self):
+        points = self.get_norm_constraints()
+        if points.shape[0] == 0:
+            return
+
+        _, _, inside = self.support.evaluate_shape(points[:, :3])
+        if not np.any(inside):
+            return
+
+        sigma = self.regularisation_weight_sigma
+        if sigma is None:
+            sigma = getattr(self.support, "nsteps", np.array([1.0], dtype=float))[0] * 10
+        self.regularisation_scale += compute_weighting(
+            self.support.nodes,
+            points[inside, :3],
+            sigma=sigma,
+        )
 
     def add_gradient_constraints(self, w=1.0):
         pass
@@ -121,6 +149,12 @@ class P1Interpolator(DiscreteInterpolator):
 
         # get vertex indexes
         tri_cp1 = np.hstack([self.support.elements[tri1], self.support.elements[tri2]])
+        regularisation_w = w
+        if self.use_regularisation_weight_scale:
+            scale_t = self.regularisation_scale[self.support.elements[tri1]].mean(axis=1)
+            scale_n = self.regularisation_scale[self.support.elements[tri2]].mean(axis=1)
+            edge_scale = 0.5 * (scale_t + scale_n)
+            regularisation_w = edge_scale * w
         # tri_cp2 = np.hstack([self.support.elements[cp2_tri1],self.support.elements[tri2]])
         # add cp1 and cp2 to the least squares system
 
@@ -128,7 +162,7 @@ class P1Interpolator(DiscreteInterpolator):
             const,
             np.zeros(const.shape[0]),
             tri_cp1,
-            w=w,
+            w=regularisation_w,
             name=name,
         )
         self.up_to_date = False
@@ -174,6 +208,12 @@ class P1Interpolator(DiscreteInterpolator):
                 continue
             self.up_to_date = False
             self.interpolation_weights[key] = kwargs[key]
+
+        self.use_regularisation_weight_scale = kwargs.get("use_regularisation_weight_scale", False)
+        self.regularisation_weight_sigma = kwargs.get("regularisation_weight_sigma", None)
+        if self.use_regularisation_weight_scale:
+            self._update_regularisation_scale_from_norm_constraints()
+
         if self.interpolation_weights["cgw"] > 0.0:
             self.up_to_date = False
             self.minimise_edge_jumps(self.interpolation_weights["cgw"])

@@ -63,7 +63,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
                 "dz": 1.0,
                 "cpw": 1.0,
                 "gpw": 1.0,
-                "npw": 1.0,
+                "npw": 10.0,
                 "tpw": 1.0,
                 "ipw": 1.0,
             }
@@ -71,6 +71,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
 
         self.type = InterpolatorType.FINITE_DIFFERENCE
         self.use_regularisation_weight_scale = False
+        self.regularisation_weight_sigma = None
 
     def setup_interpolator(self, **kwargs):
         """
@@ -123,6 +124,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         )
 
         self.use_regularisation_weight_scale = kwargs.get("use_regularisation_weight_scale", False)
+        self.regularisation_weight_sigma = kwargs.get("regularisation_weight_sigma", None)
         self.add_norm_constraints(self.interpolation_weights["npw"])
         self.add_gradient_constraints(self.interpolation_weights["gpw"])
         self.add_value_constraints(self.interpolation_weights["cpw"])
@@ -348,9 +350,8 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             idc[inside, :] = gi[node_idx[inside, :]]
             inside = np.logical_and(~np.any(idc == -1, axis=1), inside)
 
-            # calculate unit vector for node gradients
-            # this means we are only constraining direction of grad not the
-            # magnitude
+            # calculate unit vector for node gradients and their magnitudes
+            # to preserve magnitude enforcement across the split 3-component constraint
             (
                 vertices,
                 T,
@@ -359,33 +360,33 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             ) = self.support.get_element_gradient_for_location(
                 points[inside, : self.support.dimension]
             )
-            # T*=np.product(self.support.step_vector)
-            # T/=self.support.step_vector[0]
-            # indexes, inside2 = self.support.position_to_nearby_cell_indexes(
-            # points[inside, : self.support.dimension]
-            # )
-            # indexes = indexes[inside2, :]
 
-            # corners = self.support.cell_corner_indexes(indexes)
-            # node_indexes = corners.reshape(-1, 3)
-            # indexes = self.support.global_node_indices(indexes)
-            # self.regularisation_scale[indexes]  =10
+            sigma = self.regularisation_weight_sigma
+            if sigma is None:
+                sigma = self.support.nsteps[0] * 10
 
             self.regularisation_scale += compute_weighting(
                 self.support.nodes,
                 points[inside, : self.support.dimension],
-                sigma=self.support.nsteps[0] * 10,
+                sigma=sigma,
             )
-            # global_indexes = self.support.neighbour_global_indexes().T.astype(int)
-            # close_indexes =
-            # self.regularisation_scale[global_indexes[idc[inside,:].astype(int),]]=10
-            w /= 3
+            # Apply optional per-constraint weights from the points array.
+            # For normal constraints, row format is xyz|nx ny nz|w.
+            point_weights = np.ones(np.sum(inside), dtype=float)
+            if points.shape[1] > self.support.dimension * 2:
+                point_weights = points[inside, self.support.dimension * 2]
+
+            if isinstance(w, np.ndarray):
+                constraint_weights = w[inside] * point_weights
+            else:
+                constraint_weights = float(w) * point_weights
+
             for d in range(self.support.dimension):
                 self.add_constraints_to_least_squares(
                     T[:, d, :],
                     points[inside, self.support.dimension + d],
                     idc[inside, :],
-                    w=w,
+                    w=constraint_weights,
                     name=f"norm_{d}",
                 )
 

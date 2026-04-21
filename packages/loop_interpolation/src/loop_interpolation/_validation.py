@@ -3,10 +3,85 @@
 This module provides centralized validation for constraint inputs to ensure
 consistent error handling, clear error messages, and early detection of
 invalid constraint combinations.
+
+NaN handling contract
+---------------------
+- **Weight column NaN** → silently replaced with 1.0 (default weight).
+  This lets callers pass ``np.nan`` as a sentinel for "use default weight",
+  which is a common pattern when assembling constraints from DataFrames.
+- **Position / data column NaN or inf** → rows are silently dropped with a
+  warning.  This preserves backward-compatible behaviour where constraints
+  that fall outside the model or contain missing values are ignored.
 """
 
+import logging
 from typing import Tuple, Union
 import numpy as np
+
+_logger = logging.getLogger(__name__)
+
+
+def _fill_nan_weights(points: np.ndarray, weight_col: int) -> np.ndarray:
+    """Replace NaN values in the weight column with 1.0 (default weight).
+
+    Parameters
+    ----------
+    points : np.ndarray
+        Constraint array, already converted to float64.
+    weight_col : int
+        Column index of the weight column.
+
+    Returns
+    -------
+    np.ndarray
+        Array with NaN weights replaced; a copy is returned only if any
+        replacements were made.
+    """
+    nan_mask = ~np.isfinite(points[:, weight_col])
+    if np.any(nan_mask):
+        n_replaced = int(np.sum(nan_mask))
+        _logger.warning(
+            "%d NaN weight value(s) replaced with 1.0 (default weight). "
+            "Provide explicit finite weights to suppress this warning.",
+            n_replaced,
+        )
+        points = points.copy()
+        points[nan_mask, weight_col] = 1.0
+    return points
+
+
+def _drop_nan_data_rows(points: np.ndarray, data_cols: slice, name: str) -> np.ndarray:
+    """Drop rows that contain NaN or inf in the position / data columns.
+
+    Weight columns are intentionally excluded from this check because NaN
+    weights are handled separately by :func:`_fill_nan_weights`.
+
+    Parameters
+    ----------
+    points : np.ndarray
+        Constraint array, already converted to float64.
+    data_cols : slice
+        Slice selecting the position / data columns (excluding weight).
+    name : str
+        Human-readable constraint type name used in the warning message.
+
+    Returns
+    -------
+    np.ndarray
+        Array with invalid rows removed; the original array is returned
+        unchanged when no rows are dropped.
+    """
+    bad_rows = ~np.isfinite(points[:, data_cols]).all(axis=1)
+    if np.any(bad_rows):
+        n_dropped = int(np.sum(bad_rows))
+        _logger.warning(
+            "%d %s row(s) dropped: position or data columns contain NaN or inf. "
+            "Provide finite values to include them.",
+            n_dropped,
+            name,
+        )
+        points = points[~bad_rows]
+    return points
 
 
 class ValidationError(ValueError):
@@ -160,7 +235,8 @@ def validate_value_constraint(
     Returns
     -------
     np.ndarray
-        Validated array (float64 dtype)
+        Validated array (float64 dtype).  Rows with NaN/inf in position or
+        value columns are silently dropped; NaN weights are replaced with 1.0.
 
     Raises
     ------
@@ -169,7 +245,7 @@ def validate_value_constraint(
     DtypeError
         If points cannot be converted to float
     FiniteValueError
-        If any coordinates, values, or weights are non-finite
+        If any coordinates or values are non-finite after NaN rows are dropped
     """
     points = _ensure_float_array(points, "Value constraint points")
     _check_shape(points, (None, None), "Value constraint points")
@@ -190,9 +266,14 @@ def validate_value_constraint(
             f"Shape: {points.shape}"
         )
 
-    _check_finite(points, "Value constraint coordinates and values")
+    # NaN weight → default 1.0; NaN position/value rows → drop
+    if actual_cols == dimensions + 2:
+        points = _fill_nan_weights(points, weight_col=dimensions + 1)
+    points = _drop_nan_data_rows(points, slice(0, dimensions + 1), "value constraint")
 
-    # Validate specific columns
+    if points.shape[0] == 0:
+        return points
+
     _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
     _check_finite(points[:, dimensions], "Value column")
 
@@ -221,7 +302,8 @@ def validate_gradient_constraint(
     Returns
     -------
     np.ndarray
-        Validated array (float64 dtype)
+        Validated array (float64 dtype).  Rows with NaN/inf in position or
+        gradient columns are silently dropped; NaN weights are replaced with 1.0.
 
     Raises
     ------
@@ -230,7 +312,7 @@ def validate_gradient_constraint(
     DtypeError
         If points cannot be converted to float
     FiniteValueError
-        If any coordinates, gradients, or weights are non-finite
+        If any coordinates or gradient values are non-finite after NaN rows are dropped
     VectorError
         If gradient vectors have zero magnitude (degenerate case)
     """
@@ -253,9 +335,14 @@ def validate_gradient_constraint(
             f"Shape: {points.shape}"
         )
 
-    _check_finite(points, "Gradient constraint points and vectors")
+    # NaN weight → default 1.0; NaN position/vector rows → drop
+    if actual_cols == dimensions * 2 + 1:
+        points = _fill_nan_weights(points, weight_col=dimensions * 2)
+    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "gradient constraint")
 
-    # Validate position and gradient separately
+    if points.shape[0] == 0:
+        return points
+
     _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
     _check_finite(points[:, dimensions : dimensions * 2], "Gradient vector (gx, gy, gz)")
 
@@ -297,7 +384,8 @@ def validate_normal_constraint(
     Returns
     -------
     np.ndarray
-        Validated array (float64 dtype)
+        Validated array (float64 dtype).  Rows with NaN/inf in position or
+        normal columns are silently dropped; NaN weights are replaced with 1.0.
 
     Raises
     ------
@@ -306,7 +394,7 @@ def validate_normal_constraint(
     DtypeError
         If points cannot be converted to float
     FiniteValueError
-        If any coordinates, normals, or weights are non-finite
+        If any coordinates or normals are non-finite after NaN rows are dropped
     VectorError
         If normal vectors have zero magnitude
     """
@@ -329,9 +417,14 @@ def validate_normal_constraint(
             f"Shape: {points.shape}"
         )
 
-    _check_finite(points, "Normal constraint points and vectors")
+    # NaN weight → default 1.0; NaN position/normal rows → drop
+    if actual_cols == dimensions * 2 + 1:
+        points = _fill_nan_weights(points, weight_col=dimensions * 2)
+    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "normal constraint")
 
-    # Validate position and normal separately
+    if points.shape[0] == 0:
+        return points
+
     _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
     _check_finite(points[:, dimensions : dimensions * 2], "Normal vector (nx, ny, nz)")
 
@@ -373,7 +466,8 @@ def validate_tangent_constraint(
     Returns
     -------
     np.ndarray
-        Validated array (float64 dtype)
+        Validated array (float64 dtype).  Rows with NaN/inf in position or
+        tangent columns are silently dropped; NaN weights are replaced with 1.0.
 
     Raises
     ------
@@ -382,7 +476,7 @@ def validate_tangent_constraint(
     DtypeError
         If points cannot be converted to float
     FiniteValueError
-        If any coordinates, tangents, or weights are non-finite
+        If any coordinates or tangents are non-finite after NaN rows are dropped
     VectorError
         If tangent vectors have zero magnitude
     """
@@ -405,9 +499,14 @@ def validate_tangent_constraint(
             f"Shape: {points.shape}"
         )
 
-    _check_finite(points, "Tangent constraint points and vectors")
+    # NaN weight → default 1.0; NaN position/tangent rows → drop
+    if actual_cols == dimensions * 2 + 1:
+        points = _fill_nan_weights(points, weight_col=dimensions * 2)
+    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "tangent constraint")
 
-    # Validate position and tangent separately
+    if points.shape[0] == 0:
+        return points
+
     _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
     _check_finite(points[:, dimensions : dimensions * 2], "Tangent vector (tx, ty, tz)")
 
@@ -449,7 +548,8 @@ def validate_interface_constraint(
     Returns
     -------
     np.ndarray
-        Validated array (float64 dtype)
+        Validated array (float64 dtype).  Rows with NaN/inf in position or
+        id columns are silently dropped; NaN weights are replaced with 1.0.
 
     Raises
     ------
@@ -458,7 +558,7 @@ def validate_interface_constraint(
     DtypeError
         If points cannot be converted to float
     FiniteValueError
-        If any coordinates or weights are non-finite
+        If any coordinates are non-finite after NaN rows are dropped
     """
     points = _ensure_float_array(points, "Interface constraint points")
     _check_shape(points, (None, None), "Interface constraint points")
@@ -479,9 +579,14 @@ def validate_interface_constraint(
             f"Shape: {points.shape}"
         )
 
-    _check_finite(points, "Interface constraint points")
+    # NaN weight → default 1.0; NaN position/id rows → drop
+    if actual_cols == dimensions + 2:
+        points = _fill_nan_weights(points, weight_col=dimensions + 1)
+    points = _drop_nan_data_rows(points, slice(0, dimensions + 1), "interface constraint")
 
-    # Validate position
+    if points.shape[0] == 0:
+        return points
+
     _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
     if actual_cols == dimensions + 2:
         _check_finite(points[:, -1], "Weight column")

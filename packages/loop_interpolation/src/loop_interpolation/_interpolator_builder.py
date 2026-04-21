@@ -31,6 +31,7 @@ class InterpolatorBuilder:
         self.nelements = nelements
         self.buffer = buffer
         self.kwargs = kwargs
+        self.setup_kwargs = {}
         self.interpolator = InterpolatorFactory.create_interpolator(
             interpolatortype=self.interpolatortype,
             boundingbox=self.bounding_box,
@@ -38,6 +39,42 @@ class InterpolatorBuilder:
             buffer=self.buffer,
             **self.kwargs,
         )
+
+    def use_regularisation_weight_scale(
+        self, enabled: bool = True
+    ) -> "InterpolatorBuilder":
+        """Configure whether regularisation terms use spatial weighting.
+
+        Parameters
+        ----------
+        enabled : bool, optional
+            If True, enable regularisation-weight scaling in interpolators
+            that support it.
+
+        Returns
+        -------
+        InterpolatorBuilder
+            reference to the builder
+        """
+        self.setup_kwargs["use_regularisation_weight_scale"] = bool(enabled)
+        return self
+
+    def regularisation_weight_sigma(self, sigma: float) -> "InterpolatorBuilder":
+        """Configure spatial decay sigma for regularisation weight scaling.
+
+        Parameters
+        ----------
+        sigma : float
+            Gaussian decay width used by interpolators that support
+            regularisation-weight scaling.
+
+        Returns
+        -------
+        InterpolatorBuilder
+            reference to the builder
+        """
+        self.setup_kwargs["regularisation_weight_sigma"] = float(sigma)
+        return self
 
     def add_value_constraints(self, value_constraints: np.ndarray) -> "InterpolatorBuilder":
         """Add value constraints to the interpolator
@@ -121,7 +158,8 @@ class InterpolatorBuilder:
             reference to the builder
         """
         if self.interpolator:
-            self.interpolator.setup(**kwargs)
+            setup_kwargs = {**self.setup_kwargs, **kwargs}
+            self.interpolator.setup(**setup_kwargs)
         return self
 
     def build(self) -> GeologicalInterpolator:

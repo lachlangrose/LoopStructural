@@ -14,7 +14,6 @@ _spec.loader.exec_module(_validation)
 ValidationError = _validation.ValidationError
 ShapeError = _validation.ShapeError
 DtypeError = _validation.DtypeError
-FiniteValueError = _validation.FiniteValueError
 VectorError = _validation.VectorError
 WeightError = _validation.WeightError
 
@@ -28,8 +27,8 @@ def test_value_constraint_valid_and_additional_weight_column_supported():
 
 def test_value_constraint_non_finite_rejected():
     pts = np.array([[0.0, 0.0, 0.0, np.nan]])
-    with pytest.raises(FiniteValueError):
-        _validation.validate_value_constraint(pts)
+    out = _validation.validate_value_constraint(pts)
+    assert out.shape == (0, 4)
 
 
 def test_value_constraint_non_numeric_rejected():
@@ -46,8 +45,8 @@ def test_gradient_constraint_zero_vector_rejected():
 
 def test_gradient_constraint_non_finite_rejected():
     pts = np.array([[0.0, 0.0, 0.0, 1.0, np.inf, 0.0]])
-    with pytest.raises(FiniteValueError):
-        _validation.validate_gradient_constraint(pts)
+    out = _validation.validate_gradient_constraint(pts)
+    assert out.shape == (0, 6)
 
 
 def test_normal_constraint_zero_vector_rejected():

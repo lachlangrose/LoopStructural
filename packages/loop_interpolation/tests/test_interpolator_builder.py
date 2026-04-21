@@ -72,3 +72,28 @@ def test_evaluate_scalar_value(setup_builder):
     values = interpolator.evaluate_value(locations)
     assert values is not None, "Evaluation should return values"
     assert values.shape == (1,), "Evaluation should return correct shape"
+
+
+def test_builder_regularisation_weight_scale_passthrough(setup_builder):
+    builder = setup_builder
+    value_constraints = np.array([[0.5, 0.5, 0.5, 1.0, 1.0]])
+    interpolator = (
+        builder.use_regularisation_weight_scale(True)
+        .add_value_constraints(value_constraints)
+        .setup_interpolator()
+        .build()
+    )
+    assert interpolator.use_regularisation_weight_scale is True
+
+
+def test_builder_regularisation_weight_sigma_passthrough(setup_builder):
+    builder = setup_builder
+    value_constraints = np.array([[0.5, 0.5, 0.5, 1.0, 1.0]])
+    interpolator = (
+        builder.use_regularisation_weight_scale(True)
+        .regularisation_weight_sigma(0.25)
+        .add_value_constraints(value_constraints)
+        .setup_interpolator()
+        .build()
+    )
+    assert interpolator.regularisation_weight_sigma == pytest.approx(0.25)

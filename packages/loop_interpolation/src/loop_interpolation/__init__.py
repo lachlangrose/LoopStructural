@@ -12,6 +12,7 @@ __all__ = [
     "FiniteDifferenceInterpolator",
     "PiecewiseLinearInterpolator",
     "DiscreteFoldInterpolator",
+    "FDFoldInterpolator",
     "SurfeRBFInterpolator",
     "P1Interpolator",
     "P2Interpolator",
@@ -22,6 +23,11 @@ __all__ = [
     "P2Unstructured2d",
     "StructuredGrid2D",
     "P2UnstructuredTetMesh",
+    "ConstraintDiagnosticsReport",
+    "ConstraintFamilyDiagnostics",
+    "RegionCoverageDiagnostics",
+    "DirectionalRegularisation",
+    "RegularisationConfig",
 ]
 from ._interpolatortype import InterpolatorType
 
@@ -31,6 +37,12 @@ logger = getLogger(__name__)
 
 from ._geological_interpolator import GeologicalInterpolator
 from ._discrete_interpolator import DiscreteInterpolator
+from ._diagnostics import (
+    ConstraintDiagnosticsReport,
+    ConstraintFamilyDiagnostics,
+    RegionCoverageDiagnostics,
+)
+from ._regularisation import DirectionalRegularisation, RegularisationConfig
 from loop_common.supports import (
     TetMesh,
     StructuredGrid,
@@ -52,6 +64,7 @@ from ._p1interpolator import (
 from ._discrete_fold_interpolator import (
     DiscreteFoldInterpolator,
 )
+from ._fd_fold_interpolator import FDFoldInterpolator
 from ._p2interpolator import P2Interpolator
 from ._p1interpolator import P1Interpolator
 from ._constant_norm import ConstantNormP1Interpolator, ConstantNormFDIInterpolator

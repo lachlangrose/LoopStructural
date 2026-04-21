@@ -98,10 +98,13 @@ constraints.
         InterpolatorBuilder(
             interpolatortype="FDI", bounding_box=bounding_box.with_buffer(0.1)
         )
+        .use_regularisation_weight_scale(True)
+        .regularisation_weight_sigma(500.0)
         .add_value_constraints(data.loc[data["val"].notna(), ["X", "Y", "Z", "val"]].values)
         .add_normal_constraints(
             data.loc[data["nx"].notna(), ["X", "Y", "Z", "nx", "ny", "nz"]].values
         )
+        .setup_interpolator()
         .build()
     )
     # Set the number of elements in the bounding box to 10000 and create a structured grid

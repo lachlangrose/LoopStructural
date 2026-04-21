@@ -127,3 +127,99 @@ def test_discrete_fold_regularisation_uses_shared_directional_api():
     matching = [name for name in interpolator.constraints if "fold regularisation" in name]
     assert matching
     assert all(interpolator.constraints[name]["matrix"].shape[0] > 0 for name in matching)
+
+
+def test_p1_regularisation_weight_scale_creates_spatially_varying_weights():
+    interpolator = PiecewiseLinearInterpolator(_make_tet_mesh())
+    normal_constraints = np.array([[2.0, 2.0, 2.0, 1.0, 0.0, 0.0, 1.0]])
+    interpolator.set_normal_constraints(normal_constraints)
+
+    interpolator.setup_interpolator(
+        cgw=0.1,
+        cpw=0.0,
+        gpw=0.0,
+        npw=1.0,
+        tpw=0.0,
+        ipw=0.0,
+        use_regularisation_weight_scale=True,
+    )
+
+    edge_jump = interpolator.constraints["edge jump"]
+    assert edge_jump["w"].size > 1
+    assert np.ptp(edge_jump["w"]) > 0.0
+
+
+def test_p1_regularisation_weight_sigma_controls_decay_strength():
+    normal_constraints = np.array([[2.0, 2.0, 2.0, 1.0, 0.0, 0.0, 1.0]])
+
+    local = PiecewiseLinearInterpolator(_make_tet_mesh())
+    local.set_normal_constraints(normal_constraints)
+    local.setup_interpolator(
+        cgw=0.1,
+        cpw=0.0,
+        gpw=0.0,
+        npw=1.0,
+        tpw=0.0,
+        ipw=0.0,
+        use_regularisation_weight_scale=True,
+        regularisation_weight_sigma=0.2,
+    )
+
+    broad = PiecewiseLinearInterpolator(_make_tet_mesh())
+    broad.set_normal_constraints(normal_constraints)
+    broad.setup_interpolator(
+        cgw=0.1,
+        cpw=0.0,
+        gpw=0.0,
+        npw=1.0,
+        tpw=0.0,
+        ipw=0.0,
+        use_regularisation_weight_scale=True,
+        regularisation_weight_sigma=2.0,
+    )
+
+    assert np.mean(broad.constraints["edge jump"]["w"]) > np.mean(
+        local.constraints["edge jump"]["w"]
+    )
+
+
+def test_fdi_regularisation_weight_sigma_controls_decay_strength():
+    normal_constraints = np.array([[2.0, 2.0, 2.0, 1.0, 0.0, 0.0, 1.0]])
+
+    local = FiniteDifferenceInterpolator(_make_structured_grid())
+    local.set_normal_constraints(normal_constraints)
+    local.setup_interpolator(
+        dxx=0.0,
+        dyy=0.0,
+        dzz=0.0,
+        dxy=0.0,
+        dyz=0.0,
+        dxz=0.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=1.0,
+        tpw=0.0,
+        ipw=0.0,
+        use_regularisation_weight_scale=True,
+        regularisation_weight_sigma=0.2,
+    )
+
+    broad = FiniteDifferenceInterpolator(_make_structured_grid())
+    broad.set_normal_constraints(normal_constraints)
+    broad.setup_interpolator(
+        dxx=0.0,
+        dyy=0.0,
+        dzz=0.0,
+        dxy=0.0,
+        dyz=0.0,
+        dxz=0.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=1.0,
+        tpw=0.0,
+        ipw=0.0,
+        use_regularisation_weight_scale=True,
+        regularisation_weight_sigma=2.0,
+    )
+
+    assert np.ptp(local.regularisation_scale) > np.ptp(broad.regularisation_scale)

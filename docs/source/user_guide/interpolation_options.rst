@@ -84,6 +84,17 @@ Additional parameters can be specified to the interpolator including:
         - weighting of the regularisation constraint default = 1.0
       * - cgw
         - weighting of the constant gradient regularisation
+
+Spatial regularisation weighting can also be enabled when calling
+:code:`setup_interpolator(...)`:
+
+* :code:`use_regularisation_weight_scale` (default :code:`False`) enables
+  spatially varying regularisation weights around normal constraints.
+* :code:`regularisation_weight_sigma` (optional) controls Gaussian decay width
+  of this influence. If not provided, a support-dependent default is used.
+
+This is useful when you want regularisation to be stronger near structural
+observations and weaker further away.
         
 
 
@@ -133,6 +144,13 @@ Additional parameters can be specified to the interpolator including:
         - weighting of the regularisation constraint default = 1.0
       * - operators
         - a dictionary of numpy arrays that can be used as masks for finite difference approximation
+
+Additional regularisation options available via :code:`setup_interpolator(...)`:
+
+* :code:`use_regularisation_weight_scale` (default :code:`False`) enables
+  spatially varying regularisation weights around normal constraints.
+* :code:`regularisation_weight_sigma` (optional) controls Gaussian decay width
+  of this influence. If not provided, a support-dependent default is used.
         
 Solving discrete system
 -----------------------
