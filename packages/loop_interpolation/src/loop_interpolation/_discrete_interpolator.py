@@ -10,6 +10,11 @@ import logging
 import numpy as np
 from scipy import sparse  # import sparse.coo_matrix, sparse.bmat, sparse.eye
 from ._interpolatortype import InterpolatorType
+from ._regularisation import (
+    DirectionalRegularisation,
+    RegularisationConfig,
+    coerce_regularisation_config,
+)
 
 from ._diagnostics import ConstraintDiagnosticsReport, ConstraintFamilyDiagnostics
 from ._geological_interpolator import GeologicalInterpolator
@@ -368,6 +373,62 @@ class DiscreteInterpolator(GeologicalInterpolator):
         self, points: np.ndarray, vectors: np.ndarray, w: float = 1.0
     ):
         pass
+
+    def get_regularisation_sample_points(self) -> np.ndarray:
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not define regularisation sample points"
+        )
+
+    def _add_directional_regularisation(
+        self,
+        weight: float,
+        vectors: np.ndarray,
+        name: str = "directional regularisation",
+    ):
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement directional regularisation"
+        )
+
+    def resolve_regularisation_config(
+        self,
+        regularisation=None,
+        directional_regularisation=None,
+    ) -> RegularisationConfig:
+        return coerce_regularisation_config(
+            regularisation=regularisation,
+            directional_regularisation=directional_regularisation,
+        )
+
+    def add_directional_regularisation(
+        self,
+        directional_regularisation,
+    ) -> tuple[DirectionalRegularisation, ...]:
+        directional_terms = self.resolve_regularisation_config(
+            directional_regularisation=directional_regularisation
+        ).directional
+        if len(directional_terms) == 0:
+            return directional_terms
+
+        sample_points = np.asarray(self.get_regularisation_sample_points(), dtype=float)
+        expected_shape = sample_points.shape
+
+        for term in directional_terms:
+            if term.weight == 0:
+                continue
+
+            vectors = term.direction(sample_points) if callable(term.direction) else term.direction
+            vectors = np.asarray(vectors, dtype=float)
+            if vectors.shape != expected_shape:
+                logger.warning(
+                    "%s: directional regularisation vectors must have shape %s, got %s. Skipping.",
+                    term.name,
+                    expected_shape,
+                    vectors.shape,
+                )
+                continue
+            self._add_directional_regularisation(term.weight, vectors, name=term.name)
+
+        return directional_terms
 
     def calculate_residual_for_constraints(self):
         """Calculates Ax-B for all constraints added to the interpolator

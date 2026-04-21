@@ -5,7 +5,6 @@ FiniteDifference interpolator
 import numpy as np
 
 from loop_common.math import get_vectors
-from loop_common.supports import SupportType
 from ._discrete_interpolator import DiscreteInterpolator
 from ._interpolatortype import InterpolatorType
 from ._operator import Operator
@@ -101,15 +100,22 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
 
         """
         self.reset()
+        regularisation_config = self.resolve_regularisation_config(
+            regularisation=kwargs.get("regularisation", None),
+            directional_regularisation=kwargs.get("directional_regularisation", None),
+        )
+        if regularisation_config.isotropic is not None:
+            self.interpolation_weights["dxy"] = regularisation_config.isotropic
+            self.interpolation_weights["dyz"] = regularisation_config.isotropic
+            self.interpolation_weights["dxz"] = regularisation_config.isotropic
+            self.interpolation_weights["dxx"] = regularisation_config.isotropic
+            self.interpolation_weights["dyy"] = regularisation_config.isotropic
+            self.interpolation_weights["dzz"] = regularisation_config.isotropic
+
         for key in kwargs:
             self.up_to_date = False
-            if "regularisation" in kwargs:
-                self.interpolation_weights["dxy"] = kwargs["regularisation"]
-                self.interpolation_weights["dyz"] = kwargs["regularisation"]
-                self.interpolation_weights["dxz"] = kwargs["regularisation"]
-                self.interpolation_weights["dxx"] = kwargs["regularisation"]
-                self.interpolation_weights["dyy"] = kwargs["regularisation"]
-                self.interpolation_weights["dzz"] = kwargs["regularisation"]
+            if key in ("regularisation", "directional_regularisation"):
+                continue
             self.interpolation_weights[key] = kwargs[key]
         # either use the default operators or the ones passed to the function
         operators = kwargs.get(
@@ -130,6 +136,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         )
         for k, o in operators.items():
             self.assemble_inner(o[0], o[1], name=k)
+        self.add_directional_regularisation(regularisation_config.directional)
         self.assemble_borders()
         return self.finalize_setup_diagnostics_report()
 
@@ -884,3 +891,14 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
                 w=row_w[nonzero],
                 name=f"{name}_{op_key}",
             )
+
+    def get_regularisation_sample_points(self) -> np.ndarray:
+        return self.support.nodes
+
+    def _add_directional_regularisation(
+        self,
+        weight: float,
+        vectors: np.ndarray,
+        name: str = "directional regularisation",
+    ):
+        self.minimise_directional_gradient_change(weight, vectors, name=name)

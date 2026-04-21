@@ -9,6 +9,7 @@ import numpy as np
 
 from ._discrete_interpolator import DiscreteInterpolator
 from . import InterpolatorType
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +40,7 @@ class P1Interpolator(DiscreteInterpolator):
             "ipw": 1.0,
         }
         self.type = InterpolatorType.PIECEWISE_LINEAR
+
     def add_gradient_constraints(self, w=1.0):
         pass
 
@@ -132,6 +134,17 @@ class P1Interpolator(DiscreteInterpolator):
         self.up_to_date = False
         # p2.add_constraints_to_least_squares(const_cp2*e_len[:,None]*w,np.zeros(const_cp1.shape[0]),tri_cp2, name='edge jump cp2')
 
+    def get_regularisation_sample_points(self) -> np.ndarray:
+        return self.support.nodes[self.support.shared_elements].mean(axis=1)
+
+    def _add_directional_regularisation(
+        self,
+        weight: float,
+        vectors: np.ndarray,
+        name: str = "directional regularisation",
+    ):
+        self.minimise_edge_jumps(w=weight, vector=vectors, name=name)
+
     def setup_interpolator(self, **kwargs):
         """
         Searches through kwargs for any interpolation weights and updates
@@ -149,9 +162,16 @@ class P1Interpolator(DiscreteInterpolator):
         """
         # can't reset here, clears fold constraints
         self.reset()
+        regularisation_config = self.resolve_regularisation_config(
+            regularisation=kwargs.get("regularisation", None),
+            directional_regularisation=kwargs.get("directional_regularisation", None),
+        )
+        if regularisation_config.isotropic is not None:
+            self.interpolation_weights["cgw"] = regularisation_config.isotropic
+
         for key in kwargs:
-            if "regularisation" in kwargs:
-                self.interpolation_weights["cgw"] = kwargs["regularisation"]
+            if key in ("regularisation", "directional_regularisation"):
+                continue
             self.up_to_date = False
             self.interpolation_weights[key] = kwargs[key]
         if self.interpolation_weights["cgw"] > 0.0:
@@ -167,6 +187,7 @@ class P1Interpolator(DiscreteInterpolator):
             logger.info(
                 "Using constant gradient regularisation w = %f" % self.interpolation_weights["cgw"]
             )
+        self.add_directional_regularisation(regularisation_config.directional)
 
         logger.info(
             "Added %i gradient constraints, %i normal constraints,"
@@ -188,7 +209,7 @@ class P1Interpolator(DiscreteInterpolator):
         vectors: np.ndarray,
         w: float = 1.0,
         b: float = 0,
-        name='undefined gradient orthogonal constraint',
+        name="undefined gradient orthogonal constraint",
     ):
         """
         constraints scalar field to be orthogonal to a given vector

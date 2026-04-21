@@ -60,7 +60,6 @@ class SurfeRBFInterpolator(GeologicalInterpolator):
         if points.shape[0] > 0:
             # self.surfe.SetInterfaceConstraints(points[:,:4])
             for i in range(points.shape[0]):
-
                 self.surfe.AddInterfaceConstraint(
                     points[i, 0],
                     points[i, 1],
@@ -207,6 +206,7 @@ class SurfeRBFInterpolator(GeologicalInterpolator):
     @property
     def dof(self):
         return self.get_data_locations().shape[0]
+
     @property
-    def n_elements(self)->int:
+    def n_elements(self) -> int:
         return self.get_data_locations().shape[0]

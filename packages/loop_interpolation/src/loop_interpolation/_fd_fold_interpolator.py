@@ -8,6 +8,7 @@ import numpy as np
 
 from ._finite_difference_interpolator import FiniteDifferenceInterpolator
 from ._interpolatortype import InterpolatorType
+from ._regularisation import DirectionalRegularisation
 from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
@@ -197,29 +198,27 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
                 f"Adding fold regularisation  w = {fold_regularisation[0]}, "
                 f"{fold_regularisation[1]}, {fold_regularisation[2]}"
             )
-            # Apply mask by zeroing the vector at excluded nodes.
-            dgz_masked = dgz.copy()
-            deformed_masked = deformed_orientation.copy()
-            axis_masked = fold_axis.copy()
-            dgz_masked[~active] = 0.0
-            deformed_masked[~active] = 0.0
-            axis_masked[~active] = 0.0
+            def _masked_direction(vectors):
+                masked = np.asarray(vectors, dtype=float).copy()
+                masked[~active] = 0.0
+                return masked
 
-            # w0: penalise gradient change *across* the fold (fold-normal dir)
-            self.minimise_directional_gradient_change(
-                fold_regularisation[0],
-                dgz_masked,
-                name="fold regularisation 1",
-            )
-            # w1: penalise gradient change in the deformed-orientation direction
-            self.minimise_directional_gradient_change(
-                fold_regularisation[1],
-                deformed_masked,
-                name="fold regularisation 2",
-            )
-            # w2: penalise gradient change along the fold axis
-            self.minimise_directional_gradient_change(
-                fold_regularisation[2],
-                axis_masked,
-                name="fold regularisation 3",
+            self.add_directional_regularisation(
+                (
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[0],
+                        direction=_masked_direction(dgz),
+                        name="fold regularisation 1",
+                    ),
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[1],
+                        direction=_masked_direction(deformed_orientation),
+                        name="fold regularisation 2",
+                    ),
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[2],
+                        direction=_masked_direction(fold_axis),
+                        name="fold regularisation 3",
+                    ),
+                )
             )

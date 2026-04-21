@@ -8,6 +8,7 @@ import numpy as np
 
 from ._p1interpolator import P1Interpolator as PiecewiseLinearInterpolator
 from ._interpolatortype import InterpolatorType
+from ._regularisation import DirectionalRegularisation
 
 # from ..modelling.features.fold import FoldEvent
 from loop_common.logging import get_logger as getLogger
@@ -183,14 +184,34 @@ class DiscreteFoldInterpolator(PiecewiseLinearInterpolator):
             logger.info(
                 f"Adding fold regularisation constraint to  w = {fold_regularisation[0]} {fold_regularisation[1]} {fold_regularisation[2]}"
             )
-            self.minimise_edge_jumps(
-                w=fold_regularisation[0], vector=dgz, name="fold regularisation 1"
-            )
-            self.minimise_edge_jumps(
-                w=fold_regularisation[1],
-                vector=deformed_orientation,
-                name="fold regularisation 2",
-            )
-            self.minimise_edge_jumps(
-                w=fold_regularisation[2], vector=fold_axis, name="fold regularisation 3"
+            def _masked_fold_direction(component_index: int):
+                def _provider(points: np.ndarray) -> np.ndarray:
+                    deformed, axis, normal = self.fold.get_deformed_orientation(points)
+                    vectors = (normal, deformed, axis)[component_index]
+                    if mask_fn is not None:
+                        masked = np.asarray(vectors, dtype=float).copy()
+                        masked[mask_fn(points)] = 0.0
+                        return masked
+                    return vectors
+
+                return _provider
+
+            self.add_directional_regularisation(
+                (
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[0],
+                        direction=_masked_fold_direction(0),
+                        name="fold regularisation 1",
+                    ),
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[1],
+                        direction=_masked_fold_direction(1),
+                        name="fold regularisation 2",
+                    ),
+                    DirectionalRegularisation(
+                        weight=fold_regularisation[2],
+                        direction=_masked_fold_direction(2),
+                        name="fold regularisation 3",
+                    ),
+                )
             )
