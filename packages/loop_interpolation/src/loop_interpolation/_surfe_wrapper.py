@@ -155,6 +155,8 @@ class SurfeRBFInterpolator(GeologicalInterpolator):
             logger.info("Setting RBF radius to %f" % radius)
             self.surfe.SetRBFShapeParameter(radius)
 
+        return self.get_constraint_diagnostics_report(refresh=True)
+
     def update(self):
         return self.surfe.InterpolantComputed()
 

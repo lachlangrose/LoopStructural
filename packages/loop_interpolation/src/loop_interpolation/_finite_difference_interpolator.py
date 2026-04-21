@@ -131,6 +131,7 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
         for k, o in operators.items():
             self.assemble_inner(o[0], o[1], name=k)
         self.assemble_borders()
+        return self.finalize_setup_diagnostics_report()
 
     def copy(self):
         """

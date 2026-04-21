@@ -90,6 +90,7 @@ class P2Interpolator(DiscreteInterpolator):
         self.add_value_constraints(self.interpolation_weights["cpw"])
         self.add_tangent_constraints(self.interpolation_weights["tpw"])
         # self.add_interface_constraints(self.interpolation_weights["ipw"])
+        return self.finalize_setup_diagnostics_report()
 
     def copy(self):
         return P2Interpolator(self.support)

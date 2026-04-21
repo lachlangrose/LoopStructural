@@ -3,6 +3,7 @@ Discrete interpolator base for least squares
 """
 
 from abc import abstractmethod
+from collections import defaultdict
 from typing import Callable, Optional, Union
 import logging
 
@@ -10,6 +11,7 @@ import numpy as np
 from scipy import sparse  # import sparse.coo_matrix, sparse.bmat, sparse.eye
 from ._interpolatortype import InterpolatorType
 
+from ._diagnostics import ConstraintDiagnosticsReport, ConstraintFamilyDiagnostics
 from ._geological_interpolator import GeologicalInterpolator
 from loop_common.logging import get_logger as getLogger
 
@@ -149,6 +151,111 @@ class DiscreteInterpolator(GeologicalInterpolator):
         for key in weights:
             self.up_to_date = False
             self.interpolation_weights[key] = weights[key]
+
+    def _normalise_constraint_family(self, name: str, inequality: bool = False) -> str:
+        name = name.lower()
+        if name.startswith("value"):
+            return "value"
+        if name.startswith("gradient"):
+            return "gradient"
+        if name.startswith("norm"):
+            return "normal"
+        if name.startswith("tangent"):
+            return "tangent"
+        if name.startswith("interface"):
+            return "interface"
+        if name.startswith("inequality_value"):
+            return "inequality_value"
+        if name.startswith("inequality_pairs"):
+            return "inequality_pairs"
+        if name.startswith("fold"):
+            return "fold"
+        if name.startswith("d") and len(name) in (3, 4, 5, 6, 7, 8):
+            return "regularisation"
+        if inequality:
+            return "inequality"
+        return "other"
+
+    def _build_constraint_diagnostics_report(self) -> ConstraintDiagnosticsReport:
+        report = super()._build_constraint_diagnostics_report()
+        outside = dict(report.outside_model_points)
+
+        raw_points = {
+            "value": int(self.get_value_constraints().shape[0]),
+            "gradient": int(self.get_gradient_constraints().shape[0]),
+            "normal": int(self.get_norm_constraints().shape[0]),
+            "tangent": int(self.get_tangent_constraints().shape[0]),
+            "interface": int(self.get_interface_constraints().shape[0]),
+            "inequality_value": int(self.get_inequality_value_constraints().shape[0]),
+            "inequality_pairs": int(self.get_inequality_pairs_constraints().shape[0]),
+        }
+
+        row_counts = defaultdict(int)
+        weight_values = defaultdict(list)
+
+        for name, constraint in self.constraints.items():
+            family = self._normalise_constraint_family(name)
+            matrix = constraint.get("matrix")
+            if matrix is not None:
+                row_counts[family] += int(matrix.shape[0])
+            w = constraint.get("w")
+            if w is not None:
+                w_arr = np.asarray(w, dtype=float)
+                if w_arr.size > 0:
+                    weight_values[family].append(w_arr)
+
+        for name, constraint in self.ineq_constraints.items():
+            family = self._normalise_constraint_family(name, inequality=True)
+            matrix = constraint.get("matrix")
+            if matrix is not None:
+                row_counts[family] += int(matrix.shape[0])
+
+        families = {}
+        family_names = set(raw_points.keys()) | set(row_counts.keys()) | set(report.families.keys())
+
+        for family_name in sorted(family_names):
+            rows = int(row_counts.get(family_name, 0))
+            source_points = int(raw_points.get(family_name, 0))
+            outside_points = int(outside.get(family_name, 0))
+
+            dropped = None
+            if family_name in ("value", "normal", "tangent", "inequality_value"):
+                dropped = max(source_points - rows, 0)
+            elif family_name == "gradient":
+                dropped = max(source_points * 2 - rows, 0)
+
+            if len(weight_values.get(family_name, [])) > 0:
+                all_weights = np.concatenate(weight_values[family_name])
+                mean_w = float(np.mean(all_weights))
+                min_w = float(np.min(all_weights))
+                max_w = float(np.max(all_weights))
+            else:
+                mean_w = None
+                min_w = None
+                max_w = None
+
+            families[family_name] = ConstraintFamilyDiagnostics(
+                name=family_name,
+                active=rows > 0,
+                row_count=rows,
+                dropped_rows=dropped,
+                effective_weight_mean=mean_w,
+                effective_weight_min=min_w,
+                effective_weight_max=max_w,
+                source_point_count=source_points,
+                outside_model_point_count=outside_points,
+            )
+
+        return ConstraintDiagnosticsReport(
+            interpolator_type=report.interpolator_type,
+            families=families,
+            region_coverage=report.region_coverage,
+            outside_model_points=outside,
+        )
+
+    def finalize_setup_diagnostics_report(self) -> ConstraintDiagnosticsReport:
+        self.latest_diagnostics_report = self._build_constraint_diagnostics_report()
+        return self.latest_diagnostics_report
 
     def _pre_solve(self):
         """

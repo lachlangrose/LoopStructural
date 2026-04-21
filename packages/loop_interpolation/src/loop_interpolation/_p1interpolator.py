@@ -180,6 +180,7 @@ class P1Interpolator(DiscreteInterpolator):
         self.add_value_inequality_constraints()
         self.add_inequality_pairs_constraints()
         # self.add_interface_constraints(self.interpolation_weights["ipw"])
+        return self.finalize_setup_diagnostics_report()
 
     def add_gradient_orthogonal_constraints(
         self,

@@ -5,14 +5,22 @@ used in LoopStructural geological modelling framework.
 """
 
 from abc import ABCMeta, abstractmethod
-from LoopStructural.utils.exceptions import LoopTypeError
 from ._interpolatortype import InterpolatorType
 import numpy as np
 
-from typing import Optional
+from typing import Dict, Optional
 from loop_common.logging import get_logger as getLogger
+from ._diagnostics import (
+    ConstraintDiagnosticsReport,
+    ConstraintFamilyDiagnostics,
+    RegionCoverageDiagnostics,
+)
 
 logger = getLogger(__name__)
+
+
+class LoopTypeError(TypeError):
+    pass
 
 
 class GeologicalInterpolator(metaclass=ABCMeta):
@@ -84,6 +92,7 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         self.valid = True
         self.dimensions = 3  # default to 3d
         self.support = None
+        self.latest_diagnostics_report: Optional[ConstraintDiagnosticsReport] = None
 
     @abstractmethod
     def set_nelements(self, nelements: int) -> int:
@@ -411,12 +420,116 @@ class GeologicalInterpolator(metaclass=ABCMeta):
     def get_inequality_pairs_constraints(self):
         return self.data["inequality_pairs"]
 
+    def _outside_model_points_from_data(self) -> Dict[str, int]:
+        if self.support is None or not hasattr(self.support, "inside"):
+            return {}
+
+        mapping = {
+            "value": "value",
+            "gradient": "gradient",
+            "normal": "normal",
+            "tangent": "tangent",
+            "interface": "interface",
+            "inequality": "inequality_value",
+            "inequality_pairs": "inequality_pairs",
+        }
+
+        outside = {}
+        for data_key, family_name in mapping.items():
+            points = self.data.get(data_key)
+            if points is None or points.shape[0] == 0:
+                outside[family_name] = 0
+                continue
+            xyz = np.asarray(points[:, : self.dimensions], dtype=float)
+            try:
+                inside = self.support.inside(xyz)
+                outside[family_name] = int((~inside).sum())
+            except Exception:
+                outside[family_name] = 0
+        return outside
+
+    def _weight_stats_from_points(self, points: np.ndarray):
+        if points.shape[1] <= self.dimensions + 1:
+            return None, None, None
+        weights = np.asarray(points[:, -1], dtype=float)
+        if weights.size == 0:
+            return None, None, None
+        return (
+            float(np.mean(weights)),
+            float(np.min(weights)),
+            float(np.max(weights)),
+        )
+
+    def _build_constraint_diagnostics_report(self) -> ConstraintDiagnosticsReport:
+        mapping = {
+            "value": "value",
+            "gradient": "gradient",
+            "normal": "normal",
+            "tangent": "tangent",
+            "interface": "interface",
+            "inequality": "inequality_value",
+            "inequality_pairs": "inequality_pairs",
+        }
+
+        outside = self._outside_model_points_from_data()
+        families = {}
+        for data_key, family_name in mapping.items():
+            points = self.data.get(data_key)
+            if points is None:
+                points = np.zeros((0, self.dimensions + 1), dtype=float)
+            row_count = int(points.shape[0])
+            mean_w, min_w, max_w = self._weight_stats_from_points(points)
+            families[family_name] = ConstraintFamilyDiagnostics(
+                name=family_name,
+                active=row_count > 0,
+                row_count=row_count,
+                dropped_rows=outside.get(family_name, 0),
+                effective_weight_mean=mean_w,
+                effective_weight_min=min_w,
+                effective_weight_max=max_w,
+                source_point_count=row_count,
+                outside_model_point_count=outside.get(family_name, 0),
+            )
+
+        region_coverage = None
+        if self.support is not None and hasattr(self.support, "n_nodes"):
+            total_nodes = int(self.support.n_nodes)
+            region_mask = np.ones(total_nodes, dtype=bool)
+            if hasattr(self, "region"):
+                try:
+                    region_mask = np.asarray(self.region, dtype=bool)
+                except Exception:
+                    region_mask = np.ones(total_nodes, dtype=bool)
+            active_nodes = int(np.sum(region_mask))
+            region_coverage = RegionCoverageDiagnostics(
+                total_support_nodes=total_nodes,
+                active_region_nodes=active_nodes,
+                inactive_region_nodes=total_nodes - active_nodes,
+                active_fraction=0.0 if total_nodes == 0 else float(active_nodes / total_nodes),
+            )
+
+        return ConstraintDiagnosticsReport(
+            interpolator_type=self.type.name,
+            families=families,
+            region_coverage=region_coverage,
+            outside_model_points=outside,
+        )
+
+    def get_constraint_diagnostics_report(
+        self, refresh: bool = False
+    ) -> ConstraintDiagnosticsReport:
+        if self.latest_diagnostics_report is None or refresh:
+            self.latest_diagnostics_report = self._build_constraint_diagnostics_report()
+        return self.latest_diagnostics_report
+
     # @abstractmethod
-    def setup(self, **kwargs):
-        """
-        Runs all of the required setting up stuff
-        """
-        self.setup_interpolator(**kwargs)
+    def setup(self, **kwargs) -> ConstraintDiagnosticsReport:
+        """Run setup and return a diagnostics report."""
+        report = self.setup_interpolator(**kwargs)
+        if isinstance(report, ConstraintDiagnosticsReport):
+            self.latest_diagnostics_report = report
+            return report
+        return self.get_constraint_diagnostics_report(refresh=True)
 
     @abstractmethod
     def setup_interpolator(self, **kwargs):

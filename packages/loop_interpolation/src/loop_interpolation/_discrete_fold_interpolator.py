@@ -60,8 +60,7 @@ class DiscreteFoldInterpolator(PiecewiseLinearInterpolator):
         fold_weights = kwargs.get("fold_weights", {})
         super().setup_interpolator(**kwargs)
         self.add_fold_constraints(**fold_weights)
-
-        return
+        return self.finalize_setup_diagnostics_report()
 
     def add_fold_constraints(
         self,

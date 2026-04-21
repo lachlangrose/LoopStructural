@@ -83,6 +83,7 @@ class FDFoldInterpolator(FiniteDifferenceInterpolator):
         fold_weights = kwargs.pop("fold_weights", {})
         super().setup_interpolator(**kwargs)
         self.add_fold_constraints(**fold_weights)
+        return self.finalize_setup_diagnostics_report()
 
     # ------------------------------------------------------------------
     # Fold constraints
