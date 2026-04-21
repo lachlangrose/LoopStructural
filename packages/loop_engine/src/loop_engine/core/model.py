@@ -1,16 +1,25 @@
+from .linker import ObservationLinker
 from .state import ModelState
+from ..tasks.base import Task
 
 
 class Model:
-    def __init__(self, schema):
+    def __init__(self, schema, grid=None):
         self.schema = schema
+        self.grid = grid
         self.current_state = None
+        self._linker = ObservationLinker(schema)
 
     def update_parameter(self, feature_id, new_params):
         """User changes something in the schema."""
-        self.schema.update(feature_id, new_params)
+        if hasattr(self.schema, "update"):
+            self.schema.update(feature_id, new_params)
         # We don't solve yet. We just know the state is now invalid.
         self._invalidate(feature_id)
+
+    def _invalidate(self, feature_id):
+        # A minimal invalidation strategy: next solve recomputes dependent tasks.
+        del feature_id
 
     def solve(self):
         """The 'Big Green Button'."""
@@ -33,3 +42,20 @@ class Model:
 
         self.current_state = new_state
         return self.current_state
+
+    def _compile_tasks(self):
+        execution_order = self.schema.get_execution_order()
+        linked = self._linker.build_inputs_by_feature(execution_order)
+
+        tasks = []
+        for feature_id in execution_order:
+            predecessors = list(self.schema.dag.predecessors(feature_id))
+            tasks.append(
+                Task(
+                    feature_id=feature_id,
+                    dependencies=predecessors,
+                    linked_data=linked[feature_id],
+                    feature=self.schema.features[feature_id],
+                )
+            )
+        return tasks
