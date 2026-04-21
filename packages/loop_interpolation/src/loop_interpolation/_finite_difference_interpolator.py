@@ -742,3 +742,105 @@ class FiniteDifferenceInterpolator(DiscreteInterpolator):
             w=row_w,
             name=name,
         )
+
+    def minimise_directional_gradient_change(
+        self,
+        w: float,
+        vector: np.ndarray,
+        name: str = "directional regularisation",
+    ):
+        """
+        Anisotropic regularisation that penalises the directional second
+        derivative ``(v·∇)²f = 0`` at each interior grid node.
+
+        This is the finite-difference analogue of the P1
+        ``minimise_edge_jumps`` with a direction vector.  For a given
+        direction field ``v = (vx, vy, vz)`` sampled at every grid node, the
+        constraint at each interior node is
+
+        .. math::
+
+            v_x^2 f_{xx} + v_y^2 f_{yy} + v_z^2 f_{zz}
+            + 2 v_x v_y f_{xy} + 2 v_x v_z f_{xz} + 2 v_y v_z f_{yz} = 0
+
+        The six second-derivative operators are each weighted by the
+        corresponding squared direction component so the regularisation is
+        strong along ``v`` and weak across it.
+
+        Parameters
+        ----------
+        w : float
+            Base regularisation weight.
+        vector : np.ndarray, shape (n_nodes, 3)
+            Direction field evaluated at every grid node
+            (``self.support.nodes``).  Typically the fold normal, fold axis,
+            or deformed-orientation vector returned by
+            ``FoldEvent.get_deformed_orientation``.
+        name : str
+            Label stored with these constraints.
+        """
+        if vector is None or vector.ndim != 2 or vector.shape != (self.support.n_nodes, 3):
+            logger.warning(
+                f"{name}: vector must have shape ({self.support.n_nodes}, 3), "
+                f"got {None if vector is None else vector.shape}.  Skipping."
+            )
+            return
+
+        # Map global node indices to DOF indices for the active region.
+        gi = np.full(self.support.n_nodes, -1, dtype=int)
+        gi[self.region] = np.arange(self.dof, dtype=int)
+
+        # Six second-derivative operator types and the matching direction-
+        # weight formula.  Each operator is added as a separate block of rows
+        # so that the stencil sizes (3 pts for pure, 4 pts for mixed) can
+        # differ without requiring a common column layout.
+        axis_map = {
+            "dxx": (0, -1),
+            "dyy": (1, -1),
+            "dzz": (2, -1),
+            "dxy": (0, 1),
+            "dxz": (0, 2),
+            "dyz": (1, 2),
+        }
+
+        for op_key, (ax, cx) in axis_map.items():
+            A_values, col_global, row_nodes = self.support.build_scaled_operator_rows(ax, cx)
+
+            # Map column global indices to DOF space.
+            idc = gi[col_global]
+            centre_dof = gi[row_nodes]
+            inside = np.logical_and(~np.any(idc == -1, axis=1), centre_dof != -1)
+            if not np.any(inside):
+                continue
+
+            # Direction-component weight for this operator type.
+            vx = vector[row_nodes[inside], 0]
+            vy = vector[row_nodes[inside], 1]
+            vz = vector[row_nodes[inside], 2]
+            if op_key == "dxx":
+                comp_w = vx**2
+            elif op_key == "dyy":
+                comp_w = vy**2
+            elif op_key == "dzz":
+                comp_w = vz**2
+            elif op_key == "dxy":
+                comp_w = 2.0 * vx * vy
+            elif op_key == "dxz":
+                comp_w = 2.0 * vx * vz
+            else:  # dyz
+                comp_w = 2.0 * vy * vz
+
+            row_w = w * comp_w
+            # Skip rows where the direction weight is effectively zero.
+            nonzero = np.abs(row_w) > 0.0
+            if not np.any(nonzero):
+                continue
+
+            B = np.zeros(np.sum(nonzero))
+            self.add_constraints_to_least_squares(
+                A_values[inside][nonzero],
+                B,
+                idc[inside][nonzero],
+                w=row_w[nonzero],
+                name=f"{name}_{op_key}",
+            )
