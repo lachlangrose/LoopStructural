@@ -1,9 +1,10 @@
 import numpy as np
-from loopsolver.admm_method import ADMM
+import importlib
+from .admm_method import ADMM
 from dataclasses import dataclass
 from scipy.sparse.linalg import lsmr
 from scipy.sparse import vstack, csr_matrix
-import tqdm
+
 
 @dataclass
 class Config:
@@ -14,13 +15,13 @@ class Config:
 progressbar = lambda x: x
 
 try:
-    import tqdm
+    tqdm_module = importlib.import_module("tqdm")
 
     if Config.progress:
-        progessbar = tqdm.tqdm
+        progressbar = tqdm_module.tqdm
     else:
         progressbar = lambda x: x
-except ImportError:
+except ModuleNotFoundError:
     Config.progress = False
     progressbar = lambda x: x
 
@@ -68,15 +69,17 @@ def admm_solve(
     Q *= admm_weight
     matrix = vstack([A, Q])
     for k in linsys_solver_kwargs:
-        if not hasattr(linsys_solver_kwargs[k], '__len__') or len(linsys_solver_kwargs[k]) != nmajor:
+        if (
+            not hasattr(linsys_solver_kwargs[k], "__len__")
+            or len(linsys_solver_kwargs[k]) != nmajor
+        ):
             linsys_solver_kwargs[k] = [linsys_solver_kwargs[k]] * nmajor
-    for _i in tqdm.tqdm(range(nmajor)):
+    for _i in progressbar(range(nmajor)):
         # current model value
         Mx = matrix @ model  # np.dot(A, model)
         b[:A_size] = b0[:A_size] - Mx[:A_size]
 
         if Q.shape[0] > 0:
-
             qx_val[:, 0] = Mx[A_size:,] / admm_weight
             x0_ADMM = admm_method.admm_method_iterate_admm_array(xmin, xmax, qx_val)
             # print(x0_ADMM, qx_val.shape)
@@ -103,7 +106,7 @@ def admm_solve(
             print("cost_data_model = ", cost_data_model)
             print("cost_admm = ", cost_admm)
             print("----------------------------------------")
-        linsys_kwargs = {k:v[_i] for k,v in linsys_solver_kwargs.items()}
+        linsys_kwargs = {k: v[_i] for k, v in linsys_solver_kwargs.items()}
         x = lsmr(matrix, b, **linsys_kwargs)
         model += x[0]
     return model

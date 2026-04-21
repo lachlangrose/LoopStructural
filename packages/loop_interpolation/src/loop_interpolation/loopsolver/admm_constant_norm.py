@@ -1,5 +1,6 @@
 import numpy as np
-from loopsolver.admm_method import ADMM
+import importlib
+from .admm_method import ADMM
 from dataclasses import dataclass
 from scipy.sparse.linalg import lsmr
 from scipy.sparse import vstack, csr_matrix
@@ -15,13 +16,13 @@ class Config:
 progressbar = lambda x: x
 
 try:
-    import tqdm
+    tqdm_module = importlib.import_module("tqdm")
 
     if Config.progress:
-        progessbar = tqdm.tqdm
+        progressbar = tqdm_module.tqdm
     else:
         progressbar = lambda x: x
-except ImportError:
+except ModuleNotFoundError:
     Config.progress = False
     progressbar = lambda x: x
 

@@ -30,19 +30,74 @@ class InterpolatorBuilder:
         self.bounding_box = bounding_box
         self.nelements = nelements
         self.buffer = buffer
+        self.solver = kwargs.pop("solver", None)
         self.kwargs = kwargs
         self.setup_kwargs = {}
+        self.solver_kwargs = {}
         self.interpolator = InterpolatorFactory.create_interpolator(
             interpolatortype=self.interpolatortype,
             boundingbox=self.bounding_box,
             nelements=self.nelements,
             buffer=self.buffer,
+            solver=self.solver,
             **self.kwargs,
         )
 
-    def use_regularisation_weight_scale(
-        self, enabled: bool = True
+    def use_solver(self, solver: str, **solver_kwargs) -> "InterpolatorBuilder":
+        """Configure the solver used when calling solve().
+
+        Parameters
+        ----------
+        solver : str
+            Solver name, e.g. ``"cg"``, ``"lsmr"``, or ``"admm"``.
+        **solver_kwargs
+            Keyword arguments forwarded to ``solve_system``.
+
+        Returns
+        -------
+        InterpolatorBuilder
+            reference to the builder
+        """
+        self.solver = solver
+        self.solver_kwargs = dict(solver_kwargs)
+        if self.interpolator is not None:
+            self.interpolator.solver = solver
+        return self
+
+    def solve(
+        self,
+        solver: Optional[str] = None,
+        tol: Optional[float] = None,
+        **solver_kwargs,
     ) -> "InterpolatorBuilder":
+        """Solve the configured interpolator system.
+
+        Parameters
+        ----------
+        solver : Optional[str], optional
+            Override solver name for this call.
+        tol : Optional[float], optional
+            Optional solver tolerance.
+        **solver_kwargs
+            Additional arguments passed to ``solve_system``.
+
+        Returns
+        -------
+        InterpolatorBuilder
+            reference to the builder
+        """
+        if self.interpolator:
+            selected_solver = solver if solver is not None else self.solver
+            merged_solver_kwargs = dict(self.solver_kwargs)
+            merged_solver_kwargs.update(solver_kwargs)
+            self.interpolator.solve_system(
+                solver=selected_solver,
+                tol=tol,
+                solver_kwargs=merged_solver_kwargs,
+            )
+        return self
+
+    def use_regularisation_weight_scale(self, enabled: bool = True) -> "InterpolatorBuilder":
         """Configure whether regularisation terms use spatial weighting.
 
         Parameters

@@ -6,6 +6,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Callable, Optional, Union
 import logging
+import inspect
 
 import numpy as np
 from scipy import sparse  # import sparse.coo_matrix, sparse.bmat, sparse.eye
@@ -485,12 +486,14 @@ class DiscreteInterpolator(GeologicalInterpolator):
         points = self.get_inequality_value_constraints()
         # check that we have added some points
         if points.shape[0] > 0:
-            vertices, a, element, inside = self.support.get_element_for_location(points)
+            coords = points[:, : self.support.dimension]
+            vertices, a, element, inside = self.support.get_element_for_location(coords)
             rows = np.arange(0, points[inside, :].shape[0], dtype=int)
             rows = np.tile(rows, (a.shape[-1], 1)).T
             a = a[inside]
             cols = self.support.elements[element[inside]]
-            self.add_inequality_constraints_to_matrix(a, points[:, 3:5], cols, "inequality_value")
+            bounds = points[:, self.support.dimension : self.support.dimension + 2]
+            self.add_inequality_constraints_to_matrix(a, bounds, cols, "inequality_value")
 
     def add_inequality_pairs_constraints(
         self,
@@ -520,8 +523,10 @@ class DiscreteInterpolator(GeologicalInterpolator):
                 upper_points = points[points[:, self.support.dimension] == pair[0]]
                 lower_points = points[points[:, self.support.dimension] == pair[1]]
 
-                upper_interpolation = self.support.get_element_for_location(upper_points)
-                lower_interpolation = self.support.get_element_for_location(lower_points)
+                upper_coords = upper_points[:, : self.support.dimension]
+                lower_coords = lower_points[:, : self.support.dimension]
+                upper_interpolation = self.support.get_element_for_location(upper_coords)
+                lower_interpolation = self.support.get_element_for_location(lower_coords)
                 if (~upper_interpolation[3]).sum() > 0:
                     logger.warning(
                         f"Upper points not in mesh {upper_points[~upper_interpolation[3]]}"
@@ -860,7 +865,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
                 return self.solve_system("lsmr", solver_kwargs)
 
             try:
-                from loopsolver import admm_solve
+                from .loopsolver import admm_solve
 
                 try:
                     linsys_solver = solver_kwargs.pop("linsys_solver", "lsmr")
@@ -875,6 +880,8 @@ class DiscreteInterpolator(GeologicalInterpolator):
                         "adaptive_rho_max": solver_kwargs.pop("adaptive_rho_max", 1e3),
                         "return_history": solver_kwargs.pop("return_history", False),
                     }
+                    supported_optional = set(inspect.signature(admm_solve).parameters.keys())
+                    admm_kwargs = {k: v for k, v in admm_kwargs.items() if k in supported_optional}
                     res = admm_solve(
                         A,
                         b,
@@ -897,9 +904,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
                     logger.error(f"ADMM solver failed: {e}")
                     self.up_to_date = False
             except ImportError:
-                logger.warning(
-                    "Cannot import admm solver. Please install loopsolver or use lsmr or cg"
-                )
+                logger.warning("Cannot import embedded admm solver. Use lsmr or cg")
                 self.up_to_date = False
         else:
             logger.error(f"Unknown solver {solver}")

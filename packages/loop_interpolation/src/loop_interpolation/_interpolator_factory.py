@@ -19,6 +19,7 @@ class InterpolatorFactory:
         element_volume: Optional[float] = None,
         support=None,
         buffer: Optional[float] = None,
+        solver: Optional[str] = None,
     ):
         if interpolatortype is None:
             raise ValueError("No interpolator type specified")
@@ -38,7 +39,10 @@ class InterpolatorFactory:
                 element_volume=element_volume,
                 buffer=buffer,
             )
-        return interpolator_map[interpolatortype](support)
+        interpolator = interpolator_map[interpolatortype](support)
+        if solver is not None:
+            interpolator.solver = solver
+        return interpolator
 
     @staticmethod
     def from_dict(d):

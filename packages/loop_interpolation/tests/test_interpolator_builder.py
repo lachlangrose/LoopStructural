@@ -97,3 +97,35 @@ def test_builder_regularisation_weight_sigma_passthrough(setup_builder):
         .build()
     )
     assert interpolator.regularisation_weight_sigma == pytest.approx(0.25)
+
+
+def test_builder_admm_solver_with_inequality_constraints():
+    bounding_box = BoundingBox(np.array([0.0, 0.0, 0.0]), np.array([1.0, 1.0, 1.0]))
+    builder = InterpolatorBuilder(
+        interpolatortype=InterpolatorType.FINITE_DIFFERENCE,
+        bounding_box=bounding_box,
+        nelements=216,
+        buffer=0.0,
+    )
+
+    value_constraints = np.array(
+        [
+            [0.2, 0.2, 0.2, 0.1, 1.0],
+            [0.8, 0.8, 0.8, 0.9, 1.0],
+        ]
+    )
+    inequality_constraints = np.array([[0.5, 0.5, 0.5, 0.25, 0.75, 1.0]])
+
+    interpolator = (
+        builder.add_value_constraints(value_constraints)
+        .add_inequality_constraints(inequality_constraints)
+        .setup_interpolator()
+        .use_solver("admm", nmajor=10, admm_weight=0.01, maxiter=50)
+        .solve()
+        .build()
+    )
+
+    assert interpolator.up_to_date is True
+    value = interpolator.evaluate_value(np.array([[0.5, 0.5, 0.5]]))[0]
+    assert np.isfinite(value)
+    assert 0.2 <= value <= 0.8
