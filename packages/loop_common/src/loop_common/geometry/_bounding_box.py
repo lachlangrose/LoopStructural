@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Optional, Union, Dict
+
 # from LoopStructural.utils.exceptions import LoopValueError
 from loop_common.math import rng
 from loop_common.supports import StructuredGrid
@@ -9,9 +10,13 @@ import copy
 from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
+
+
 class LoopValueError(ValueError):
     """Custom error for invalid values in LoopStructural."""
+
     pass
+
 
 class BoundingBox:
     def __init__(
@@ -38,56 +43,73 @@ class BoundingBox:
         nsteps : Optional[np.ndarray], optional
             _description_, by default None
         """
-        if origin is not None and len(origin) != dimensions:
-            logger.warning(
-                f"Origin has {len(origin)} dimensions but bounding box has {dimensions}"
-            )
-            raise LoopValueError("Origin has incorrect number of dimensions")
-        if maximum is not None and len(maximum) != dimensions:
-            logger.warning(
-                f"Maximum has {len(maximum)} dimensions but bounding box has {dimensions}"
-            )
-            raise LoopValueError("Maximum has incorrect number of dimensions")
-        if global_origin is not None and len(global_origin) != dimensions:
-            logger.warning(
-                f"Global origin has {len(global_origin)} dimensions but bounding box has {dimensions}"
-            )
-            raise LoopValueError("Global origin has incorrect number of dimensions")
-        if nsteps is not None and len(nsteps) != dimensions:
-            logger.warning(
-                f"Nsteps has {len(nsteps)} dimensions but bounding box has {dimensions}"
-            )
-            raise LoopValueError("Nsteps has incorrect number of dimensions")
-        # reproject relative to the global origin, if origin is not provided.
-        # we want the local coordinates to start at 0
-        # otherwise uses provided origin. This is useful for having multiple bounding boxes rela
-        if global_origin is not None and origin is None:
-            origin = np.zeros(np.array(global_origin).shape, dtype=float)
-        if global_maximum is not None and global_origin is not None:
-            maximum = np.array(global_maximum,dtype=float) - np.array(global_origin,dtype=float)
-
-        if maximum is None and nsteps is not None and step_vector is not None:
-            maximum = np.array(origin) + np.array(nsteps) * np.array(step_vector)
-        if origin is not None and global_origin is None:
-            global_origin = np.zeros(3)
-        self._origin = np.array(origin, dtype=float)
-        self._maximum = np.array(maximum, dtype=float)
         self.dimensions = dimensions
-        if self.origin.shape:
-            if self.origin.shape[0] != self.dimensions:
-                logger.warning(
-                    f"Origin has {self.origin.shape[0]} dimensions but bounding box has {self.dimensions}"
-                )
 
-        else:
-            self.dimensions = dimensions
-        self._global_origin = global_origin
-        if self.origin is not None and self.maximum is not None:
+        def _coerce_point(point, name):
+            if point is None:
+                return None
+            arr = np.asarray(point, dtype=float)
+            if arr.shape != (self.dimensions,):
+                logger.warning(
+                    f"{name} has shape {arr.shape} but bounding box has {self.dimensions} dimensions"
+                )
+                raise LoopValueError(f"{name} has incorrect number of dimensions")
+            return arr
+
+        origin = _coerce_point(origin, "Origin")
+        maximum = _coerce_point(maximum, "Maximum")
+        legacy_global_origin = _coerce_point(global_origin, "Global origin")
+        legacy_global_maximum = _coerce_point(global_maximum, "Global maximum")
+
+        if nsteps is not None and len(nsteps) != dimensions:
+            logger.warning(f"Nsteps has {len(nsteps)} dimensions but bounding box has {dimensions}")
+            raise LoopValueError("Nsteps has incorrect number of dimensions")
+
+        # Backward compatibility: legacy args represented world-space limits.
+        if origin is None and legacy_global_origin is not None:
+            origin = legacy_global_origin.copy()
+        if maximum is None and legacy_global_maximum is not None:
+            maximum = legacy_global_maximum.copy()
+
+        if (
+            maximum is None
+            and nsteps is not None
+            and step_vector is not None
+            and origin is not None
+        ):
+            maximum = np.asarray(origin, dtype=float) + np.asarray(nsteps) * np.asarray(
+                step_vector, dtype=float
+            )
+
+        if origin is not None and maximum is not None and np.any(maximum < origin):
+            raise LoopValueError("Maximum must be greater than or equal to origin")
+
+        self._origin = origin
+        self._maximum = maximum
+
+        # Local interpolation coordinate frame (world -> local affine transform).
+        self._world_to_local = np.eye(4)
+        self._local_to_world = np.eye(4)
+        self._local_origin = np.zeros(self.dimensions, dtype=float)
+        self._local_rotation = np.eye(self.dimensions, dtype=float)
+
+        if self.valid:
             self.nelements = 10_000
         else:
-            self.nsteps = np.array([50, 50, 25])
+            default_nsteps = np.ones(self.dimensions, dtype=int) * 50
+            if self.dimensions == 3:
+                default_nsteps[-1] = 25
+            self.nsteps = default_nsteps
         if nsteps is not None:
             self.nsteps = np.array(nsteps)
+
+        # Keep old behaviour when legacy origin was provided: local coordinates
+        # are relative to that origin. Otherwise local frame defaults to world frame.
+        if legacy_global_origin is not None:
+            self.set_local_transform(local_origin=legacy_global_origin)
+        else:
+            self.set_local_transform(local_origin=np.zeros(self.dimensions, dtype=float))
+
         self.name_map = {
             "xmin": (0, 0),
             "ymin": (0, 1),
@@ -105,42 +127,118 @@ class BoundingBox:
             "maxz": (1, 2),
         }
 
+    def set_local_transform(
+        self,
+        local_origin: Optional[np.ndarray] = None,
+        rotation_matrix: Optional[np.ndarray] = None,
+    ):
+        """Set the world->local affine transform used for interpolation coordinates.
+
+        Parameters
+        ----------
+        local_origin : Optional[np.ndarray]
+            World-space origin of the local frame. If None, uses zeros.
+        rotation_matrix : Optional[np.ndarray]
+            Rotation matrix mapping world axes to local axes.
+        """
+        if local_origin is None:
+            local_origin = np.zeros(self.dimensions, dtype=float)
+        local_origin = np.asarray(local_origin, dtype=float)
+        if local_origin.shape != (self.dimensions,):
+            raise LoopValueError("Local origin has incorrect number of dimensions")
+
+        if rotation_matrix is None:
+            rotation_matrix = np.eye(self.dimensions, dtype=float)
+        rotation_matrix = np.asarray(rotation_matrix, dtype=float)
+        if rotation_matrix.shape != (self.dimensions, self.dimensions):
+            raise LoopValueError(
+                f"Rotation matrix must have shape ({self.dimensions}, {self.dimensions})"
+            )
+
+        self._local_origin = local_origin
+        self._local_rotation = rotation_matrix
+
+        world_to_local = np.eye(4)
+        world_to_local[: self.dimensions, : self.dimensions] = rotation_matrix
+        world_to_local[: self.dimensions, 3] = -rotation_matrix @ local_origin
+
+        self._world_to_local = world_to_local
+        self._local_to_world = np.linalg.inv(world_to_local)
+
+    def _apply_affine(
+        self, xyz: np.ndarray, matrix: np.ndarray, inplace: bool = False
+    ) -> np.ndarray:
+        arr = np.asarray(xyz, dtype=float)
+        is_vector = arr.ndim == 1
+        points = arr.reshape(1, -1) if is_vector else arr
+        if points.shape[1] != self.dimensions:
+            raise LoopValueError(
+                f"locations array is {points.shape[1]}D but bounding box is {self.dimensions}"
+            )
+
+        hom = np.ones((points.shape[0], 4), dtype=float)
+        hom[:, : self.dimensions] = points
+        transformed = (matrix @ hom.T).T[:, : self.dimensions]
+
+        if inplace and isinstance(xyz, np.ndarray):
+            xyz[...] = transformed.reshape(arr.shape)
+            return xyz
+        if is_vector:
+            return transformed[0]
+        return transformed
+
     @property
     def global_origin(self):
-        """Get the global origin of the bounding box.
+        """Get the legacy global origin.
 
         Returns
         -------
         np.ndarray
-            The global origin coordinates
+            World-space origin of the local coordinate frame.
         """
-        return self._global_origin
+        return self.local_origin
 
     @global_origin.setter
     def global_origin(self, global_origin):
-        """Set the global origin of the bounding box.
+        """Set the legacy global origin.
 
         Parameters
         ----------
         global_origin : array_like
-            The global origin coordinates
+            World-space origin of the local coordinate frame.
         """
-        if self.dimensions != len(global_origin):
-            logger.warning(
-                f"Global origin has {len(global_origin)} dimensions but bounding box has {self.dimensions}"
-            )
-        self._global_origin = global_origin
+        self.set_local_transform(local_origin=np.asarray(global_origin, dtype=float))
+
+    @property
+    def local_origin(self):
+        """World-space origin of the local interpolation frame."""
+        return self._local_origin.copy()
+
+    @property
+    def local_rotation(self):
+        """Rotation matrix that maps world coordinates into local coordinates."""
+        return self._local_rotation.copy()
+
+    @property
+    def world_to_local_matrix(self):
+        """Homogeneous 4x4 matrix for world -> local coordinates."""
+        return self._world_to_local.copy()
+
+    @property
+    def local_to_world_matrix(self):
+        """Homogeneous 4x4 matrix for local -> world coordinates."""
+        return self._local_to_world.copy()
 
     @property
     def global_maximum(self):
-        """Get the global maximum coordinates of the bounding box.
+        """Get the legacy global maximum coordinates of the bounding box.
 
         Returns
         -------
         np.ndarray
-            The global maximum coordinates (local maximum + global origin)
+            World-space maximum coordinates.
         """
-        return self.maximum + self.global_origin
+        return self.maximum
 
     @property
     def valid(self):
@@ -184,7 +282,7 @@ class BoundingBox:
             logger.warning(
                 f"Origin has {len(origin)} dimensions but bounding box has {self.dimensions}"
             )
-        self._origin = origin
+        self._origin = np.asarray(origin, dtype=float)
 
     @property
     def maximum(self) -> np.ndarray:
@@ -213,7 +311,7 @@ class BoundingBox:
         maximum : np.ndarray
             Maximum coordinates
         """
-        self._maximum = maximum
+        self._maximum = np.asarray(maximum, dtype=float)
 
     @property
     def nelements(self):
@@ -224,7 +322,7 @@ class BoundingBox:
         int
             Total number of elements (product of nsteps)
         """
-        
+
         return self.nsteps.prod()
 
     @property
@@ -251,7 +349,6 @@ class BoundingBox:
         """
         return np.array([self.origin, self.maximum])
 
-     
     @nelements.setter
     def nelements(self, nelements: Union[int, float]):
         """Update the number of elements in the associated grid
@@ -314,18 +411,7 @@ class BoundingBox:
         np.ndarray
             corners of the bounding box
         """
-        return np.array(
-            [
-                self.global_origin.tolist(),
-                [self.global_maximum[0], self.global_origin[1], self.global_origin[2]],
-                [self.global_maximum[0], self.global_maximum[1], self.global_origin[2]],
-                [self.global_origin[0], self.global_maximum[1], self.global_origin[2]],
-                [self.global_origin[0], self.global_origin[1], self.global_maximum[2]],
-                [self.global_maximum[0], self.global_origin[1], self.global_maximum[2]],
-                self.global_maximum.tolist(),
-                [self.global_origin[0], self.global_maximum[1], self.global_maximum[2]],
-            ]
-        )
+        return self.corners
 
     @property
     def step_vector(self):
@@ -364,14 +450,12 @@ class BoundingBox:
         maximum = locations.max(axis=0)
         origin = np.array(origin)
         maximum = np.array(maximum)
+        self.origin = origin
+        self.maximum = maximum
         if local_coordinate:
-            self.global_origin = origin
-            self.origin = np.zeros(3)
-            self.maximum = maximum - origin
+            self.set_local_transform(local_origin=origin)
         else:
-            self.origin = origin
-            self.maximum = maximum
-            self.global_origin = np.zeros(3)
+            self.set_local_transform(local_origin=np.zeros(self.dimensions, dtype=float))
         return self
 
     def with_buffer(self, buffer: float = 0.2) -> BoundingBox:
@@ -397,13 +481,17 @@ class BoundingBox:
         # local coordinates, rescale into the original bounding boxes global coordinates
         origin = self.origin - buffer * np.max(self.maximum - self.origin)
         maximum = self.maximum + buffer * np.max(self.maximum - self.origin)
-        return BoundingBox(
+        buffered = BoundingBox(
             origin=origin,
             maximum=maximum,
-            global_origin=self.global_origin,
             nsteps=self.nsteps,
             dimensions=self.dimensions,
         )
+        buffered.set_local_transform(
+            local_origin=self.local_origin,
+            rotation_matrix=self.local_rotation,
+        )
+        return buffered
 
     # def __call__(self, xyz):
     #     xyz = np.array(xyz)
@@ -418,9 +506,12 @@ class BoundingBox:
     #     return distance
 
     def __call__(self, xyz):
+        xyz = np.asarray(xyz, dtype=float)
+        if xyz.ndim == 1:
+            xyz = xyz[None, :]
         # Calculate center and half-extents of the box
-        center = (self.maximum + self.global_origin + self.origin) / 2
-        half_extents = (self.maximum - self.global_origin + self.origin) / 2
+        center = (self.maximum + self.origin) / 2
+        half_extents = (self.maximum - self.origin) / 2
 
         # Calculate the distance from point to center
         offset = np.abs(xyz - center) - half_extents
@@ -429,7 +520,7 @@ class BoundingBox:
         inside_distance = np.min(half_extents - np.abs(xyz - center), axis=1)
 
         # Outside distance: length of the positive components of offset
-        outside_distance = np.linalg.norm(np.maximum(offset, 0))
+        outside_distance = np.linalg.norm(np.maximum(offset, 0), axis=1)
 
         # If any component of offset is positive, we're outside
         # Otherwise, we're inside and return the negative penetration distance
@@ -505,14 +596,11 @@ class BoundingBox:
         coordinates = [
             np.linspace(self.origin[i], self.maximum[i], nsteps[i]) for i in range(self.dimensions)
         ]
-
-        if not local:
-            coordinates = [
-                np.linspace(self.global_origin[i]+self.origin[i], self.global_maximum[i], nsteps[i])
-                for i in range(self.dimensions)
-            ]
         coordinate_grid = np.meshgrid(*coordinates, indexing="ij")
         locs = np.array([coord.flatten(order=order) for coord in coordinate_grid]).T
+
+        if local:
+            locs = self.project(locs)
 
         if shuffle:
             # logger.info("Shuffling points")
@@ -549,10 +637,12 @@ class BoundingBox:
             "origin": self.origin.tolist(),
             "maximum": self.maximum.tolist(),
             "nsteps": self.nsteps.tolist(),
+            "local_origin": self.local_origin.tolist(),
+            "local_rotation": self.local_rotation.tolist(),
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'BoundingBox':
+    def from_dict(cls, data: dict) -> "BoundingBox":
         """Create a bounding box from a dictionary
 
         Parameters
@@ -565,11 +655,19 @@ class BoundingBox:
         BoundingBox
             bounding box object
         """
-        return cls(
+        bbox = cls(
             origin=np.array(data["origin"]),
             maximum=np.array(data["maximum"]),
             nsteps=np.array(data["nsteps"]),
         )
+        if "local_origin" in data or "local_rotation" in data:
+            bbox.set_local_transform(
+                local_origin=np.array(data.get("local_origin", np.zeros(bbox.dimensions))),
+                rotation_matrix=np.array(
+                    data.get("local_rotation", np.eye(bbox.dimensions).tolist())
+                ),
+            )
+        return bbox
 
     def vtk(self):
         """Export the model as a pyvista RectilinearGrid
@@ -588,15 +686,9 @@ class BoundingBox:
             import pyvista as pv
         except ImportError:
             raise ImportError("pyvista is required for vtk support")
-        x = np.linspace(
-            self.global_origin[0] + self.origin[0], self.global_maximum[0], self.nsteps[0]
-        )
-        y = np.linspace(
-            self.global_origin[1] + self.origin[1], self.global_maximum[1], self.nsteps[1]
-        )
-        z = np.linspace(
-            self.global_origin[2] + self.origin[2], self.global_maximum[2], self.nsteps[2]
-        )
+        x = np.linspace(self.origin[0], self.maximum[0], self.nsteps[0])
+        y = np.linspace(self.origin[1], self.maximum[1], self.nsteps[1])
+        z = np.linspace(self.origin[2], self.maximum[2], self.nsteps[2])
         return pv.RectilinearGrid(
             x,
             y,
@@ -604,16 +696,29 @@ class BoundingBox:
         )
 
     def structured_grid(
-        self, cell_data: Dict[str, np.ndarray] = {}, vertex_data={}, name: str = "bounding_box"
+        self,
+        cell_data: Dict[str, np.ndarray] = {},
+        vertex_data={},
+        name: str = "bounding_box",
+        local_coordinates: bool = False,
     ):
         # python is passing a reference to the cell_data, vertex_data dicts so we need to
         # copy them to make sure that different instances of StructuredGrid are not sharing the same
         # underlying objects
         _cell_data = copy.deepcopy(cell_data)
         _vertex_data = copy.deepcopy(vertex_data)
+        if local_coordinates:
+            local_corners = self.project(self.corners)
+            local_origin = np.min(local_corners, axis=0)
+            local_maximum = np.max(local_corners, axis=0)
+            step_vector = (local_maximum - local_origin) / self.nsteps
+            origin = local_origin
+        else:
+            step_vector = self.step_vector
+            origin = self.origin
         return StructuredGrid(
-            origin=self.global_origin + self.origin,
-            step_vector=self.step_vector,
+            origin=origin,
+            step_vector=step_vector,
             nsteps=self.nsteps,
             cell_properties=_cell_data,
             properties=_vertex_data,
@@ -635,13 +740,22 @@ class BoundingBox:
         np.ndarray
             projected point
         """
-        if inplace:
-            xyz -= self.global_origin
-            return xyz
-        return (xyz - self.global_origin)  # np.clip(xyz, self.origin, self.maximum)
+        return self._apply_affine(xyz, self.world_to_local_matrix, inplace=inplace)
+
+    def project_vectors(self, vectors: np.ndarray) -> np.ndarray:
+        """Rotate vectors from world frame into local frame."""
+        arr = np.asarray(vectors, dtype=float)
+        is_vector = arr.ndim == 1
+        vec = arr.reshape(1, -1) if is_vector else arr
+        if vec.shape[1] != self.dimensions:
+            raise LoopValueError(
+                f"vector array is {vec.shape[1]}D but bounding box is {self.dimensions}"
+            )
+        projected = (self.local_rotation @ vec.T).T
+        return projected[0] if is_vector else projected
 
     def scale_by_projection_factor(self, value):
-        return value / np.max((self.global_maximum - self.global_origin))
+        return value / np.max((self.maximum - self.origin))
 
     def reproject(self, xyz, inplace=False):
         """Reproject a point from the bounding box to the global space
@@ -657,10 +771,20 @@ class BoundingBox:
         np.ndarray
             reprojected point
         """
-        if inplace:
-            xyz += self.global_origin
-            return xyz
-        return xyz + self.global_origin
+        return self._apply_affine(xyz, self.local_to_world_matrix, inplace=inplace)
+
+    def reproject_vectors(self, vectors: np.ndarray) -> np.ndarray:
+        """Rotate vectors from local frame back into world frame."""
+        arr = np.asarray(vectors, dtype=float)
+        is_vector = arr.ndim == 1
+        vec = arr.reshape(1, -1) if is_vector else arr
+        if vec.shape[1] != self.dimensions:
+            raise LoopValueError(
+                f"vector array is {vec.shape[1]}D but bounding box is {self.dimensions}"
+            )
+        rotation = self.local_to_world_matrix[: self.dimensions, : self.dimensions]
+        reprojected = (rotation @ vec.T).T
+        return reprojected[0] if is_vector else reprojected
 
     def __repr__(self):
         return f"BoundingBox(origin:{self.origin}, maximum:{self.maximum}, nsteps:{self.nsteps})"
@@ -678,21 +802,17 @@ class BoundingBox:
         )
 
     def matrix(self, normalise: bool = False) -> np.ndarray:
-        """Get the transformation matrix from local to global coordinates
+        """Get the world-to-local transformation matrix.
 
         Returns
         -------
         np.ndarray
             4x4 transformation matrix
         """
-        matrix = np.eye(4)
-        L = self.global_maximum - self.global_origin
-        L = np.max(L)
-        matrix[0, 3] = -self.global_origin[0]/L
-        matrix[1, 3] = -self.global_origin[1]/L
-        matrix[2, 3] = -self.global_origin[2]/L
+        matrix = self.world_to_local_matrix
         if normalise:
-            matrix[0,0] = 1/L
-            matrix[1,1] = 1/L
-            matrix[2,2] = 1/L
+            L = np.max(self.maximum - self.origin)
+            if L > 0:
+                matrix[: self.dimensions, : self.dimensions] /= L
+                matrix[: self.dimensions, 3] /= L
         return matrix
