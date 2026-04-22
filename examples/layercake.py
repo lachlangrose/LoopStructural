@@ -14,25 +14,43 @@ contact_data = [
     PointSet(name="Base_L4", coords=np.hstack([xy, np.zeros((10, 1)) + 3.0])),
 ]
 
+from loop_model.features import GeologicalUnit
+from loop_model.manager import GeologicalSchema, LoopProject
 
-schema = GeologicalSchema(name="Simple 4-Layer Model")
-
-# We define the units from oldest to youngest
-unit_names = ["Unit_Bottom", "Unit_Middle_Lower", "Unit_Middle_Upper", "Unit_Top"]
+project = LoopProject(name="Layer Cake Model")
+schema = GeologicalSchema(name="Simple 4-Layer Model", project=project)
 units = []
-
-for i, name in enumerate(unit_names):
-    unit = GeologicalUnit(
-        name=name,
-        unit_type="stratigraphy",
-        order=i,  # 0 is oldest
-        data_links=[contact_data[i].uuid],  # Link to the PointSet UID
+units.append(
+    schema.add_unit(
+        name="Unit_Bottom",
+        base_contacts=[contact_data[0]],
     )
-    schema.add_feature(unit)
-    units.append(unit)
+)
+units.append(
+    schema.add_unit(
+        name="Unit_Middle_Lower",
+        base_contacts=[contact_data[1]],
+    )
+)
+units.append(
+    schema.add_unit(
+        name="Unit_Middle_Upper",
+        base_contacts=[contact_data[2]],
+    )
+)
+units.append(
+    schema.add_unit(
+        name="Unit_Top",
+        base_contacts=[contact_data[3]],
+    )
+)
+
 
 # Define the stratigraphic relationship (A overlies B)
 for i in range(len(units) - 1):
-    schema.add_relation(master_id=units[i + 1].uuid, slave_id=units[i].uuid, relation="overlies")
+    schema.add_relation(
+        master_uuid=units[i + 1].uuid, slave_uuid=units[i].uuid, relation_type="overlies"
+    )
 
-# schema.visualize_graph(include_data=True)
+# schema.model_validate()
+print(schema.get_execution_order())

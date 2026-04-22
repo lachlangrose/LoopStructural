@@ -8,7 +8,7 @@ description = "Geological modeling utilities for LoopStructural"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = ["numpy", "pandas","networkx","loop-common"]
+dependencies = ["numpy", "pandas", "networkx", "pydantic>=2", "pyyaml", "loop-common"]
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["loop_model", "loop_model.*"]
