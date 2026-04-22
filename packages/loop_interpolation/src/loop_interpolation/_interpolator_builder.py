@@ -189,6 +189,24 @@ class InterpolatorBuilder:
             self.interpolator.set_normal_constraints(normal_constraints)
         return self
 
+    def add_tangent_constraints(self, tangent_constraints: np.ndarray) -> "InterpolatorBuilder":
+        """Add tangent constraints to the interpolator.
+
+        Parameters
+        ----------
+        tangent_constraints : np.ndarray
+            Array with columns [x, y, z, tx, ty, tz] where (tx, ty, tz) is a
+            vector that lies *in* the surface (orthogonal to the gradient).
+
+        Returns
+        -------
+        InterpolatorBuilder
+            reference to the builder
+        """
+        if self.interpolator:
+            self.interpolator.set_tangent_constraints(tangent_constraints)
+        return self
+
     def add_inequality_constraints(
         self, inequality_constraints: np.ndarray
     ) -> "InterpolatorBuilder":
