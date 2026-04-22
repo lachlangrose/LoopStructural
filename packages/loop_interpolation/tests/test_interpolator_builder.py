@@ -129,3 +129,47 @@ def test_builder_admm_solver_with_inequality_constraints():
     value = interpolator.evaluate_value(np.array([[0.5, 0.5, 0.5]]))[0]
     assert np.isfinite(value)
     assert 0.2 <= value <= 0.8
+
+
+def test_builder_admm_solver_with_inequality_pairs_constraints():
+    bounding_box = BoundingBox(np.array([0.0, 0.0, 0.0]), np.array([1.0, 1.0, 1.0]))
+    builder = InterpolatorBuilder(
+        interpolatortype=InterpolatorType.FINITE_DIFFERENCE,
+        bounding_box=bounding_box,
+        nelements=216,
+        buffer=0.0,
+    )
+
+    value_constraints = np.array(
+        [
+            [0.2, 0.2, 0.2, 0.2, 1.0],
+            [0.8, 0.8, 0.8, 0.8, 1.0],
+        ]
+    )
+    inequality_pair_constraints = np.array(
+        [
+            [0.4, 0.4, 0.4, 0.0, 1.0],
+            [0.6, 0.6, 0.6, 1.0, 1.0],
+        ]
+    )
+
+    interpolator = (
+        builder.add_value_constraints(value_constraints)
+        .add_inequality_pair_constraints(inequality_pair_constraints)
+        .setup_interpolator(inequality_pair_lower_bound=-0.5, inequality_pair_upper_bound=0.0)
+        .use_solver("admm", nmajor=10, admm_weight=0.01, maxiter=50)
+        .solve()
+        .build()
+    )
+
+    assert interpolator.up_to_date is True
+    values = interpolator.evaluate_value(
+        np.array(
+            [
+                [0.4, 0.4, 0.4],
+                [0.6, 0.6, 0.6],
+            ]
+        )
+    )
+    assert np.all(np.isfinite(values))
+    assert values[0] - values[1] <= 0.1
