@@ -28,8 +28,8 @@ def test_bounding_box_fit():
     assert np.all(np.isclose(bbox.maximum, expected_maximum))
     assert np.all(np.isclose(bbox.global_origin, np.zeros(3)))
     bbox.fit(locations, local_coordinate=True)
-    assert np.all(np.isclose(bbox.origin, np.zeros(3)))
-    assert np.all(np.isclose(bbox.maximum, expected_maximum - expected_origin))
+    assert np.all(np.isclose(bbox.origin, expected_origin))
+    assert np.all(np.isclose(bbox.maximum, expected_maximum))
     assert np.all(np.isclose(bbox.global_origin, expected_origin))
 
 
@@ -67,10 +67,10 @@ def test_local_and_global_origin():
     step_vector = (maximum - origin) / nsteps
 
     bbox = BoundingBox(origin=origin, maximum=maximum, nsteps=nsteps, step_vector=step_vector)
-    assert np.all(np.isclose(bbox.global_origin, origin))
+    assert np.all(np.isclose(bbox.global_origin, np.zeros(3)))
     assert np.all(np.isclose(bbox.global_maximum, maximum))
-    assert np.all(np.isclose(bbox.origin, np.zeros(3)))
-    assert np.all(np.isclose(bbox.maximum, maximum - origin))
+    assert np.all(np.isclose(bbox.origin, origin))
+    assert np.all(np.isclose(bbox.maximum, maximum))
 
 
 def test_buffer():
