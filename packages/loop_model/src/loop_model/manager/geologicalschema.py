@@ -7,7 +7,7 @@ from ..features import GeologicalFeature, Unit, Fault
 from .role import DataRole
 from typing import TYPE_CHECKING, List
 import networkx as nx
-from pydantic import ConfigDict, Field, ValidationError
+from pydantic import ConfigDict, Field, ValidationError, field_serializer, field_validator
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -31,7 +31,57 @@ class GeologicalSchema(LoopEntity):
     features: dict[str, GeologicalFeature] = Field(default_factory=dict)
     dag: nx.DiGraph = Field(default_factory=nx.DiGraph)
     bounding_box: BoundingBox = Field(default_factory=BoundingBox)
-    project: "LoopProject | None" = None  # Back-reference to the parent project
+    # Excluded: circular back-reference to the parent project, not domain data.
+    project: "LoopProject | None" = Field(default=None, exclude=True)
+
+    # --- DAG serialization ---
+
+    @field_serializer("dag")
+    def _serialize_dag(self, dag: nx.DiGraph) -> dict:
+        return {
+            "nodes": list(dag.nodes()),
+            "edges": [{"source": u, "target": v, **data} for u, v, data in dag.edges(data=True)],
+        }
+
+    @field_validator("dag", mode="before")
+    @classmethod
+    def _validate_dag(cls, v):
+        if isinstance(v, nx.DiGraph):
+            return v
+        if isinstance(v, dict):
+            g = nx.DiGraph()
+            g.add_nodes_from(v.get("nodes", []))
+            for edge in v.get("edges", []):
+                u, tgt = edge["source"], edge["target"]
+                data = {k: val for k, val in edge.items() if k not in ("source", "target")}
+                g.add_edge(u, tgt, **data)
+            return g
+        return v
+
+    # --- BoundingBox serialization ---
+
+    @field_serializer("bounding_box")
+    def _serialize_bounding_box(self, bb: BoundingBox) -> dict:
+        if not bb.valid:
+            return {
+                "origin": None,
+                "maximum": None,
+                "nsteps": bb.nsteps.tolist()
+                if hasattr(bb, "nsteps") and bb.nsteps is not None
+                else None,
+            }
+        return bb.to_dict()
+
+    @field_validator("bounding_box", mode="before")
+    @classmethod
+    def _validate_bounding_box(cls, v):
+        if isinstance(v, BoundingBox):
+            return v
+        if isinstance(v, dict):
+            if v.get("origin") is None:
+                return BoundingBox()
+            return BoundingBox.from_dict(v)
+        return v
 
     def initialize_project(self) -> "LoopProject":
         """Create and attach a LoopProject when working schema-first."""

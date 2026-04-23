@@ -65,3 +65,15 @@ class LoopEntity(BaseModel):
     def to_json(self, indent: int = 2) -> str:
         """Helper to export to JSON string."""
         return self.model_dump_json(indent=indent)
+
+    def to_yaml(self) -> str:
+        """Export to YAML string."""
+        try:
+            import yaml
+        except ImportError as exc:
+            raise ImportError("PyYAML is required for YAML export: pip install pyyaml") from exc
+        return yaml.dump(self.model_dump(mode="json"), sort_keys=False, allow_unicode=True)
+
+    def to_dict(self) -> dict:
+        """Export to a plain dict (JSON-safe: numpy arrays converted to lists)."""
+        return self.model_dump(mode="json")
