@@ -15,5 +15,6 @@ class DataRole(BaseModel):
         "footwall",  # Observations on the footwall side of a fault
         "slip_vector",  # Fault slip direction constraint
         "thickness",  # Isopach/Point measurement of thickness
-        "constraint",  # General 'inside/outside' or 'inequality' constraint
+        "inside",  # General 'inside/outside' or 'inequality' constraint
+        "outside",  # General 'inside/outside' or 'inequality' constraint
     ]
