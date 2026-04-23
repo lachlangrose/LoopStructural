@@ -9,6 +9,7 @@ from ._interpolatortype import InterpolatorType
 import numpy as np
 
 from typing import Dict, Optional
+from loop_common.interfaces.representation import BaseRepresentation
 from loop_common.logging import get_logger as getLogger
 from ._diagnostics import (
     ConstraintDiagnosticsReport,
@@ -34,7 +35,7 @@ class LoopTypeError(TypeError):
     pass
 
 
-class GeologicalInterpolator(metaclass=ABCMeta):
+class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
     """Abstract base class for geological interpolators.
 
     This class defines the interface for all geological interpolators in
@@ -230,6 +231,12 @@ class GeologicalInterpolator(metaclass=ABCMeta):
         # json["dof"] = self.dof
         json["up_to_date"] = self.up_to_date
         return json
+
+    @classmethod
+    def from_dict(cls, data):
+        from ._interpolator_factory import InterpolatorFactory
+
+        return InterpolatorFactory.from_dict(data)
 
     @abstractmethod
     def set_region(self, **kwargs):
@@ -681,6 +688,9 @@ class GeologicalInterpolator(metaclass=ABCMeta):
     @abstractmethod
     def evaluate_gradient(self, locations: np.ndarray):
         raise NotImplementedError("evaluate_gradient not implemented")
+
+    def surfaces(self, value):
+        raise NotImplementedError("Surface extraction not implemented for this representation")
 
     @abstractmethod
     def reset(self):
