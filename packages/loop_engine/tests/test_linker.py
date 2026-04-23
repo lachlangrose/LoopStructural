@@ -56,3 +56,39 @@ def test_linker_collects_missing_observation_links():
     assert linked.missing_observation_ids == ["does-not-exist"]
     assert linked.point_constraints.shape == (0, 3)
     assert linked.gradient_constraints.shape == (0, 6)
+
+
+def test_linker_preserves_inside_outside_roles():
+    schema = GeologicalSchema(name="InsideOutsideRoles")
+    schema.initialize_project()
+
+    inside = PointSet(name="inside", coords=np.array([[0.0, 0.0, 0.0]]))
+    outside = PointSet(name="outside", coords=np.array([[1.0, 0.0, 0.0]]))
+    unit = schema.add_unit("U1", inside=[inside], outside=[outside])
+
+    linked = ObservationLinker(schema).build_feature_input(unit.uuid)
+
+    assert "inside" in linked.by_role
+    assert "outside" in linked.by_role
+    assert linked.by_role["inside"][0].obs_uid == inside.uuid
+    assert linked.by_role["outside"][0].obs_uid == outside.uuid
+
+
+def test_linker_builds_fault_slip_vector_role_without_uid_attribute():
+    schema = GeologicalSchema(name="FaultSlipRole")
+    schema.initialize_project()
+
+    orientation = Orientation(
+        name="slip",
+        coords=np.array([[0.5, 0.5, 0.0]]),
+        vector=np.array([[1.0, 0.0, 0.0]]),
+        magnitude=np.array([1.0]),
+        polarity=np.array([1.0]),
+        type="plane",
+    )
+    fault = schema.add_fault("F1", displacement=10.0, slip_vector=[orientation])
+
+    linked = ObservationLinker(schema).build_feature_input(fault.uuid)
+
+    assert "slip_vector" in linked.by_role
+    assert linked.by_role["slip_vector"][0].obs_uid == orientation.uuid

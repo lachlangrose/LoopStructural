@@ -6,17 +6,27 @@ from ..tasks.base import Task
 
 
 class Model:
-    def __init__(self, schema, grid=None, interpolatortype="FDI", nelements=1000):
+    def __init__(
+        self,
+        schema,
+        grid=None,
+        interpolatortype="FDI",
+        nelements=1000,
+        interpolation_strategy="independent",
+    ):
         self.schema = schema
         self.grid = grid
         self.interpolatortype = interpolatortype
         self.nelements = nelements
+        self.interpolation_strategy = interpolation_strategy
         self.current_state = None
         self._linker = ObservationLinker(schema)
-        self._builder_dispatcher = create_default_feature_builder_dispatcher()
+        self._builder_dispatcher = create_default_feature_builder_dispatcher(self)
 
     def solve(self):
         """The 'Big Green Button'."""
+        self._grouped_unit_build_cache = {}
+
         # 1. Get the topological sort of tasks from the schema graph
         tasks = self._compile_tasks()
 
@@ -29,7 +39,7 @@ class Model:
                 # Pass previous results as inputs (The Kinematic Chain)
                 inputs = [new_state.get_feature(p) for p in task.predecessors]
                 payload = task.execute(inputs)
-                build_result = self._builder_dispatcher.build(payload, self)
+                build_result = self._builder_dispatcher.build(payload)
                 solved_feature = self._coerce_solved_feature(task.id, build_result)
                 if solved_feature is not None:
                     new_state.results[task.id] = solved_feature
@@ -73,7 +83,7 @@ class Model:
         """
         # Backward-compatible shim used by call sites/tests that still invoke this
         # helper directly; the main solve path now dispatches by feature strategy.
-        return self._builder_dispatcher.build(task_payload, self)
+        return self._builder_dispatcher.build(task_payload)
 
     def _compile_tasks(self):
         execution_order = self.schema.get_execution_order()

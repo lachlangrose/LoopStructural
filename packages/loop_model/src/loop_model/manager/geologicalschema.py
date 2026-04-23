@@ -114,13 +114,10 @@ class GeologicalSchema(LoopEntity):
         thicknesses: list[DataRole] | None = None,
         inside: list[DataRole] | None = None,
         outside: list[DataRole] | None = None,
-        build_strategy: str | None = None,
         build_params: dict | None = None,
     ):
         project = self._require_project()
         new_unit_kwargs = {"name": name}
-        if build_strategy is not None:
-            new_unit_kwargs["build_strategy"] = build_strategy
         if build_params is not None:
             new_unit_kwargs["build_params"] = build_params
         new_unit = Unit(**new_unit_kwargs)
@@ -161,7 +158,6 @@ class GeologicalSchema(LoopEntity):
         footwall: list[DataRole] | None = None,
         orientations: list[DataRole] | None = None,
         slip_vector: list[DataRole] | None = None,
-        build_strategy: str | None = None,
         build_params: dict | None = None,
     ):
         project = self._require_project()
@@ -170,8 +166,7 @@ class GeologicalSchema(LoopEntity):
             "name": name,
             "displacement": displacement,
         }
-        if build_strategy is not None:
-            new_fault_kwargs["build_strategy"] = build_strategy
+
         if build_params is not None:
             new_fault_kwargs["build_params"] = build_params
         new_fault = Fault(**new_fault_kwargs)
@@ -215,31 +210,6 @@ class GeologicalSchema(LoopEntity):
 
     def _add_relation(self, master_uuid: str, slave_uuid: str, relation_type: str):
         self.dag.add_edge(master_uuid, slave_uuid, relation=relation_type)
-
-    def add_relation(
-        self,
-        master_uuid: str | None = None,
-        slave_uuid: str | None = None,
-        relation_type: str | RelationType | None = None,
-        **kwargs,
-    ):
-        """Backward-compatible public relation API.
-
-        Supports both old names (master_id, slave_id, relation) and current names
-        (master_uuid, slave_uuid, relation_type).
-        """
-        master_uuid = master_uuid or kwargs.get("master_id")
-        slave_uuid = slave_uuid or kwargs.get("slave_id")
-        relation_type = relation_type or kwargs.get("relation")
-
-        if master_uuid is None or slave_uuid is None or relation_type is None:
-            raise ValueError(
-                "add_relation requires master/slave identifiers and a relation type. "
-                "Use master_uuid/slave_uuid/relation_type or master_id/slave_id/relation."
-            )
-
-        relation = relation_type.value if isinstance(relation_type, RelationType) else relation_type
-        self._add_relation(master_uuid, slave_uuid, relation)
 
     def add_faulted_by_relation(self, master_uuid: str, slave_uuid: str):
         if master_uuid == slave_uuid:
