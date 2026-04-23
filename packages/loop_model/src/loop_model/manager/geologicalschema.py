@@ -114,9 +114,16 @@ class GeologicalSchema(LoopEntity):
         thicknesses: list[DataRole] | None = None,
         inside: list[DataRole] | None = None,
         outside: list[DataRole] | None = None,
+        build_strategy: str | None = None,
+        build_params: dict | None = None,
     ):
         project = self._require_project()
-        new_unit = Unit(name=name)
+        new_unit_kwargs = {"name": name}
+        if build_strategy is not None:
+            new_unit_kwargs["build_strategy"] = build_strategy
+        if build_params is not None:
+            new_unit_kwargs["build_params"] = build_params
+        new_unit = Unit(**new_unit_kwargs)
         for obs in basal_contacts or []:
             # Process each basal contact observation
             project.observations[obs.uuid] = obs
@@ -136,11 +143,11 @@ class GeologicalSchema(LoopEntity):
         for obs in inside or []:
             # Process each inside constraint observation
             project.observations[obs.uuid] = obs
-            new_unit.data_links.append(DataRole(obs_uid=obs.uuid, role="constraint"))
+            new_unit.data_links.append(DataRole(obs_uid=obs.uuid, role="inside"))
         for obs in outside or []:
             # Process each outside constraint observation
             project.observations[obs.uuid] = obs
-            new_unit.data_links.append(DataRole(obs_uid=obs.uuid, role="constraint"))
+            new_unit.data_links.append(DataRole(obs_uid=obs.uuid, role="outside"))
 
         self._add_feature(new_unit)
         return new_unit
@@ -154,10 +161,20 @@ class GeologicalSchema(LoopEntity):
         footwall: list[DataRole] | None = None,
         orientations: list[DataRole] | None = None,
         slip_vector: list[DataRole] | None = None,
+        build_strategy: str | None = None,
+        build_params: dict | None = None,
     ):
         project = self._require_project()
 
-        new_fault = Fault(name=name, displacement=displacement)
+        new_fault_kwargs = {
+            "name": name,
+            "displacement": displacement,
+        }
+        if build_strategy is not None:
+            new_fault_kwargs["build_strategy"] = build_strategy
+        if build_params is not None:
+            new_fault_kwargs["build_params"] = build_params
+        new_fault = Fault(**new_fault_kwargs)
         for obs in trace or []:
             project.observations[obs.uuid] = obs
             new_fault.data_links.append(DataRole(obs_uid=obs.uuid, role="trace"))
@@ -172,7 +189,7 @@ class GeologicalSchema(LoopEntity):
             new_fault.data_links.append(DataRole(obs_uid=obs.uuid, role="orientation"))
         for obs in slip_vector or []:
             project.observations[obs.uuid] = obs
-            new_fault.data_links.append(DataRole(obs_uid=obs.uid, role="slip_vector"))
+            new_fault.data_links.append(DataRole(obs_uid=obs.uuid, role="slip_vector"))
         self._add_feature(new_fault)
         return new_fault
 
