@@ -9,12 +9,8 @@ class GeologicalUnit(GeologicalFeature):
 
     name: str
     unit_type: Literal["stratigraphy", "intrusion", "basement"] = "stratigraphy"
-    build_strategy: Literal["independent_per_unit", "grouped_conformable_stack"] = (
-        "independent_per_unit"
-    )
+    thickness: float | None = None
     build_params: dict[str, Any] = Field(default_factory=dict)
-    order: int = 0
-    is_stop_surface: bool = False
 
 
 Unit = GeologicalUnit
