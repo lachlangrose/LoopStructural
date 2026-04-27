@@ -39,3 +39,6 @@ class BaseRepresentation(ABC):
     @abstractmethod
     def evaluate_gradient(self, position: np.ndarray):
         raise NotImplementedError("Gradient evaluation not implemented for this representation")
+
+    def surfaces(self, value):
+        raise NotImplementedError("Surface extraction not implemented for this representation")

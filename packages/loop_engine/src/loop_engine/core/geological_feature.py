@@ -21,4 +21,10 @@ class GeologicalFeature:
         return self.representation.max()
 
     def surfaces(self, value):
+        """Extract an isosurface at the given scalar field value.
+
+        Delegates to the representation's own ``surfaces`` method when available.
+        Falls back to marching cubes when the representation is a grid-based
+        interpolator (i.e. it exposes a ``support`` attribute with ``nodes``).
+        """
         return self.representation.surfaces(value)
