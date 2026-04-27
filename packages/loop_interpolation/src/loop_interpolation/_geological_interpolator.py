@@ -17,7 +17,7 @@ from ._diagnostics import (
     ConstraintFamilyDiagnostics,
     RegionCoverageDiagnostics,
 )
-from .constrains import (
+from .constraints import (
     ValueConstraint,
     GradientConstraint,
     InterfaceConstraint,
@@ -25,13 +25,6 @@ from .constrains import (
     InequalityPair,
 )
 from ._validation import (
-    validate_value_constraint,
-    validate_gradient_constraint,
-    validate_normal_constraint,
-    validate_tangent_constraint,
-    validate_interface_constraint,
-    validate_inequality_value_constraint,
-    validate_inequality_pairs_constraint,
     check_unsupported_combinations,
     ValidationError,
 )
@@ -292,10 +285,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "value")
             points = self._coerce_value_constraint(points).to_array()
-            points = validate_value_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions + 1:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.data["value"] = points.copy()
             self.n_i = points.shape[0]
             self.up_to_date = False
@@ -329,10 +318,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "gradient")
             points = self._coerce_gradient_constraint(points).to_array()
-            points = validate_gradient_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions * 2:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.n_g = points.shape[0]
             self.data["gradient"] = points.copy()
             self.up_to_date = False
@@ -365,11 +350,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "normal")
             points = self._coerce_gradient_constraint(points, is_normal=True).to_array()
-            points = validate_normal_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions * 2:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
-                logger.info("No weight provided for normal constraints, all weights are set to 1")
             self.n_n = points.shape[0]
             self.data["normal"] = points.copy()
             self.up_to_date = False
@@ -402,10 +382,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "tangent")
             points = self._coerce_gradient_constraint(points).to_array()
-            points = validate_tangent_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions * 2:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.data["tangent"] = points.copy()
             self.up_to_date = False
         except ValidationError as e:
@@ -434,10 +410,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "interface")
             points = self._coerce_interface_constraint(points).to_array()
-            points = validate_interface_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions + 1:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.data["interface"] = points.copy()
             self.up_to_date = False
         except ValidationError as e:
@@ -470,10 +442,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "inequality")
             points = self._coerce_inequality_constraint(points).to_array()
-            points = validate_inequality_value_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions + 2:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.data["inequality"] = points.copy()
             self.up_to_date = False
         except ValidationError as e:
@@ -502,10 +470,6 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         try:
             check_unsupported_combinations(self.data, "inequality_pairs")
             points = self._coerce_inequality_pair_constraint(points).to_array()
-            points = validate_inequality_pairs_constraint(points, dimensions=self.dimensions)
-            # Add default weights if not provided
-            if points.shape[1] == self.dimensions + 1:
-                points = np.hstack([points, np.ones((points.shape[0], 1))])
             self.data["inequality_pairs"] = points.copy()
             self.up_to_date = False
         except ValidationError as e:
@@ -790,12 +754,15 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
     def from_json(cls, json_str: str) -> "GeologicalInterpolator":
         return cls.from_dict(json.loads(json_str))
 
-    def to_yaml(self) -> str:
+    def to_yaml(self, file_path: str) -> None | str:
         try:
             import yaml
         except ImportError as exc:
             raise ImportError("PyYAML is required for YAML export: pip install pyyaml") from exc
-        return yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=True)
+        if file_path is None:
+            return yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=True)
+        with open(file_path, "w") as f:
+            yaml.safe_dump(self.to_dict(), f, sort_keys=False, allow_unicode=True)
 
     @classmethod
     def from_yaml(cls, yaml_str: str) -> "GeologicalInterpolator":

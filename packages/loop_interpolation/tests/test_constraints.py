@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from loop_interpolation.constrains import (
+from loop_interpolation.constraints import (
     ValueConstraint,
     GradientConstraint,
     InequalityConstraint,
@@ -76,3 +76,25 @@ def test_constraint_json_round_trip():
     assert np.array_equal(restored.points, points)
     assert np.array_equal(restored.values, values)
     assert np.array_equal(restored.weights, np.array([1.0, 0.5]))
+
+
+def test_value_constraint_drops_non_finite_rows_and_repairs_nan_weights():
+    constraint = ValueConstraint.from_array(
+        np.array(
+            [
+                [0.0, 0.0, 0.0, 1.0, np.nan],
+                [1.0, 1.0, 1.0, np.nan, 2.0],
+            ]
+        )
+    )
+
+    assert constraint.points.shape == (1, 3)
+    assert np.array_equal(constraint.values, np.array([1.0]))
+    assert np.array_equal(constraint.weights, np.array([1.0]))
+
+
+def test_gradient_constraint_rejects_zero_vector_via_object_validation():
+    with pytest.raises(Exception) as excinfo:
+        GradientConstraint(points=np.array([[0.0, 0.0, 0.0]]), vectors=np.array([[0.0, 0.0, 0.0]]))
+
+    assert "zero or near-zero magnitude" in str(excinfo.value)

@@ -247,40 +247,9 @@ def validate_value_constraint(
     FiniteValueError
         If any coordinates or values are non-finite after NaN rows are dropped
     """
-    points = _ensure_float_array(points, "Value constraint points")
-    _check_shape(points, (None, None), "Value constraint points")
+    from .constraints import ValueConstraint
 
-    min_cols = dimensions + 1
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Value constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, value). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions + 2:
-        raise ShapeError(
-            f"Value constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions + 2} supported (X, Y, Z, value, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    # NaN weight → default 1.0; NaN position/value rows → drop
-    if actual_cols == dimensions + 2:
-        points = _fill_nan_weights(points, weight_col=dimensions + 1)
-    points = _drop_nan_data_rows(points, slice(0, dimensions + 1), "value constraint")
-
-    if points.shape[0] == 0:
-        return points
-
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    _check_finite(points[:, dimensions], "Value column")
-
-    if actual_cols == dimensions + 2:
-        _check_finite(points[:, dimensions + 1], "Weight column")
-
-    return points
+    return ValueConstraint.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_gradient_constraint(
@@ -316,53 +285,9 @@ def validate_gradient_constraint(
     VectorError
         If gradient vectors have zero magnitude (degenerate case)
     """
-    points = _ensure_float_array(points, "Gradient constraint points")
-    _check_shape(points, (None, None), "Gradient constraint points")
+    from .constraints import GradientConstraint
 
-    min_cols = dimensions * 2
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Gradient constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, gx, gy, gz). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions * 2 + 1:
-        raise ShapeError(
-            f"Gradient constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions * 2 + 1} supported (X, Y, Z, gx, gy, gz, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    # NaN weight → default 1.0; NaN position/vector rows → drop
-    if actual_cols == dimensions * 2 + 1:
-        points = _fill_nan_weights(points, weight_col=dimensions * 2)
-    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "gradient constraint")
-
-    if points.shape[0] == 0:
-        return points
-
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    _check_finite(points[:, dimensions : dimensions * 2], "Gradient vector (gx, gy, gz)")
-
-    if actual_cols == dimensions * 2 + 1:
-        _check_finite(points[:, -1], "Weight column")
-
-    # Warn about zero-magnitude gradients
-    grad_vectors = points[:, dimensions : dimensions * 2]
-    magnitudes = np.linalg.norm(grad_vectors, axis=1)
-    zero_mag = magnitudes < 1e-14
-    if np.any(zero_mag):
-        n_zero = int(np.sum(zero_mag))
-        zero_indices = np.where(zero_mag)[0]
-        raise VectorError(
-            f"Found {n_zero} gradient constraints with zero or near-zero magnitude. "
-            f"Gradient vectors must have non-zero length. "
-            f"Zero-magnitude vectors at indices: {zero_indices}"
-        )
-
-    return points
+    return GradientConstraint.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_normal_constraint(
@@ -398,53 +323,9 @@ def validate_normal_constraint(
     VectorError
         If normal vectors have zero magnitude
     """
-    points = _ensure_float_array(points, "Normal constraint points")
-    _check_shape(points, (None, None), "Normal constraint points")
+    from .constraints import GradientConstraint
 
-    min_cols = dimensions * 2
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Normal constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, nx, ny, nz). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions * 2 + 1:
-        raise ShapeError(
-            f"Normal constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions * 2 + 1} supported (X, Y, Z, nx, ny, nz, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    # NaN weight → default 1.0; NaN position/normal rows → drop
-    if actual_cols == dimensions * 2 + 1:
-        points = _fill_nan_weights(points, weight_col=dimensions * 2)
-    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "normal constraint")
-
-    if points.shape[0] == 0:
-        return points
-
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    _check_finite(points[:, dimensions : dimensions * 2], "Normal vector (nx, ny, nz)")
-
-    if actual_cols == dimensions * 2 + 1:
-        _check_finite(points[:, -1], "Weight column")
-
-    # Check for zero-magnitude normals
-    normal_vectors = points[:, dimensions : dimensions * 2]
-    magnitudes = np.linalg.norm(normal_vectors, axis=1)
-    zero_mag = magnitudes < 1e-14
-    if np.any(zero_mag):
-        n_zero = int(np.sum(zero_mag))
-        zero_indices = np.where(zero_mag)[0]
-        raise VectorError(
-            f"Found {n_zero} normal constraints with zero or near-zero magnitude. "
-            f"Normal vectors must have non-zero length. "
-            f"Zero-magnitude vectors at indices: {zero_indices}"
-        )
-
-    return points
+    return GradientConstraint.from_array(points, dimensions=dimensions, is_normal=True).to_array()
 
 
 def validate_tangent_constraint(
@@ -480,53 +361,9 @@ def validate_tangent_constraint(
     VectorError
         If tangent vectors have zero magnitude
     """
-    points = _ensure_float_array(points, "Tangent constraint points")
-    _check_shape(points, (None, None), "Tangent constraint points")
+    from .constraints import GradientConstraint
 
-    min_cols = dimensions * 2
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Tangent constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, tx, ty, tz). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions * 2 + 1:
-        raise ShapeError(
-            f"Tangent constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions * 2 + 1} supported (X, Y, Z, tx, ty, tz, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    # NaN weight → default 1.0; NaN position/tangent rows → drop
-    if actual_cols == dimensions * 2 + 1:
-        points = _fill_nan_weights(points, weight_col=dimensions * 2)
-    points = _drop_nan_data_rows(points, slice(0, dimensions * 2), "tangent constraint")
-
-    if points.shape[0] == 0:
-        return points
-
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    _check_finite(points[:, dimensions : dimensions * 2], "Tangent vector (tx, ty, tz)")
-
-    if actual_cols == dimensions * 2 + 1:
-        _check_finite(points[:, -1], "Weight column")
-
-    # Check for zero-magnitude tangents
-    tangent_vectors = points[:, dimensions : dimensions * 2]
-    magnitudes = np.linalg.norm(tangent_vectors, axis=1)
-    zero_mag = magnitudes < 1e-14
-    if np.any(zero_mag):
-        n_zero = int(np.sum(zero_mag))
-        zero_indices = np.where(zero_mag)[0]
-        raise VectorError(
-            f"Found {n_zero} tangent constraints with zero or near-zero magnitude. "
-            f"Tangent vectors must have non-zero length. "
-            f"Zero-magnitude vectors at indices: {zero_indices}"
-        )
-
-    return points
+    return GradientConstraint.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_interface_constraint(
@@ -560,38 +397,9 @@ def validate_interface_constraint(
     FiniteValueError
         If any coordinates are non-finite after NaN rows are dropped
     """
-    points = _ensure_float_array(points, "Interface constraint points")
-    _check_shape(points, (None, None), "Interface constraint points")
+    from .constraints import InterfaceConstraint
 
-    min_cols = dimensions + 1
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Interface constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, interface_id). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions + 2:
-        raise ShapeError(
-            f"Interface constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions + 2} supported (X, Y, Z, interface_id, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    # NaN weight → default 1.0; NaN position/id rows → drop
-    if actual_cols == dimensions + 2:
-        points = _fill_nan_weights(points, weight_col=dimensions + 1)
-    points = _drop_nan_data_rows(points, slice(0, dimensions + 1), "interface constraint")
-
-    if points.shape[0] == 0:
-        return points
-
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    if actual_cols == dimensions + 2:
-        _check_finite(points[:, -1], "Weight column")
-
-    return points
+    return InterfaceConstraint.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_inequality_value_constraint(
@@ -626,47 +434,9 @@ def validate_inequality_value_constraint(
     ValueError
         If lower bound >= upper bound for any constraint
     """
-    points = _ensure_float_array(points, "Inequality constraint points")
-    _check_shape(points, (None, None), "Inequality constraint points")
+    from .constraints import InequalityConstraint
 
-    min_cols = dimensions + 2
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Inequality constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, lower_bound, upper_bound). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions + 3:
-        raise ShapeError(
-            f"Inequality constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions + 3} supported (X, Y, Z, lower_bound, upper_bound, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    _check_finite(points, "Inequality constraint points and bounds")
-
-    # Validate position
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    _check_finite(points[:, dimensions : dimensions + 2], "Bound values")
-    if actual_cols == dimensions + 3:
-        _check_finite(points[:, -1], "Weight column")
-
-    # Check lower_bound < upper_bound
-    lower_bounds = points[:, dimensions]
-    upper_bounds = points[:, dimensions + 1]
-    invalid_bounds = lower_bounds >= upper_bounds
-    if np.any(invalid_bounds):
-        n_invalid = int(np.sum(invalid_bounds))
-        invalid_indices = np.where(invalid_bounds)[0]
-        raise ValidationError(
-            f"Found {n_invalid} inequality constraints with lower_bound >= upper_bound. "
-            f"For each constraint, lower_bound must be strictly less than upper_bound. "
-            f"Invalid constraints at indices: {invalid_indices}"
-        )
-
-    return points
+    return InequalityConstraint.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_inequality_pairs_constraint(
@@ -699,33 +469,9 @@ def validate_inequality_pairs_constraint(
     FiniteValueError
         If any coordinates are non-finite
     """
-    points = _ensure_float_array(points, "Inequality pairs constraint points")
-    _check_shape(points, (None, None), "Inequality pairs constraint points")
+    from .constraints import InequalityPair
 
-    min_cols = dimensions + 1
-    actual_cols = points.shape[1]
-    if actual_cols < min_cols:
-        raise ShapeError(
-            f"Inequality pairs constraint points have {actual_cols} columns, but at least "
-            f"{min_cols} required (X, Y, Z, rock_id). "
-            f"Shape: {points.shape}"
-        )
-
-    if actual_cols > dimensions + 2:
-        raise ShapeError(
-            f"Inequality pairs constraint points have {actual_cols} columns, but maximum "
-            f"{dimensions + 2} supported (X, Y, Z, rock_id, weight). "
-            f"Shape: {points.shape}"
-        )
-
-    _check_finite(points, "Inequality pairs constraint points")
-
-    # Validate position
-    _check_finite(points[:, :dimensions], "Position (X, Y, Z)")
-    if actual_cols == dimensions + 2:
-        _check_finite(points[:, -1], "Weight column")
-
-    return points
+    return InequalityPair.from_array(points, dimensions=dimensions).to_array()
 
 
 def validate_weights(
