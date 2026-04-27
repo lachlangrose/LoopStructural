@@ -18,6 +18,13 @@ class MergedLinkedInput:
     missing_observation_ids: list[str]
 
 
+@dataclass
+class PreparedConstraints:
+    value_constraints: np.ndarray
+    normal_constraints: np.ndarray
+    tangent_constraints: np.ndarray
+
+
 class BaseBuilder:
     """Base builder with common interpolation and data-extraction utilities."""
 
@@ -26,45 +33,127 @@ class BaseBuilder:
 
     def build(self, task_payload: dict) -> object | None:
         linked_data = task_payload.get("linked_data")
-        return self.build_from_linked_data(linked_data)
-
-    def build_from_linked_data(self, linked_data) -> object | None:
-        from loop_interpolation import InterpolatorBuilder
-
-        if linked_data is None:
-            return None
-
-        has_points = linked_data.point_constraints.shape[0] > 0
-        has_gradients = linked_data.gradient_constraints.shape[0] > 0
-        has_tangents = linked_data.tangent_constraints.shape[0] > 0
-
-        if not (has_points or has_gradients or has_tangents):
-            return None
-
-        bounding_box = self._resolve_bounding_box(linked_data)
-        builder = InterpolatorBuilder(
-            interpolatortype=self.model.interpolatortype,
-            bounding_box=bounding_box,
-            nelements=self.model.nelements,
+        feature = task_payload.get("feature")
+        build_params = getattr(feature, "build_params", {}) or {}
+        prepared = self.prepare_constraints(linked_data)
+        return self.build_from_constraints(
+            linked_data=linked_data,
+            prepared=prepared,
+            build_params=build_params,
         )
 
-        if has_points:
+    def build_from_linked_data(self, linked_data) -> object | None:
+        prepared = self.prepare_constraints(linked_data)
+        return self.build_from_constraints(
+            linked_data=linked_data,
+            prepared=prepared,
+            build_params={},
+        )
+
+    def prepare_constraints(self, linked_data) -> PreparedConstraints:
+        if linked_data is None:
+            return PreparedConstraints(
+                value_constraints=np.empty((0, 4), dtype=float),
+                normal_constraints=np.empty((0, 6), dtype=float),
+                tangent_constraints=np.empty((0, 6), dtype=float),
+            )
+
+        if linked_data.point_constraints.shape[0] > 0:
             value_constraints = np.hstack(
                 [
                     linked_data.point_constraints,
                     np.zeros((linked_data.point_constraints.shape[0], 1)),
                 ]
             )
-            builder.add_value_constraints(value_constraints)
+        else:
+            value_constraints = np.empty((0, 4), dtype=float)
 
-        if has_gradients:
-            builder.add_normal_constraints(linked_data.gradient_constraints)
+        normal_constraints = self._normalize_xyz_vectors(linked_data.gradient_constraints)
+        tangent_constraints = self._normalize_xyz_vectors(linked_data.tangent_constraints)
 
-        if has_tangents:
-            builder.add_tangent_constraints(linked_data.tangent_constraints)
+        return PreparedConstraints(
+            value_constraints=value_constraints,
+            normal_constraints=normal_constraints,
+            tangent_constraints=tangent_constraints,
+        )
 
-        builder.setup_interpolator().solve()
+    def build_from_constraints(
+        self,
+        linked_data,
+        prepared: PreparedConstraints,
+        build_params: dict,
+    ) -> object | None:
+        from loop_interpolation import InterpolatorBuilder
+
+        if (
+            prepared.value_constraints.shape[0] == 0
+            and prepared.normal_constraints.shape[0] == 0
+            and prepared.tangent_constraints.shape[0] == 0
+        ):
+            return None
+
+        builder = InterpolatorBuilder(
+            interpolatortype=self.model.interpolatortype,
+            bounding_box=self._resolve_bounding_box(linked_data),
+            nelements=self.model.nelements,
+        )
+        self.configure_builder(builder, build_params)
+
+        if prepared.value_constraints.shape[0] > 0:
+            builder.add_value_constraints(prepared.value_constraints)
+        if prepared.normal_constraints.shape[0] > 0:
+            builder.add_normal_constraints(prepared.normal_constraints)
+        if prepared.tangent_constraints.shape[0] > 0:
+            builder.add_tangent_constraints(prepared.tangent_constraints)
+
+        self.apply_optional_constraints(builder, linked_data)
+
+        builder.setup_interpolator()
+        tol = build_params.get("tol")
+        if tol is None:
+            builder.solve()
+        else:
+            builder.solve(tol=tol)
         return builder.build()
+
+    def configure_builder(self, builder, build_params: dict) -> None:
+        solver = build_params.get("solver")
+        solver_kwargs = build_params.get("solver_kwargs", {})
+        if solver is not None:
+            builder.use_solver(solver, **solver_kwargs)
+
+        if "use_regularisation_weight_scale" in build_params:
+            builder.use_regularisation_weight_scale(
+                bool(build_params.get("use_regularisation_weight_scale"))
+            )
+        if "regularisation_weight_sigma" in build_params:
+            builder.regularisation_weight_sigma(
+                float(build_params.get("regularisation_weight_sigma"))
+            )
+
+    @staticmethod
+    def apply_optional_constraints(builder, linked_data) -> None:
+        if linked_data is None:
+            return
+        inequality_constraints = getattr(linked_data, "inequality_constraints", None)
+        if inequality_constraints is not None and len(inequality_constraints) > 0:
+            builder.add_inequality_constraints(inequality_constraints)
+        inequality_pair_constraints = getattr(linked_data, "inequality_pair_constraints", None)
+        if inequality_pair_constraints is not None and len(inequality_pair_constraints) > 0:
+            builder.add_inequality_pair_constraints(inequality_pair_constraints)
+
+    @staticmethod
+    def _normalize_xyz_vectors(rows: np.ndarray) -> np.ndarray:
+        if rows is None or rows.shape[0] == 0:
+            return np.empty((0, 6), dtype=float)
+        coords = rows[:, :3]
+        vectors = rows[:, 3:6]
+        norms = np.linalg.norm(vectors, axis=1)
+        valid = norms > 1e-12
+        if not np.any(valid):
+            return np.empty((0, 6), dtype=float)
+        normalized = vectors[valid] / norms[valid][:, np.newaxis]
+        return np.hstack([coords[valid], normalized])
 
     def _resolve_bounding_box(self, linked_data):
         bounding_box = getattr(self.model.schema, "bounding_box", None)
