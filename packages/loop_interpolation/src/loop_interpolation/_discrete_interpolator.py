@@ -978,7 +978,7 @@ class DiscreteInterpolator(GeologicalInterpolator):
         return {
             "type": self.type.name,
             "support": self.support.to_dict(),
-            "c": self.c,
+            "c": np.asarray(self.c).tolist(),
             **super().to_dict(),
             # 'region_function':self.region_function,
         }

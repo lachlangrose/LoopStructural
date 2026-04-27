@@ -7,14 +7,22 @@ used in LoopStructural geological modelling framework.
 from abc import ABCMeta, abstractmethod
 from ._interpolatortype import InterpolatorType
 import numpy as np
+import json
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 from loop_common.interfaces.representation import BaseRepresentation
 from loop_common.logging import get_logger as getLogger
 from ._diagnostics import (
     ConstraintDiagnosticsReport,
     ConstraintFamilyDiagnostics,
     RegionCoverageDiagnostics,
+)
+from .constrains import (
+    ValueConstraint,
+    GradientConstraint,
+    InterfaceConstraint,
+    InequalityConstraint,
+    InequalityPair,
 )
 from ._validation import (
     validate_value_constraint,
@@ -208,35 +216,40 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except Exception as e:
             raise LoopTypeError(str(e))
 
-    def to_json(self):
-        """Return a JSON representation of the geological interpolator.
+    def _coerce_value_constraint(
+        self, points: Union[np.ndarray, ValueConstraint]
+    ) -> ValueConstraint:
+        if isinstance(points, ValueConstraint):
+            return points
+        return ValueConstraint.from_array(points, dimensions=self.dimensions)
 
-        Returns
-        -------
-        dict
-            Dictionary containing the interpolator's state and configuration
-            suitable for JSON serialization
+    def _coerce_gradient_constraint(
+        self, points: Union[np.ndarray, GradientConstraint], is_normal: bool = False
+    ) -> GradientConstraint:
+        if isinstance(points, GradientConstraint):
+            return points
+        return GradientConstraint.from_array(points, dimensions=self.dimensions, is_normal=is_normal)
 
-        Notes
-        -----
-        This method packages the essential state of the interpolator including
-        its type, constraints, data, and build status for serialization.
-        """
-        json = {}
-        json["type"] = self.type
-        # json["name"] = self.propertyname
-        json["constraints"] = self.constraints
-        json["data"] = self.data
-        json["type"] = self.type
-        # json["dof"] = self.dof
-        json["up_to_date"] = self.up_to_date
-        return json
+    def _coerce_interface_constraint(
+        self, points: Union[np.ndarray, InterfaceConstraint]
+    ) -> InterfaceConstraint:
+        if isinstance(points, InterfaceConstraint):
+            return points
+        return InterfaceConstraint.from_array(points, dimensions=self.dimensions)
 
-    @classmethod
-    def from_dict(cls, data):
-        from ._interpolator_factory import InterpolatorFactory
+    def _coerce_inequality_constraint(
+        self, points: Union[np.ndarray, InequalityConstraint]
+    ) -> InequalityConstraint:
+        if isinstance(points, InequalityConstraint):
+            return points
+        return InequalityConstraint.from_array(points, dimensions=self.dimensions)
 
-        return InterpolatorFactory.from_dict(data)
+    def _coerce_inequality_pair_constraint(
+        self, points: Union[np.ndarray, InequalityPair]
+    ) -> InequalityPair:
+        if isinstance(points, InequalityPair):
+            return points
+        return InequalityPair.from_array(points, dimensions=self.dimensions)
 
     @abstractmethod
     def set_region(self, **kwargs):
@@ -254,7 +267,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         pass
 
-    def set_value_constraints(self, points: np.ndarray):
+    def set_value_constraints(self, points: Union[np.ndarray, ValueConstraint]):
         """Set value constraints for the interpolation.
 
         Parameters
@@ -278,6 +291,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "value")
+            points = self._coerce_value_constraint(points).to_array()
             points = validate_value_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions + 1:
@@ -288,7 +302,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set value constraints: {e}") from e
 
-    def set_gradient_constraints(self, points: np.ndarray):
+    def set_gradient_constraints(self, points: Union[np.ndarray, GradientConstraint]):
         """Set gradient constraints for the interpolation.
 
         Parameters
@@ -314,6 +328,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "gradient")
+            points = self._coerce_gradient_constraint(points).to_array()
             points = validate_gradient_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions * 2:
@@ -324,7 +339,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set gradient constraints: {e}") from e
 
-    def set_normal_constraints(self, points: np.ndarray):
+    def set_normal_constraints(self, points: Union[np.ndarray, GradientConstraint]):
         """Set normal constraints for the interpolation.
 
         Parameters
@@ -349,6 +364,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "normal")
+            points = self._coerce_gradient_constraint(points, is_normal=True).to_array()
             points = validate_normal_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions * 2:
@@ -360,7 +376,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set normal constraints: {e}") from e
 
-    def set_tangent_constraints(self, points: np.ndarray):
+    def set_tangent_constraints(self, points: Union[np.ndarray, GradientConstraint]):
         """Set tangent constraints for the interpolation.
 
         Parameters
@@ -385,6 +401,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "tangent")
+            points = self._coerce_gradient_constraint(points).to_array()
             points = validate_tangent_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions * 2:
@@ -394,7 +411,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set tangent constraints: {e}") from e
 
-    def set_interface_constraints(self, points: np.ndarray):
+    def set_interface_constraints(self, points: Union[np.ndarray, InterfaceConstraint]):
         """Set interface constraints for the interpolation.
 
         Parameters
@@ -416,6 +433,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "interface")
+            points = self._coerce_interface_constraint(points).to_array()
             points = validate_interface_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions + 1:
@@ -425,7 +443,9 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set interface constraints: {e}") from e
 
-    def set_value_inequality_constraints(self, points: np.ndarray):
+    def set_value_inequality_constraints(
+        self, points: Union[np.ndarray, InequalityConstraint]
+    ):
         """Set inequality value constraints for the interpolation.
 
         Parameters
@@ -449,6 +469,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "inequality")
+            points = self._coerce_inequality_constraint(points).to_array()
             points = validate_inequality_value_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions + 2:
@@ -458,7 +479,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         except ValidationError as e:
             raise ValidationError(f"Failed to set inequality value constraints: {e}") from e
 
-    def set_inequality_pairs_constraints(self, points: np.ndarray):
+    def set_inequality_pairs_constraints(self, points: Union[np.ndarray, InequalityPair]):
         """Set inequality pairs constraints for the interpolation.
 
         Parameters
@@ -480,6 +501,7 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         """
         try:
             check_unsupported_combinations(self.data, "inequality_pairs")
+            points = self._coerce_inequality_pair_constraint(points).to_array()
             points = validate_inequality_pairs_constraint(points, dimensions=self.dimensions)
             # Add default weights if not provided
             if points.shape[1] == self.dimensions + 1:
@@ -731,12 +753,64 @@ class GeologicalInterpolator(BaseRepresentation, metaclass=ABCMeta):
         pass
 
     def to_dict(self):
-        return {
-            "type": self.type,
-            "data": self.data,
+        def _to_json_safe(value):
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            if isinstance(value, (np.floating, np.integer)):
+                return value.item()
+            if isinstance(value, dict):
+                return {k: _to_json_safe(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [_to_json_safe(v) for v in value]
+            return value
+
+        payload = {
+            "type": self.type.value,
+            "data": _to_json_safe({k: np.asarray(v) for k, v in self.data.items()}),
             "up_to_date": self.up_to_date,
             "valid": self.valid,
         }
+        if self.support is not None and hasattr(self.support, "to_dict"):
+            support_dict = _to_json_safe(self.support.to_dict())
+            if isinstance(support_dict, dict) and "nsteps" in support_dict and hasattr(
+                self.support, "nsteps_cells"
+            ):
+                support_dict["nsteps"] = _to_json_safe(np.asarray(self.support.nsteps_cells))
+            if isinstance(support_dict, dict) and "type" not in support_dict:
+                support_type = getattr(self.support, "type", None)
+                if support_type is not None:
+                    support_dict["type"] = getattr(support_type, "numerator", support_type)
+            payload["support"] = support_dict
+        return payload
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "GeologicalInterpolator":
+        return cls.from_dict(json.loads(json_str))
+
+    def to_yaml(self) -> str:
+        try:
+            import yaml
+        except ImportError as exc:
+            raise ImportError("PyYAML is required for YAML export: pip install pyyaml") from exc
+        return yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=True)
+
+    @classmethod
+    def from_yaml(cls, yaml_str: str) -> "GeologicalInterpolator":
+        try:
+            import yaml
+        except ImportError as exc:
+            raise ImportError("PyYAML is required for YAML import: pip install pyyaml") from exc
+        payload = yaml.safe_load(yaml_str)
+        return cls.from_dict(payload)
+
+    @classmethod
+    def from_dict(cls, data):
+        from ._interpolator_factory import InterpolatorFactory
+
+        return InterpolatorFactory.from_dict(data.copy())
 
     def clean(self):
         """

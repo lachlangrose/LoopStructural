@@ -1,6 +1,18 @@
+"""Interpolator creation and reconstruction backend.
+
+InterpolatorFactory is the single place that knows how to:
+- map type identifiers to concrete interpolator classes,
+- create supports from bounding boxes, and
+- reconstruct interpolators from serialized dictionaries.
+
+Higher-level fluent APIs should delegate construction to this module.
+"""
+
 from typing import Optional, Union
-from loop_common.supports import SupportFactory
+
 from loop_common.geometry import BoundingBox
+from loop_common.supports import SupportFactory
+
 from . import (
     interpolator_map,
     InterpolatorType,
@@ -11,6 +23,20 @@ import numpy as np
 
 
 class InterpolatorFactory:
+    """Authoritative constructor/reconstructor for interpolation objects."""
+
+    @staticmethod
+    def _normalise_interpolator_type(
+        interpolatortype: Union[str, InterpolatorType],
+    ) -> InterpolatorType:
+        if isinstance(interpolatortype, str):
+            if interpolatortype in interpolator_string_map:
+                return interpolator_string_map[interpolatortype]
+            if interpolatortype in InterpolatorType.__members__:
+                return InterpolatorType[interpolatortype]
+            return InterpolatorType(interpolatortype)
+        return interpolatortype
+
     @staticmethod
     def create_interpolator(
         interpolatortype: Optional[Union[str, InterpolatorType]] = None,
@@ -23,11 +49,10 @@ class InterpolatorFactory:
     ):
         if interpolatortype is None:
             raise ValueError("No interpolator type specified")
-        if boundingbox is None:
+        if support is None and boundingbox is None:
             raise ValueError("No bounding box specified")
 
-        if isinstance(interpolatortype, str):
-            interpolatortype = interpolator_string_map[interpolatortype]
+        interpolatortype = InterpolatorFactory._normalise_interpolator_type(interpolatortype)
         if support is None:
             # raise Exception("Support must be specified")
             supporttype = support_interpolator_map[interpolatortype][boundingbox.dimensions]
@@ -50,7 +75,68 @@ class InterpolatorFactory:
         interpolator_type = d.pop("type", None)
         if interpolator_type is None:
             raise ValueError("No interpolator type specified")
-        return InterpolatorFactory.create_interpolator(interpolator_type, **d)
+        interpolator_type = InterpolatorFactory._normalise_interpolator_type(interpolator_type)
+
+        support = d.pop("support", None)
+        if isinstance(support, dict):
+            support_payload = support.copy()
+            try:
+                support = SupportFactory.from_dict(support_payload)
+            except TypeError as exc:
+                # Some support classes (e.g., TetMesh) do not accept rotation_xy in __init__.
+                if "rotation_xy" in support_payload and "rotation_xy" in str(exc):
+                    support_payload.pop("rotation_xy", None)
+                    support = SupportFactory.from_dict(support_payload)
+                else:
+                    raise
+
+        data = d.pop("data", None)
+        c = d.pop("c", None)
+        up_to_date = bool(d.pop("up_to_date", False))
+        valid = bool(d.pop("valid", True))
+
+        interpolator = InterpolatorFactory.create_interpolator(
+            interpolator_type,
+            support=support,
+            **d,
+        )
+
+        if data is not None:
+            if data.get("value") is not None:
+                arr = np.asarray(data["value"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_value_constraints(arr)
+            if data.get("gradient") is not None:
+                arr = np.asarray(data["gradient"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_gradient_constraints(arr)
+            if data.get("normal") is not None:
+                arr = np.asarray(data["normal"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_normal_constraints(arr)
+            if data.get("tangent") is not None:
+                arr = np.asarray(data["tangent"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_tangent_constraints(arr)
+            if data.get("interface") is not None:
+                arr = np.asarray(data["interface"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_interface_constraints(arr)
+            if data.get("inequality") is not None:
+                arr = np.asarray(data["inequality"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_value_inequality_constraints(arr)
+            if data.get("inequality_pairs") is not None:
+                arr = np.asarray(data["inequality_pairs"], dtype=float)
+                if arr.size > 0:
+                    interpolator.set_inequality_pairs_constraints(arr)
+
+        if c is not None and hasattr(interpolator, "c"):
+            interpolator.c = np.asarray(c, dtype=float)
+
+        interpolator.up_to_date = up_to_date
+        interpolator.valid = valid
+        return interpolator
 
     @staticmethod
     def get_supported_interpolators():

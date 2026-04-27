@@ -3,6 +3,7 @@ import pytest
 
 from loop_common.interfaces.representation import BaseRepresentation
 from loop_interpolation import GeologicalInterpolator
+from loop_interpolation.constrains import ValueConstraint, GradientConstraint
 
 
 def test_get_data_locations(interpolator, data):
@@ -144,3 +145,36 @@ def test_default_surfaces_raises_not_implemented():
 
     with pytest.raises(NotImplementedError, match="Surface extraction not implemented"):
         interpolator.surfaces(0.0)
+
+
+def test_set_constraints_from_pydantic_models(interpolator, data):
+    value_rows = data.loc[~data["val"].isna(), ["X", "Y", "Z", "val", "w"]].to_numpy()
+    normal_rows = data.loc[~data["nx"].isna(), ["X", "Y", "Z", "nx", "ny", "nz", "w"]].to_numpy()
+
+    value_constraint = ValueConstraint.from_array(value_rows)
+    normal_constraint = GradientConstraint.from_array(normal_rows, is_normal=True)
+
+    interpolator.set_value_constraints(value_constraint)
+    interpolator.set_normal_constraints(normal_constraint)
+
+    assert interpolator.get_value_constraints().shape[0] == value_rows.shape[0]
+    assert interpolator.get_norm_constraints().shape[0] == normal_rows.shape[0]
+
+
+def test_interpolator_json_yaml_round_trip(interpolator, data):
+    value_rows = data.loc[~data["val"].isna(), ["X", "Y", "Z", "val", "w"]].to_numpy()
+    interpolator.set_value_constraints(value_rows)
+
+    json_payload = interpolator.to_json()
+    restored_json = GeologicalInterpolator.from_json(json_payload)
+
+    assert restored_json.type == interpolator.type
+    assert restored_json.support.n_nodes == interpolator.support.n_nodes
+    assert np.array_equal(restored_json.get_value_constraints(), interpolator.get_value_constraints())
+
+    yaml_payload = interpolator.to_yaml()
+    restored_yaml = GeologicalInterpolator.from_yaml(yaml_payload)
+
+    assert restored_yaml.type == interpolator.type
+    assert restored_yaml.support.n_nodes == interpolator.support.n_nodes
+    assert np.array_equal(restored_yaml.get_value_constraints(), interpolator.get_value_constraints())

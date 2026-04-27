@@ -22,6 +22,7 @@
 11. [Extension Points](#extension-points)
 12. [Best Practices](#best-practices)
 13. [Examples and Use Cases](#examples-and-use-cases)
+14. [Serialization & Round-Trip](#serialization--round-trip)
 
 ---
 
@@ -1730,6 +1731,348 @@ interp1, report1 = build_and_diagnose(constraints, regularisation=0.01)
 if "oscillation" in report1.summary().lower():
     interp2, report2 = build_and_diagnose(constraints, regularisation=0.1)
 ```
+
+---
+
+## Serialization & Round-Trip
+
+### Overview
+
+The interpolation module provides full JSON and YAML serialization support for interpolators, enabling persistence, cross-platform sharing, and reproducible workflows. All constraints, support geometry, solver state, and coefficients are preserved during export and import.
+
+**Key Capability:** An interpolator can be exported to JSON/YAML, transmitted or stored, and reconstructed on a different machine or at a later time with identical mathematical properties.
+
+### Pydantic Constraint Model Architecture
+
+All constraint types have been refactored to **pydantic BaseModel** for robust validation and JSON serialization.
+
+#### Constraint Models
+
+File: [`packages/loop_interpolation/src/loop_interpolation/constrains.py`](../src/loop_interpolation/constrains.py)
+
+Five constraint models, all inheriting from `BaseConstraint(BaseModel)`:
+
+**1. ValueConstraint**
+- Fields: `points` (N×D), `values` (N,), `weights` (scalar or N,)
+- Shape validation: points and values must have N matching rows
+- Serialization: `to_array()` returns (N, D+2) array [x,y,z,...,value,weight]
+- Deserialization: `from_array(points, dimensions=3)` parses (N, D+1) or (N, D+2) arrays
+- JSON schema: Pydantic-native `model_dump_json()` / `model_validate_json()`
+
+**2. GradientConstraint**
+- Fields: `points` (N×D), `vectors` (N×D), `weights` (scalar or N,), `is_normal` (bool)
+- Shape validation: points and vectors must match shape
+- Serialization: `to_array()` returns (N, 2D+1) array [x,y,z,...,gx,gy,gz,weight]
+- Deserialization: `from_array(points, dimensions=3, is_normal=False)` parses (N, 2D) or (N, 2D+1) arrays
+- Used for both gradient and normal constraints via `is_normal` flag
+
+**3. InterfaceConstraint**
+- Fields: `points` (N×D), `interface_ids` (N,), `weights` (scalar or N,)
+- Shape validation: points and interface_ids must have N matching rows
+- Serialization: `to_array()` returns (N, D+2) array [x,y,z,...,interface_id,weight]
+- Deserialization: `from_array(points, dimensions=3)` parses (N, D+1) or (N, D+2) arrays
+
+**4. InequalityConstraint**
+- Fields: `points` (N×D), `bounds` (N×2), `weights` (scalar or N,)
+- Shape validation: points and bounds must have N matching rows; bounds has 2 columns [lower, upper]
+- Serialization: `to_array()` returns (N, D+3) array [x,y,z,...,lower,upper,weight]
+- Deserialization: `from_array(points, dimensions=3)` parses (N, D+2) or (N, D+3) arrays
+
+**5. InequalityPair**
+- Fields: `points` (N×D), `pair_ids` (N,), `weights` (scalar or N,)
+- Shape validation: points and pair_ids must have N matching rows
+- Serialization: `to_array()` returns (N, D+2) array [x,y,z,...,pair_id,weight]
+- Deserialization: `from_array(points, dimensions=3)` parses (N, D+1) or (N, D+2) arrays
+
+#### Key Features
+
+- **Validation**: All models use pydantic `@model_validator(mode="after")` to check shape consistency
+- **Numpy Compatibility**: Uses `loop_common.base.NumpyArray` type with `BeforeValidator` + `PlainSerializer` for seamless numpy array ↔ JSON list conversion
+- **Flexible Input**: Setters on `GeologicalInterpolator` accept both numpy arrays and pydantic constraint objects via coercion methods
+
+### Interpolator Serialization Flow
+
+File: [`packages/loop_interpolation/src/loop_interpolation/_geological_interpolator.py`](../src/loop_interpolation/_geological_interpolator.py)
+
+#### Export: to_dict() / to_json() / to_yaml()
+
+```python
+# JSON export
+json_string = interpolator.to_json(indent=2)
+with open('model.json', 'w') as f:
+    f.write(json_string)
+
+# YAML export
+yaml_string = interpolator.to_yaml()
+with open('model.yaml', 'w') as f:
+    f.write(yaml_string)
+
+# Direct dict access
+payload = interpolator.to_dict()
+```
+
+**to_dict() Implementation:**
+- Recursively converts numpy arrays and scalars to JSON-safe types via internal `_to_json_safe()` helper
+- Preserves interpolator type as enum value: `self.type.value` (e.g., "FINITE_DIFFERENCE")
+- Includes support serialization: calls `support.to_dict()`
+  - **Normalizes nsteps**: Stores `support.nsteps_cells` (node count - 1) instead of raw nsteps to ensure faithful reconstruction
+  - **Adds type field**: Includes `support['type']` (enum value) for `SupportFactory.from_dict()` routing
+- Includes all constraint data as lists:
+  - `value`: List of value constraint dicts (or empty list)
+  - `gradient`, `normal`, `tangent`: List of gradient constraint dicts
+  - `interface`, `inequality`, `inequality_pairs`: List of respective constraint dicts
+- Includes flags: `up_to_date`, `valid` (boolean solver state)
+- For `DiscreteInterpolator` subclasses: Includes coefficient vector `c` as list
+
+**Example Payload Structure:**
+```json
+{
+  "type": "FINITE_DIFFERENCE",
+  "support": {
+    "type": "StructuredGrid",
+    "origin": [0.0, 0.0, 0.0],
+    "maximum": [100.0, 80.0, 60.0],
+    "nsteps_cells": [9, 7, 5],
+    "n_nodes": 560
+  },
+  "value": [
+    {"points": [[1.0, 2.0, 3.0]], "values": [0.5], "weights": 1.0}
+  ],
+  "gradient": [],
+  "normal": [{"points": [...], "vectors": [...], "weights": [...], "is_normal": true}],
+  "tangent": [],
+  "interface": [],
+  "inequality": [],
+  "inequality_pairs": [],
+  "c": [0.001, 0.002, ...],
+  "up_to_date": true,
+  "valid": true
+}
+```
+
+#### Import: from_dict() / from_json() / from_yaml()
+
+File: [`packages/loop_interpolation/src/loop_interpolation/_interpolator_factory.py`](../src/loop_interpolation/_interpolator_factory.py)
+
+```python
+# Reconstruct from JSON file
+with open('model.json', 'r') as f:
+    restored = GeologicalInterpolator.from_json(f.read())
+
+# Reconstruct from YAML file
+with open('model.yaml', 'r') as f:
+    restored = GeologicalInterpolator.from_yaml(f.read())
+
+# Direct dict reconstruction
+restored = GeologicalInterpolator.from_dict(payload)
+```
+
+**from_dict() Implementation (in InterpolatorFactory):**
+
+1. **Type Normalization**: Calls internal `_normalise_interpolator_type(interpolator_type)` to handle:
+   - String enum names: `"FINITE_DIFFERENCE"` → `InterpolatorType.FINITE_DIFFERENCE`
+   - Enum values (string): `"FINITE_DIFFERENCE"` (the `.value`) → convert to enum
+   - Direct enum: `InterpolatorType.FINITE_DIFFERENCE` → passthrough
+
+2. **Support Reconstruction**: Extracts `support` dict and calls `SupportFactory.from_dict()`
+   - Reverses nsteps normalization: `nsteps_cells` → `nsteps` for grid creation
+   - Handles support type routing (StructuredGrid, TetMesh, etc.)
+   - **Compatibility**: Catches `TypeError` for `rotation_xy` parameter on TetMesh (which doesn't accept it) and gracefully retries without it
+
+3. **Interpolator Creation**: Calls `create_interpolator(interpolatortype, support=support)` to instantiate appropriate interpolator class
+
+4. **Data Restoration**: Iterates over all constraint families (value, gradient, normal, tangent, interface, inequality, inequality_pairs):
+   - Converts lists back to numpy arrays: `np.asarray(data[key], dtype=float)`
+   - Skips empty arrays: `if arr.size > 0` (prevents shape validation errors)
+   - Calls appropriate `set_*_constraints()` method on interpolator instance
+   - Constraints are coerced: if numpy array is passed to setter, coercion method converts it to pydantic model before storage
+
+5. **Coefficient Vector**: For `DiscreteInterpolator` subclasses (e.g., `FiniteDifferenceInterpolator`), restores `c` vector
+
+6. **Solver State Flags**: Restores `up_to_date` and `valid` boolean state
+
+**Typical Round-Trip Example:**
+```python
+from loop_interpolation import InterpolatorBuilder, InterpolatorType
+import numpy as np
+
+# Step 1: Create and populate
+builder = InterpolatorBuilder(
+    InterpolatorType.FINITE_DIFFERENCE,
+    bounding_box=bbox,
+    nelements=[10, 8, 6]
+)
+builder.add_value_constraints(value_array)  # (N, 4) array
+builder.add_normal_constraints(normal_array)  # (N, 5) array
+interp = builder.build()
+interp.setup()
+interp.solve()
+
+# Step 2: Export to JSON
+json_str = interp.to_json(indent=2)
+with open('interpolator.json', 'w') as f:
+    f.write(json_str)
+
+# Step 3: Reconstruct from JSON
+with open('interpolator.json', 'r') as f:
+    restored = GeologicalInterpolator.from_json(f.read())
+
+# Step 4: Verify state preservation
+assert restored.type == interp.type
+assert restored.support.n_nodes == interp.support.n_nodes
+assert np.allclose(restored.get_value_constraints(), interp.get_value_constraints())
+assert np.allclose(restored.get_norm_constraints(), interp.get_norm_constraints())
+assert np.allclose(restored.c, interp.c)  # Coefficient vector preserved
+```
+
+### Factory & Builder Responsibilities
+
+Files:
+- Factory: [`packages/loop_interpolation/src/loop_interpolation/_interpolator_factory.py`](../src/loop_interpolation/_interpolator_factory.py)
+- Builder: [`packages/loop_interpolation/src/loop_interpolation/_interpolator_builder.py`](../src/loop_interpolation/_interpolator_builder.py)
+
+#### InterpolatorFactory (Construction & Deserialization Backend)
+
+**Responsibilities:**
+- Centralized creation of interpolator instances via `create_interpolator(...)`
+- Full-state reconstruction via `from_dict(...)` (owns JSON/YAML deserialization logic)
+- Type normalization and interpolator class routing
+- Support instantiation and compatibility handling
+
+**Public Methods:**
+- `create_interpolator(interpolatortype, boundingbox=None, nelements=None, support=None, ...)`: Create new interpolator from bounding box or existing support
+- `from_dict(d)`: Reconstruct complete interpolator state from serialized dict (used by `GeologicalInterpolator.from_dict/from_json/from_yaml`)
+- `create_interpolator_with_data(...)`: Convenience method for immediate constraint setup
+- `get_supported_interpolators()`: Return available interpolator types
+
+**Private Methods (Refactored for Clarity):**
+- `_normalise_interpolator_type(interpolator_type)`: Centralized type parsing; handles string enum names, enum values, and direct enums
+
+#### InterpolatorBuilder (Fluent Orchestration API)
+
+**Responsibilities:**
+- Provide fluent/chainable interface for interactive constraint assembly
+- Configure solver and regularisation options
+- Coordinate setup and solve operations
+- Delegate to interpolator setters (thin wrapper, no duplication)
+
+**Public Methods:**
+- `__init__(interpolatortype, bounding_box, nelements, buffer)`: Create interpolator via factory
+- `add_value_constraints(value_constraints)`: Fluent constraint addition
+- `add_gradient_constraints(gradient_constraints)`: Fluent constraint addition
+- `add_normal_constraints(normal_constraints)`: Fluent constraint addition
+- `add_tangent_constraints(tangent_constraints)`: Fluent constraint addition
+- `add_inequality_constraints(inequality_constraints)`: Fluent constraint addition
+- `add_inequality_pair_constraints(inequality_pair_constraints)`: Fluent constraint addition
+- `use_solver(solver, **solver_kwargs)`: Configure solver
+- `use_regularisation_weight_scale(enabled=True)`: Configure regularisation mode
+- `regularisation_weight_sigma(sigma)`: Configure regularisation sigma
+- `setup_interpolator(**kwargs)`: Call interpolator.setup() with kwargs
+- `solve(solver=None, tol=None, **solver_kwargs)`: Invoke solver on assembled system
+- `build()`: Return the configured interpolator
+
+**Internal Implementation (Deduplication Pattern):**
+- `_set_constraint(method_name, constraint_data)`: Unified constraint forwarding helper
+  - Replaces 6 nearly-identical `add_*_constraints` method bodies
+  - Converts `constraint_data` to numpy array if needed
+  - Calls `getattr(self.interpolator, method_name)(constraint_data)` to delegate to interpolator setter
+  - Enables centralized constraint coercion without duplicating logic
+
+#### Boundary Clarification
+
+**Factory owns (don't bypass):**
+- Type mapping and normalization
+- Support creation from bounding box
+- Full deserialization logic and error recovery
+- Interpolator class instantiation
+- Data restoration from serialized payloads
+
+**Builder owns (don't bypass):**
+- Fluent API syntax (method chaining for interactive use)
+- Constraint assembly workflow
+- Solver and regularisation configuration
+- Interactive setup coordination
+
+**Never duplicated between Factory and Builder:**
+- Constraint coercion or validation (done once in `GeologicalInterpolator` setters)
+- Type normalization (centralized in factory via `_normalise_interpolator_type`)
+- Constraint forwarding (builder delegates via `_set_constraint` helper; factory is never called by builder)
+
+### Constraint Coercion Pattern
+
+File: [`packages/loop_interpolation/src/loop_interpolation/_geological_interpolator.py`](../src/loop_interpolation/_geological_interpolator.py)
+
+All constraint setters accept **both numpy arrays and pydantic constraint objects** via coercion methods:
+
+```python
+interpolator = FiniteDifferenceInterpolator(grid)
+
+# Array input: automatically coerced to pydantic model
+interpolator.set_value_constraints(np.array([[1, 2, 3, 0.5],
+                                              [4, 5, 6, 0.7]]))
+
+# Pydantic model input: accepted directly
+constraint = ValueConstraint(
+    points=np.array([[1, 2, 3], [4, 5, 6]]),
+    values=np.array([0.5, 0.7])
+)
+interpolator.set_value_constraints(constraint)
+
+# Both produce identical internal representation
+assert np.allclose(interpolator.get_value_constraints()[0], np.array([[1, 2, 3, 0.5, 1.0]]))
+```
+
+Coercion methods (private, used by setters):
+- `_coerce_value_constraint(points)`
+- `_coerce_gradient_constraint(points, is_normal=False)`
+- `_coerce_interface_constraint(points)`
+- `_coerce_inequality_constraint(points)`
+- `_coerce_inequality_pair_constraint(points)`
+
+### Testing & Validation
+
+Files: [`packages/loop_interpolation/tests/test_constraints.py`](../tests/test_constraints.py), [`test_geological_interpolator.py`](../tests/test_geological_interpolator.py)
+
+**Test Coverage:**
+- ✅ Constraint model creation and field validation (5 model types)
+- ✅ Pydantic JSON round-trip: `model_dump_json()` / `model_validate_json()`
+- ✅ Interpolator accepts both numpy arrays and pydantic constraint models
+- ✅ Interpolator JSON round-trip: `to_json()` / `from_json()` with state verification
+- ✅ Interpolator YAML round-trip: `to_yaml()` / `from_yaml()` with state verification
+- ✅ Support type and nsteps preservation through round-trip
+- ✅ All constraint families correctly restored from serialized payloads
+
+**Recent Test Results:**
+```
+tests/test_constraints.py ......                                 [ 13%]
+tests/test_geological_interpolator.py .................................. [ 100%]
+46 passed
+
+Additional builder tests:
+tests/test_interpolator_builder.py ..............                [ 25%]
+tests/test_geological_interpolator.py .................................. [ 100%]
+50 passed, 7 warnings (pydantic/numpy deprecation, non-critical)
+```
+
+### Dependencies
+
+- **pydantic** ≥ 2.13.3 (added to `packages/loop_interpolation/pyproject.toml`)
+- **PyYAML** (optional, required for `to_yaml()`/`from_yaml()`)
+- **numpy** (for array handling and validation)
+- **loop_common.base.NumpyArray** (for JSON-safe numpy array serialization)
+
+### Migration & Best Practices
+
+**For New Code:**
+1. Use pydantic constraint models for type safety: `ValueConstraint.from_array(points)`
+2. Export interpolators via `to_json()` or `to_yaml()` for persistence and sharing
+3. Reconstruct via `GeologicalInterpolator.from_json()` or `from_yaml()`
+4. Use `InterpolatorBuilder` for interactive workflows; factory is used internally
+
+**For Existing Code:**
+- Public APIs are backward compatible; no code changes required
+- Setters still accept numpy arrays; they are automatically coerced to pydantic models
+- Optional: Migrate to pydantic models for improved type checking and IDE support
 
 ---
 

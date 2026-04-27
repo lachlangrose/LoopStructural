@@ -44,22 +44,35 @@ def test_inequality_constraint():
 
 
 def test_inequality_pair():
-    point_a = np.array([0, 0, 0])
-    point_b = np.array([1, 1, 1])
-    weight = 1.0
-    constraint = InequalityPair(point_a=point_a, point_b=point_b, weight=weight)
+    points = np.array([[0, 0, 0], [1, 1, 1]])
+    pair_ids = np.array([0, 1])
+    weights = np.array([1.0, 0.5])
+    constraint = InequalityPair(points=points, pair_ids=pair_ids, weights=weights)
 
-    assert np.array_equal(constraint.point_a, point_a)
-    assert np.array_equal(constraint.point_b, point_b)
-    assert constraint.weight == weight
+    assert np.array_equal(constraint.points, points)
+    assert np.array_equal(constraint.pair_ids, pair_ids)
+    assert np.array_equal(constraint.weights, weights)
 
 
 def test_interface_constraint():
     points = np.array([[0, 0, 0], [1, 1, 1]])
-    value = 10.0
+    interface_ids = np.array([10.0, 20.0])
     weights = np.array([1.0, 0.5])
-    constraint = InterfaceConstraint(points=points, value=value, weights=weights)
+    constraint = InterfaceConstraint(points=points, interface_ids=interface_ids, weights=weights)
 
     assert np.array_equal(constraint.points, points)
-    assert constraint.value == value
+    assert np.array_equal(constraint.interface_ids, interface_ids)
     assert np.array_equal(constraint.weights, weights)
+
+
+def test_constraint_json_round_trip():
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    values = np.array([10.0, 20.0])
+    constraint = ValueConstraint(points=points, values=values, weights=np.array([1.0, 0.5]))
+
+    payload = constraint.model_dump_json()
+    restored = ValueConstraint.model_validate_json(payload)
+
+    assert np.array_equal(restored.points, points)
+    assert np.array_equal(restored.values, values)
+    assert np.array_equal(restored.weights, np.array([1.0, 0.5]))
