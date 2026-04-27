@@ -4,6 +4,7 @@ import numpy as np
 
 from loop_common.geometry import BoundingBox
 from loop_common.observations import Orientation, PointSet
+from loop_engine.features.basebuilder import BaseBuilder
 from loop_engine.features.fault import FaultBuilder
 
 
@@ -132,3 +133,43 @@ def test_fault_builder_uses_role_specific_constraints(monkeypatch):
 
     assert builder.tangent_constraints.shape == (1, 6)
     assert np.allclose(builder.tangent_constraints[0, 3:], np.array([1.0, 0.0, 0.0]))
+
+
+def test_fault_builder_infers_normal_and_slip_from_trace_when_missing(monkeypatch):
+    monkeypatch.setattr(
+        "loop_interpolation.InterpolatorBuilder",
+        _FakeInterpolatorBuilder,
+    )
+
+    _FakeInterpolatorBuilder.instances = []
+    trace = PointSet(name="trace", coords=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]]))
+
+    class _FeatureWithDip:
+        build_params = {"trace_iso": 0.0, "fault_dip": 90.0}
+
+    linked_data = _LinkedData(by_role={"trace": [_LinkedObs(trace)]})
+    payload = {
+        "feature_id": "fault-2",
+        "feature": _FeatureWithDip(),
+        "linked_data": linked_data,
+    }
+
+    result = FaultBuilder(_Model()).build(payload)
+
+    assert result == "fault-interpolator"
+    builder = _FakeInterpolatorBuilder.instances[-1]
+    assert builder.normal_constraints is not None
+    assert builder.normal_constraints.shape == (1, 6)
+    assert builder.tangent_constraints is not None
+    assert builder.tangent_constraints.shape == (1, 6)
+    # Strike follows trace direction (+/-x), inferred slip should align with strike.
+    assert np.isclose(np.abs(builder.tangent_constraints[0, 3]), 1.0)
+
+
+def test_base_builder_normalizes_vector_constraints():
+    rows = np.array([[0.0, 0.0, 0.0, 0.0, 0.0, 2.0], [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
+
+    normalized = BaseBuilder._normalize_xyz_vectors(rows)
+
+    assert normalized.shape == (1, 6)
+    assert np.allclose(normalized[0, 3:], np.array([0.0, 0.0, 1.0]))
