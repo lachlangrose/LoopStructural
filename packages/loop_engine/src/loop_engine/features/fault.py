@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from loop_interpolation.constraints import GradientConstraint, ValueConstraint
+from loop_interpolation.constraints import GradientConstraint, InequalityConstraint, ValueConstraint
 
 from .basebuilder import BaseBuilder, PreparedConstraints
 
@@ -35,95 +35,109 @@ class FaultBuilder(BaseBuilder):
         hanging_wall_points = self.coords_from_linked_observations(by_role.get("hanging_wall", []))
         footwall_points = self.coords_from_linked_observations(by_role.get("footwall", []))
 
-        value_blocks = []
+        value_pt_blocks = []
+        value_val_blocks = []
         if trace_points.shape[0] > 0:
-            value_blocks.append(
-                np.hstack([trace_points, np.full((trace_points.shape[0], 1), trace_iso)])
-            )
-        if hanging_wall_points.shape[0] > 0:
-            value_blocks.append(
-                np.hstack(
-                    [
-                        hanging_wall_points,
-                        np.full((hanging_wall_points.shape[0], 1), hanging_wall_iso),
-                    ]
-                )
-            )
-        if footwall_points.shape[0] > 0:
-            value_blocks.append(
-                np.hstack([footwall_points, np.full((footwall_points.shape[0], 1), footwall_iso)])
-            )
+            value_pt_blocks.append(trace_points)
+            value_val_blocks.append(np.full(trace_points.shape[0], trace_iso))
 
-        if value_blocks:
-            value_constraints = np.vstack(value_blocks)
+        if value_pt_blocks:
+            value_constraint = ValueConstraint(
+                points=np.vstack(value_pt_blocks),
+                values=np.concatenate(value_val_blocks),
+            )
         else:
             generic_points, _, _ = self._extract_constraint_arrays(linked_data)
             if generic_points.shape[0] > 0:
-                value_constraints = np.hstack(
-                    [
-                        generic_points,
-                        np.zeros((generic_points.shape[0], 1)),
-                    ]
+                value_constraint = ValueConstraint(
+                    points=generic_points,
+                    values=np.zeros(generic_points.shape[0]),
                 )
             else:
-                value_constraints = np.empty((0, 4), dtype=float)
+                value_constraint = ValueConstraint()
+
+        # Hanging wall: field value > 0, bounded in (0, hanging_wall_iso]
+        if hanging_wall_points.shape[0] > 0:
+            n_hw = hanging_wall_points.shape[0]
+            hanging_wall_inequality = InequalityConstraint(
+                points=hanging_wall_points,
+                bounds=np.column_stack([
+                    np.zeros(n_hw),
+                    np.full(n_hw, hanging_wall_iso),
+                ]),
+            )
+        else:
+            hanging_wall_inequality = InequalityConstraint()
+
+        # Footwall: field value < 0, bounded in [footwall_iso, 0)
+        if footwall_points.shape[0] > 0:
+            n_fw = footwall_points.shape[0]
+            footwall_inequality = InequalityConstraint(
+                points=footwall_points,
+                bounds=np.column_stack([
+                    np.full(n_fw, footwall_iso),
+                    np.zeros(n_fw),
+                ]),
+            )
+        else:
+            footwall_inequality = InequalityConstraint()
 
         role_normals = self.coords_vectors_from_linked_observations(by_role.get("orientation", []))
         if role_normals.shape[0] > 0:
-            normal_constraints = role_normals
+            normal_rows = role_normals
         else:
             _, gradient_rows, _ = self._extract_constraint_arrays(linked_data)
-            normal_constraints = gradient_rows
-        normal_constraints = self._normalize_xyz_vectors(normal_constraints)
+            normal_rows = gradient_rows
 
         slip_tangents = self.coords_vectors_from_linked_observations(by_role.get("slip_vector", []))
         if slip_tangents.shape[0] > 0:
             _, _, generic_tangents = self._extract_constraint_arrays(linked_data)
             if generic_tangents.shape[0] > 0:
-                tangent_constraints = np.vstack([generic_tangents, slip_tangents])
+                tangent_rows = np.vstack([generic_tangents, slip_tangents])
             else:
-                tangent_constraints = slip_tangents
+                tangent_rows = slip_tangents
         else:
-            _, _, tangent_constraints = self._extract_constraint_arrays(linked_data)
-        tangent_constraints = self._normalize_xyz_vectors(tangent_constraints)
+            _, _, tangent_rows = self._extract_constraint_arrays(linked_data)
 
         inferred_normal, inferred_slip = self._infer_geometry_from_trace(trace_points, params)
         trace_anchor = self._trace_anchor(trace_points)
         if (
-            normal_constraints.shape[0] == 0
+            normal_rows.shape[0] == 0
             and inferred_normal is not None
             and trace_anchor is not None
         ):
-            normal_constraints = np.hstack([trace_anchor, inferred_normal]).reshape(1, 6)
+            normal_rows = np.hstack([trace_anchor, inferred_normal]).reshape(1, 6)
         if (
-            tangent_constraints.shape[0] == 0
+            tangent_rows.shape[0] == 0
             and inferred_slip is not None
             and trace_anchor is not None
         ):
-            tangent_constraints = np.hstack([trace_anchor, inferred_slip]).reshape(1, 6)
+            tangent_rows = np.hstack([trace_anchor, inferred_slip]).reshape(1, 6)
 
-        if (
-            value_constraints.shape[0] == 0
-            and normal_constraints.shape[0] == 0
-            and tangent_constraints.shape[0] == 0
-        ):
-            return None
-
-        value_constraint_data = ValueConstraint.from_array(value_constraints)
-        normal_constraint_data = GradientConstraint.from_array(
-            normal_constraints,
-            is_normal=True,
+        # Merge role-based inequality constraints with any from linked_data.
+        extra_inequality = self._coerce_inequality_constraints(
+            getattr(linked_data, "inequality_constraints", None)
         )
-        tangent_constraint_data = GradientConstraint.from_array(tangent_constraints)
+        inequality_point_blocks = []
+        inequality_bound_blocks = []
+        for ineq in (hanging_wall_inequality, footwall_inequality, extra_inequality):
+            if ineq.points.shape[0] > 0:
+                inequality_point_blocks.append(ineq.points)
+                inequality_bound_blocks.append(ineq.bounds)
+        if inequality_point_blocks:
+            merged_inequality = InequalityConstraint(
+                points=np.vstack(inequality_point_blocks),
+                bounds=np.vstack(inequality_bound_blocks),
+            )
+        else:
+            merged_inequality = InequalityConstraint()
 
         return PreparedConstraints(
-            value_constraints=value_constraint_data,
+            value_constraints=value_constraint,
             gradient_constraints=GradientConstraint(),
-            normal_constraints=normal_constraint_data,
-            tangent_constraints=tangent_constraint_data,
-            inequality_constraints=self._coerce_inequality_constraints(
-                getattr(linked_data, "inequality_constraints", None)
-            ),
+            normal_constraints=self._to_gradient_constraint(normal_rows, is_normal=True),
+            tangent_constraints=self._to_gradient_constraint(tangent_rows),
+            inequality_constraints=merged_inequality,
             inequality_pair_constraints=self._coerce_inequality_pair_constraints(
                 getattr(linked_data, "inequality_pair_constraints", None)
             ),
