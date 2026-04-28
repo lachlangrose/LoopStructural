@@ -1,12 +1,40 @@
 from __future__ import annotations
 
-import numpy as np
+from collections import defaultdict
+from loop_interpolation.constraints import GradientConstraint
 
-from .basebuilder import BaseBuilder, MergedLinkedInput
+from .basebuilder import BaseBuilder, MergedLinkedInput, PreparedConstraints
 
 
 class StratigraphyBuilder(BaseBuilder):
     """Build stratigraphy features according to model interpolation strategy."""
+
+    def prepare_constraints(
+        self, linked_data, build_params: dict | None = None
+    ) -> PreparedConstraints:
+        prepared = self._prepare_generic_constraints(linked_data)
+        by_role = getattr(linked_data, "by_role", {}) if linked_data is not None else {}
+
+        gradient_rows = self.coords_vectors_from_linked_observations(by_role.get("gradient", []))
+        if gradient_rows.shape[0] > 0:
+            prepared.gradient_constraints = self._to_gradient_constraint(
+                gradient_rows,
+                is_normal=False,
+            )
+
+            # When an explicit gradient role is present, normals come from orientation only.
+            orientation_rows = self.coords_vectors_from_linked_observations(
+                by_role.get("orientation", [])
+            )
+            if orientation_rows.shape[0] > 0:
+                prepared.normal_constraints = self._to_gradient_constraint(
+                    orientation_rows,
+                    is_normal=True,
+                )
+            else:
+                prepared.normal_constraints = GradientConstraint(is_normal=True)
+
+        return prepared
 
     def build(self, task_payload: dict) -> object | None:
         if self._grouped_mode_enabled():
@@ -81,23 +109,13 @@ class StratigraphyBuilder(BaseBuilder):
     def _merge_linked_inputs(feature_ids: list[str], linked_by_feature: dict) -> MergedLinkedInput:
         first = linked_by_feature[feature_ids[0]]
 
-        point_blocks: list[np.ndarray] = []
-        gradient_blocks: list[np.ndarray] = []
-        tangent_blocks: list[np.ndarray] = []
-        by_role: dict[str, list] = {}
+        by_role: dict[str, list] = defaultdict(list)
         missing_ids: list[str] = []
 
         for feature_id in feature_ids:
             linked = linked_by_feature[feature_id]
-            if linked.point_constraints.shape[0] > 0:
-                point_blocks.append(linked.point_constraints)
-            if linked.gradient_constraints.shape[0] > 0:
-                gradient_blocks.append(linked.gradient_constraints)
-            if linked.tangent_constraints.shape[0] > 0:
-                tangent_blocks.append(linked.tangent_constraints)
-
             for role, observations in linked.by_role.items():
-                by_role.setdefault(role, []).extend(observations)
+                by_role[role].extend(observations)
 
             missing_ids.extend(linked.missing_observation_ids)
 
@@ -105,16 +123,6 @@ class StratigraphyBuilder(BaseBuilder):
             feature_id=f"group:{'|'.join(feature_ids)}",
             feature_name=f"group:{'|'.join(feature_ids)}",
             feature_type=first.feature_type,
-            point_constraints=(
-                np.vstack(point_blocks) if point_blocks else np.empty((0, 3), dtype=float)
-            ),
-            gradient_constraints=(
-                np.vstack(gradient_blocks) if gradient_blocks else np.empty((0, 6), dtype=float)
-            ),
-            tangent_constraints=(
-                np.vstack(tangent_blocks) if tangent_blocks else np.empty((0, 6), dtype=float)
-            ),
-            by_role=by_role,
+            by_role=dict(by_role),
             missing_observation_ids=missing_ids,
         )
-        pass

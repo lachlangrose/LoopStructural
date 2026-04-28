@@ -1,31 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
+from abc import ABC, abstractmethod
 import numpy as np
 from loop_common.geometry import BoundingBox
-
+from loop_interpolation.constraints import GradientConstraint, ValueConstraint, InequalityConstraint, InequalityPair
 
 @dataclass
 class MergedLinkedInput:
     feature_id: str
     feature_name: str | None
     feature_type: str
-    point_constraints: np.ndarray
-    gradient_constraints: np.ndarray
-    tangent_constraints: np.ndarray
     by_role: dict
     missing_observation_ids: list[str]
 
 
 @dataclass
 class PreparedConstraints:
-    value_constraints: np.ndarray
-    normal_constraints: np.ndarray
-    tangent_constraints: np.ndarray
+    value_constraints: ValueConstraint
+    gradient_constraints: GradientConstraint
+    normal_constraints: GradientConstraint
+    tangent_constraints: GradientConstraint
+    inequality_constraints: InequalityConstraint
+    inequality_pair_constraints: InequalityPair
 
-
-class BaseBuilder:
+class BaseBuilder(ABC):
     """Base builder with common interpolation and data-extraction utilities."""
 
     def __init__(self, model):
@@ -35,7 +34,7 @@ class BaseBuilder:
         linked_data = task_payload.get("linked_data")
         feature = task_payload.get("feature")
         build_params = getattr(feature, "build_params", {}) or {}
-        prepared = self.prepare_constraints(linked_data)
+        prepared = self.prepare_constraints(linked_data, build_params)
         return self.build_from_constraints(
             linked_data=linked_data,
             prepared=prepared,
@@ -43,39 +42,135 @@ class BaseBuilder:
         )
 
     def build_from_linked_data(self, linked_data) -> object | None:
-        prepared = self.prepare_constraints(linked_data)
+        prepared = self.prepare_constraints(linked_data, {})
         return self.build_from_constraints(
             linked_data=linked_data,
             prepared=prepared,
             build_params={},
         )
+    @abstractmethod
+    def prepare_constraints(self, linked_data, build_params: dict | None = None) -> PreparedConstraints:
+        raise NotImplementedError("Subclasses must implement prepare_constraints method")
 
-    def prepare_constraints(self, linked_data) -> PreparedConstraints:
-        if linked_data is None:
-            return PreparedConstraints(
-                value_constraints=np.empty((0, 4), dtype=float),
-                normal_constraints=np.empty((0, 6), dtype=float),
-                tangent_constraints=np.empty((0, 6), dtype=float),
-            )
-
-        if linked_data.point_constraints.shape[0] > 0:
-            value_constraints = np.hstack(
-                [
-                    linked_data.point_constraints,
-                    np.zeros((linked_data.point_constraints.shape[0], 1)),
-                ]
-            )
-        else:
-            value_constraints = np.empty((0, 4), dtype=float)
-
-        normal_constraints = self._normalize_xyz_vectors(linked_data.gradient_constraints)
-        tangent_constraints = self._normalize_xyz_vectors(linked_data.tangent_constraints)
-
+    @staticmethod
+    def _empty_prepared_constraints() -> PreparedConstraints:
         return PreparedConstraints(
-            value_constraints=value_constraints,
-            normal_constraints=normal_constraints,
-            tangent_constraints=tangent_constraints,
+            value_constraints=ValueConstraint(),
+            gradient_constraints=GradientConstraint(),
+            normal_constraints=GradientConstraint(is_normal=True),
+            tangent_constraints=GradientConstraint(),
+            inequality_constraints=InequalityConstraint(),
+            inequality_pair_constraints=InequalityPair(),
         )
+
+    @classmethod
+    def _prepare_generic_constraints(cls, linked_data) -> PreparedConstraints:
+        prepared = cls._empty_prepared_constraints()
+        if linked_data is None:
+            return prepared
+
+        points, gradients, tangents = cls._extract_constraint_arrays(linked_data)
+        if points.shape[0] > 0:
+            prepared.value_constraints = ValueConstraint(
+                points=points,
+                values=np.zeros(points.shape[0], dtype=float),
+            )
+
+        # Default behaviour treats generic vector observations as normals.
+        prepared.normal_constraints = cls._to_gradient_constraint(gradients, is_normal=True)
+        prepared.tangent_constraints = cls._to_gradient_constraint(tangents)
+        prepared.inequality_constraints = cls._coerce_inequality_constraints(
+            getattr(linked_data, "inequality_constraints", None)
+        )
+        prepared.inequality_pair_constraints = cls._coerce_inequality_pair_constraints(
+            getattr(linked_data, "inequality_pair_constraints", None)
+        )
+        return prepared
+
+    @staticmethod
+    def _coerce_inequality_constraints(value) -> InequalityConstraint:
+        if isinstance(value, InequalityConstraint):
+            return value
+        if value is None:
+            return InequalityConstraint()
+        arr = np.asarray(value, dtype=float)
+        if arr.ndim != 2 or arr.shape[0] == 0:
+            return InequalityConstraint()
+        return InequalityConstraint.from_array(arr)
+
+    @staticmethod
+    def _coerce_inequality_pair_constraints(value) -> InequalityPair:
+        if isinstance(value, InequalityPair):
+            return value
+        if value is None:
+            return InequalityPair()
+        arr = np.asarray(value, dtype=float)
+        if arr.ndim != 2 or arr.shape[0] == 0:
+            return InequalityPair()
+        return InequalityPair.from_array(arr)
+
+    @classmethod
+    def _extract_constraint_arrays(
+        cls,
+        linked_data,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        point_blocks: list[np.ndarray] = []
+        gradient_blocks: list[np.ndarray] = []
+        tangent_blocks: list[np.ndarray] = []
+
+        by_role = getattr(linked_data, "by_role", {}) if linked_data is not None else {}
+        for observations in by_role.values():
+            for linked in observations:
+                observation = getattr(linked, "observation", None)
+                if observation is None:
+                    continue
+
+                vertices = cls.as_nx3(getattr(observation, "vertices", None))
+                if vertices is not None:
+                    point_blocks.append(vertices)
+
+                    to_tangent_vectors = getattr(observation, "to_tangent_vectors", None)
+                    if callable(to_tangent_vectors):
+                        for tangent in to_tangent_vectors():
+                            tangent_rows = cls._coords_and_vectors(tangent)
+                            if tangent_rows is not None and tangent_rows.shape[0] > 0:
+                                tangent_blocks.append(tangent_rows)
+                    continue
+
+                rows = cls._coords_and_vectors(observation)
+                if rows is not None:
+                    role_text = str(getattr(linked, "role", "")).strip().lower()
+                    obs_type_name = str(getattr(observation, "type", "")).strip().lower()
+                    if (
+                        "tangent" in obs_type_name
+                        or "tangent" in role_text
+                        or "slip" in role_text
+                    ):
+                        tangent_blocks.append(rows)
+                    else:
+                        gradient_blocks.append(rows)
+                    continue
+
+                coords = cls.as_nx3(getattr(observation, "coords", None))
+                if coords is not None:
+                    point_blocks.append(coords)
+
+        points = np.vstack(point_blocks) if point_blocks else np.empty((0, 3), dtype=float)
+        gradients = (
+            np.vstack(gradient_blocks) if gradient_blocks else np.empty((0, 6), dtype=float)
+        )
+        tangents = np.vstack(tangent_blocks) if tangent_blocks else np.empty((0, 6), dtype=float)
+        return points, gradients, tangents
+
+    @classmethod
+    def _coords_and_vectors(cls, observation) -> np.ndarray | None:
+        coords = cls.as_nx3(getattr(observation, "coords", None))
+        vectors = cls.as_nx3(getattr(observation, "vector", None))
+        if coords is None or vectors is None:
+            return None
+        if coords.shape[0] != vectors.shape[0]:
+            return None
+        return np.hstack((coords, vectors))
 
     def build_from_constraints(
         self,
@@ -86,9 +181,12 @@ class BaseBuilder:
         from loop_interpolation import InterpolatorBuilder
 
         if (
-            prepared.value_constraints.shape[0] == 0
-            and prepared.normal_constraints.shape[0] == 0
-            and prepared.tangent_constraints.shape[0] == 0
+            prepared.value_constraints.points.shape[0] == 0
+            and prepared.gradient_constraints.points.shape[0] == 0
+            and prepared.normal_constraints.points.shape[0] == 0
+            and prepared.tangent_constraints.points.shape[0] == 0
+            and prepared.inequality_constraints.points.shape[0] == 0
+            and prepared.inequality_pair_constraints.points.shape[0] == 0
         ):
             return None
 
@@ -99,14 +197,18 @@ class BaseBuilder:
         )
         self.configure_builder(builder, build_params)
 
-        if prepared.value_constraints.shape[0] > 0:
+        if prepared.value_constraints.points.shape[0] > 0:
             builder.add_value_constraints(prepared.value_constraints)
-        if prepared.normal_constraints.shape[0] > 0:
+        if prepared.gradient_constraints.points.shape[0] > 0:
+            builder.add_gradient_constraints(prepared.gradient_constraints)
+        if prepared.normal_constraints.points.shape[0] > 0:
             builder.add_normal_constraints(prepared.normal_constraints)
-        if prepared.tangent_constraints.shape[0] > 0:
+        if prepared.tangent_constraints.points.shape[0] > 0:
             builder.add_tangent_constraints(prepared.tangent_constraints)
-
-        self.apply_optional_constraints(builder, linked_data)
+        if prepared.inequality_constraints.points.shape[0] > 0:
+            builder.add_inequality_constraints(prepared.inequality_constraints)
+        if prepared.inequality_pair_constraints.points.shape[0] > 0:
+            builder.add_inequality_pair_constraints(prepared.inequality_pair_constraints)
 
         builder.setup_interpolator()
         tol = build_params.get("tol")
@@ -155,6 +257,17 @@ class BaseBuilder:
         normalized = vectors[valid] / norms[valid][:, np.newaxis]
         return np.hstack([coords[valid], normalized])
 
+    @classmethod
+    def _to_gradient_constraint(
+        cls,
+        rows: np.ndarray,
+        is_normal: bool = False,
+    ) -> GradientConstraint:
+        normalized = cls._normalize_xyz_vectors(rows)
+        if normalized.shape[0] == 0:
+            return GradientConstraint(is_normal=is_normal)
+        return GradientConstraint.from_array(normalized, is_normal=is_normal)
+
     def _resolve_bounding_box(self, linked_data):
         bounding_box = getattr(self.model.schema, "bounding_box", None)
         if bounding_box is not None and not getattr(bounding_box, "valid", False):
@@ -175,12 +288,15 @@ class BaseBuilder:
             if coords is not None:
                 coordinate_blocks.append(coords)
 
-        if linked_data.point_constraints.shape[0] > 0:
-            coordinate_blocks.append(linked_data.point_constraints)
-        if linked_data.gradient_constraints.shape[0] > 0:
-            coordinate_blocks.append(linked_data.gradient_constraints[:, :3])
-        if linked_data.tangent_constraints.shape[0] > 0:
-            coordinate_blocks.append(linked_data.tangent_constraints[:, :3])
+        point_constraints, gradient_constraints, tangent_constraints = self._extract_constraint_arrays(
+            linked_data
+        )
+        if point_constraints.shape[0] > 0:
+            coordinate_blocks.append(point_constraints)
+        if gradient_constraints.shape[0] > 0:
+            coordinate_blocks.append(gradient_constraints[:, :3])
+        if tangent_constraints.shape[0] > 0:
+            coordinate_blocks.append(tangent_constraints[:, :3])
 
         if not coordinate_blocks:
             return None

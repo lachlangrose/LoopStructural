@@ -18,9 +18,6 @@ class _LinkedData:
         self.feature_id = "fault-1"
         self.feature_name = "Fault 1"
         self.feature_type = "Fault"
-        self.point_constraints = np.empty((0, 3), dtype=float)
-        self.gradient_constraints = np.empty((0, 6), dtype=float)
-        self.tangent_constraints = np.empty((0, 6), dtype=float)
         self.by_role = by_role
         self.missing_observation_ids = []
 
@@ -125,14 +122,14 @@ def test_fault_builder_uses_role_specific_constraints(monkeypatch):
     assert result == "fault-interpolator"
     builder = _FakeInterpolatorBuilder.instances[-1]
 
-    assert builder.value_constraints.shape == (3, 4)
-    assert set(builder.value_constraints[:, 3]) == {0.0, 2.0, -2.0}
+    assert builder.value_constraints.points.shape == (3, 3)
+    assert set(builder.value_constraints.values) == {0.0, 2.0, -2.0}
 
-    assert builder.normal_constraints.shape == (1, 6)
-    assert np.allclose(builder.normal_constraints[0, 3:], np.array([0.0, 0.0, 1.0]))
+    assert builder.normal_constraints.points.shape == (1, 3)
+    assert np.allclose(builder.normal_constraints.vectors[0], np.array([0.0, 0.0, 1.0]))
 
-    assert builder.tangent_constraints.shape == (1, 6)
-    assert np.allclose(builder.tangent_constraints[0, 3:], np.array([1.0, 0.0, 0.0]))
+    assert builder.tangent_constraints.points.shape == (1, 3)
+    assert np.allclose(builder.tangent_constraints.vectors[0], np.array([1.0, 0.0, 0.0]))
 
 
 def test_fault_builder_infers_normal_and_slip_from_trace_when_missing(monkeypatch):
@@ -159,11 +156,11 @@ def test_fault_builder_infers_normal_and_slip_from_trace_when_missing(monkeypatc
     assert result == "fault-interpolator"
     builder = _FakeInterpolatorBuilder.instances[-1]
     assert builder.normal_constraints is not None
-    assert builder.normal_constraints.shape == (1, 6)
+    assert builder.normal_constraints.points.shape == (1, 3)
     assert builder.tangent_constraints is not None
-    assert builder.tangent_constraints.shape == (1, 6)
+    assert builder.tangent_constraints.points.shape == (1, 3)
     # Strike follows trace direction (+/-x), inferred slip should align with strike.
-    assert np.isclose(np.abs(builder.tangent_constraints[0, 3]), 1.0)
+    assert np.isclose(np.abs(builder.tangent_constraints.vectors[0, 0]), 1.0)
 
 
 def test_base_builder_normalizes_vector_constraints():

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+from loop_interpolation.constraints import GradientConstraint, ValueConstraint
 
-from .basebuilder import BaseBuilder, MergedLinkedInput, PreparedConstraints
+from .basebuilder import BaseBuilder, PreparedConstraints
 
 
 class FaultBuilder(BaseBuilder):
@@ -15,6 +16,15 @@ class FaultBuilder(BaseBuilder):
 
         feature = task_payload.get("feature")
         params = getattr(feature, "build_params", {}) or {}
+        prepared = self.prepare_constraints(linked_data, params)
+        return self.build_from_constraints(
+            linked_data=linked_data,
+            prepared=prepared,
+            build_params=params,
+        )
+
+    def prepare_constraints(self, linked_data, build_params: dict | None = None) -> PreparedConstraints:
+        params = build_params or {}
         trace_iso = float(params.get("trace_iso", 0.0))
         hanging_wall_iso = float(params.get("hanging_wall_iso", 1.0))
         footwall_iso = float(params.get("footwall_iso", -1.0))
@@ -46,29 +56,35 @@ class FaultBuilder(BaseBuilder):
 
         if value_blocks:
             value_constraints = np.vstack(value_blocks)
-        elif linked_data.point_constraints.shape[0] > 0:
-            value_constraints = np.hstack(
-                [
-                    linked_data.point_constraints,
-                    np.zeros((linked_data.point_constraints.shape[0], 1)),
-                ]
-            )
         else:
-            value_constraints = np.empty((0, 4), dtype=float)
+            generic_points, _, _ = self._extract_constraint_arrays(linked_data)
+            if generic_points.shape[0] > 0:
+                value_constraints = np.hstack(
+                    [
+                        generic_points,
+                        np.zeros((generic_points.shape[0], 1)),
+                    ]
+                )
+            else:
+                value_constraints = np.empty((0, 4), dtype=float)
 
         role_normals = self.coords_vectors_from_linked_observations(by_role.get("orientation", []))
-        normal_constraints = (
-            role_normals if role_normals.shape[0] > 0 else linked_data.gradient_constraints
-        )
+        if role_normals.shape[0] > 0:
+            normal_constraints = role_normals
+        else:
+            _, gradient_rows, _ = self._extract_constraint_arrays(linked_data)
+            normal_constraints = gradient_rows
         normal_constraints = self._normalize_xyz_vectors(normal_constraints)
 
         slip_tangents = self.coords_vectors_from_linked_observations(by_role.get("slip_vector", []))
-        if slip_tangents.shape[0] > 0 and linked_data.tangent_constraints.shape[0] > 0:
-            tangent_constraints = np.vstack([linked_data.tangent_constraints, slip_tangents])
-        elif slip_tangents.shape[0] > 0:
-            tangent_constraints = slip_tangents
+        if slip_tangents.shape[0] > 0:
+            _, _, generic_tangents = self._extract_constraint_arrays(linked_data)
+            if generic_tangents.shape[0] > 0:
+                tangent_constraints = np.vstack([generic_tangents, slip_tangents])
+            else:
+                tangent_constraints = slip_tangents
         else:
-            tangent_constraints = linked_data.tangent_constraints
+            _, _, tangent_constraints = self._extract_constraint_arrays(linked_data)
         tangent_constraints = self._normalize_xyz_vectors(tangent_constraints)
 
         inferred_normal, inferred_slip = self._infer_geometry_from_trace(trace_points, params)
@@ -93,42 +109,24 @@ class FaultBuilder(BaseBuilder):
         ):
             return None
 
-        fault_linked_data = MergedLinkedInput(
-            feature_id=getattr(linked_data, "feature_id", "fault"),
-            feature_name=getattr(linked_data, "feature_name", None),
-            feature_type=getattr(linked_data, "feature_type", "Fault"),
-            point_constraints=value_constraints[:, :3],
-            gradient_constraints=normal_constraints,
-            tangent_constraints=tangent_constraints,
-            by_role=by_role,
-            missing_observation_ids=getattr(linked_data, "missing_observation_ids", []),
+        value_constraint_data = ValueConstraint.from_array(value_constraints)
+        normal_constraint_data = GradientConstraint.from_array(
+            normal_constraints,
+            is_normal=True,
         )
+        tangent_constraint_data = GradientConstraint.from_array(tangent_constraints)
 
-        return self._build_interpolator_from_constraints(
-            linked_data=fault_linked_data,
-            value_constraints=value_constraints,
-            normal_constraints=normal_constraints,
-            tangent_constraints=tangent_constraints,
-            build_params=params,
-        )
-
-    def _build_interpolator_from_constraints(
-        self,
-        linked_data,
-        value_constraints: np.ndarray,
-        normal_constraints: np.ndarray,
-        tangent_constraints: np.ndarray,
-        build_params: dict,
-    ) -> object:
-        prepared = PreparedConstraints(
-            value_constraints=value_constraints,
-            normal_constraints=normal_constraints,
-            tangent_constraints=tangent_constraints,
-        )
-        return self.build_from_constraints(
-            linked_data=linked_data,
-            prepared=prepared,
-            build_params=build_params,
+        return PreparedConstraints(
+            value_constraints=value_constraint_data,
+            gradient_constraints=GradientConstraint(),
+            normal_constraints=normal_constraint_data,
+            tangent_constraints=tangent_constraint_data,
+            inequality_constraints=self._coerce_inequality_constraints(
+                getattr(linked_data, "inequality_constraints", None)
+            ),
+            inequality_pair_constraints=self._coerce_inequality_pair_constraints(
+                getattr(linked_data, "inequality_pair_constraints", None)
+            ),
         )
 
     @staticmethod

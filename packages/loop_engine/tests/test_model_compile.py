@@ -28,8 +28,10 @@ def test_model_compiles_tasks_in_schema_order_and_links_data():
     assert tasks[1].predecessors == [younger.uuid]
 
     first_payload = tasks[0].execute([])
-    assert first_payload["linked_data"].point_constraints.shape == (1, 3)
-    assert first_payload["linked_data"].gradient_constraints.shape == (0, 6)
+    linked_data = first_payload["linked_data"]
+    assert "basal" in linked_data.by_role
+    assert len(linked_data.by_role["basal"]) == 1
+    assert linked_data.by_role["basal"][0].observation_type == "PointSet"
 
 
 class _MockSolvedFeature:

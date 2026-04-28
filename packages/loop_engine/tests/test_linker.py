@@ -32,9 +32,6 @@ def test_linker_builds_constraints_from_feature_data_links():
 
     assert linked.feature_id == unit.uuid
     assert linked.feature_name == "U1"
-    assert linked.point_constraints.shape == (2, 3)
-    assert linked.gradient_constraints.shape == (1, 6)
-    assert linked.tangent_constraints.shape == (0, 6)
     assert linked.missing_observation_ids == []
 
     roles = set(linked.by_role)
@@ -42,6 +39,7 @@ def test_linker_builds_constraints_from_feature_data_links():
 
     basal_obs = linked.by_role["basal"][0]
     assert basal_obs.obs_uid in project.observations
+    assert basal_obs.observation_type == "PointSet"
 
 
 def test_linker_collects_missing_observation_links():
@@ -54,8 +52,7 @@ def test_linker_collects_missing_observation_links():
     linked = ObservationLinker(schema).build_feature_input(unit.uuid)
 
     assert linked.missing_observation_ids == ["does-not-exist"]
-    assert linked.point_constraints.shape == (0, 3)
-    assert linked.gradient_constraints.shape == (0, 6)
+    assert linked.by_role["data"][0].observation_type == "missing"
 
 
 def test_linker_preserves_inside_outside_roles():

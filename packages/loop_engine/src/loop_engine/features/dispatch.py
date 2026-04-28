@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from .basebuilder import BaseBuilder
 from .fault import FaultBuilder
 from .stratigraphy import StratigraphyBuilder
 
@@ -10,7 +9,6 @@ class FeatureBuilderDispatcher:
 
     def __init__(self, model):
         self.model = model
-        self.generic_builder = BaseBuilder(model)
         self.stratigraphy_builder = StratigraphyBuilder(model)
         self.fault_builder = FaultBuilder(model)
 
@@ -32,7 +30,10 @@ class FeatureBuilderDispatcher:
             return self.stratigraphy_builder.build(task_payload)
         if feature_type == "fault":
             return self.fault_builder.build(task_payload)
-        return self.generic_builder.build(task_payload)
+        raise NotImplementedError(
+            f"No concrete builder registered for feature type '{feature_type}'. "
+            "BaseBuilder is abstract and cannot be used directly."
+        )
 
 
 def create_default_feature_builder_dispatcher(model) -> FeatureBuilderDispatcher:
