@@ -32,6 +32,7 @@ class OrientationObservation(LoopEntity):
             raise ValueError("Polarity must have same length as coords")
         if self.vector.shape[0] != self.coords.shape[0]:
             raise ValueError("Vector must have same length as coords")
+        return self
 
     @classmethod
     def from_strike_dip(
