@@ -4,8 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loop-visualization"
-description = "Visualization utilities for LoopStructural"
+description = "3D visualization interface for LoopStructural using pyvista"
 version = "0.1.0"
+authors = [{ name = "Lachlan Grose", email = "lachlan.grose@monash.edu" }]
 readme = "README.md"
-requires-python = ">=3.8"
-dependencies = ["numpy", "pyvista"]
+requires-python = ">=3.9"
+keywords = [
+    "earth sciences",
+    "geology",
+    "3-D modelling",
+    "structural geology",
+    "visualization",
+]
+license = { text = "MIT" }
+dependencies = ["numpy>=1.18", "pyvista>=0.42"]
+
+[project.optional-dependencies]
+jupyter = ["pyvista[jupyter]"]
+all = ["pyvista[all]"]
+
+[project.urls]
+Documentation = "https://Loop3d.org/LoopStructural/"
+"Bug Tracker" = "https://github.com/loop3d/LoopStructural2.0/issues"
+"Source Code" = "https://github.com/loop3d/LoopStructural2.0"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["loop_visualization", "loop_visualization.*"]
