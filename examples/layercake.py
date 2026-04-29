@@ -2,7 +2,7 @@ import numpy as np
 from loop_common.observations import PointSet
 from loop_model.features import GeologicalUnit
 from loop_model.manager import GeologicalSchema
-
+from loop_engine.core.model import Model
 # Mock data for 4 layers (Basal contacts)
 # Layer 0 is the bottom-most basal contact
 xy = np.random.rand(10, 2)  # 10 random points in XY
@@ -23,34 +23,37 @@ units = []
 units.append(
     schema.add_unit(
         name="Unit_Bottom",
-        base_contacts=[contact_data[0]],
+        basal_contacts=[contact_data[0]],
     )
 )
 units.append(
     schema.add_unit(
         name="Unit_Middle_Lower",
-        base_contacts=[contact_data[1]],
+        basal_contacts=[contact_data[1]],
     )
 )
 units.append(
     schema.add_unit(
         name="Unit_Middle_Upper",
-        base_contacts=[contact_data[2]],
+        basal_contacts=[contact_data[2]],
     )
 )
 units.append(
     schema.add_unit(
         name="Unit_Top",
-        base_contacts=[contact_data[3]],
+        basal_contacts=[contact_data[3]],
     )
 )
 
 
 # Define the stratigraphic relationship (A overlies B)
 for i in range(len(units) - 1):
-    schema.add_relation(
-        master_uuid=units[i + 1].uuid, slave_uuid=units[i].uuid, relation_type="overlies"
+    schema.add_conformable_overlies_relation(
+        master_uuid=units[i + 1].uuid, slave_uuid=units[i].uuid
     )
 
 # schema.model_validate()
 print(schema.get_execution_order())
+
+model = Model(schema=schema,interpolation_strategy='linked_scalar_fields')
+model.solve()
