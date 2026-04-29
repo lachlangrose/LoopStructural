@@ -11,6 +11,9 @@ This module provides a standardized interface for agents and Claude to interact 
 - Creating and managing geological features (units, faults)
 - Adding observations and constraints to models
 - Exporting models in multiple formats
+- Building complete model configurations from structured inputs
+- Evaluating model quality and solve readiness
+- Suggesting targeted modifications to improve geological plausibility
 
 ## Installation
 
@@ -156,6 +159,50 @@ Add observations to a model.
 }
 ```
 
+### build_geological_model
+Build a complete geological model configuration from structured inputs.
+
+Input:
+- bounding_box (dict): Required model domain
+- metadata (dict): Optional metadata
+- features (list): Optional unit and fault definitions
+- observations (list): Optional observations list
+- topology (list): Optional topology relationships
+- solve (bool): Optional immediate solve attempt
+- validation_mode (str): strict, warnings, lenient
+- solver_kwargs (dict): Optional solve kwargs
+
+Output:
+- status, config, diagnostics, optional solve status
+
+### evaluate_model_quality
+Evaluate completeness, diagnostics, and solve readiness.
+
+Input:
+- model_config (dict): Model configuration
+- validation_mode (str): strict, warnings, lenient
+- attempt_solve (bool): Optionally run a solve check
+- solver_kwargs (dict): Optional solve kwargs
+
+Output:
+- quality_score (0-100)
+- completeness summary
+- issues list
+- readiness level (high, medium, low)
+- optional solve_check
+
+### suggest_model_modifications
+Generate prioritized recommendations to improve model quality.
+
+Input:
+- model_config (dict): Model configuration
+- objective (str): Improvement objective
+- max_suggestions (int): Maximum recommendations
+
+Output:
+- prioritized suggestions with actions and reasons
+- embedded evaluation results
+
 ## Validation Modes
 
 - `strict`: Raise errors on any validation issues
@@ -203,6 +250,17 @@ async def build_model():
 
 asyncio.run(build_model())
 ```
+
+## Recommended Agent Workflow
+
+For autonomous model construction and refinement, use this sequence:
+
+1. build_geological_model
+2. evaluate_model_quality
+3. suggest_model_modifications
+4. apply edits using create_feature and add_observations
+5. repeat evaluate_model_quality until readiness is high
+6. solve_model and export_model
 
 ## Testing
 

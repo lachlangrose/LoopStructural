@@ -15,6 +15,9 @@ from .tools import (
     GetModelInfoInput,
     CreateFeatureInput,
     AddObservationsInput,
+    BuildGeologicalModelInput,
+    EvaluateModelQualityInput,
+    SuggestModelModificationsInput,
     build_tool,
 )
 
@@ -76,6 +79,27 @@ class LoopStructuralMCPServer:
             description="Add observations to a model",
             handler=self.add_observations,
             input_schema=AddObservationsInput,
+        )
+
+        self.tools["build_geological_model"] = build_tool(
+            name="build_geological_model",
+            description="Build a geological model configuration and optionally solve it",
+            handler=self.build_geological_model,
+            input_schema=BuildGeologicalModelInput,
+        )
+
+        self.tools["evaluate_model_quality"] = build_tool(
+            name="evaluate_model_quality",
+            description="Evaluate model quality, completeness, and solve readiness",
+            handler=self.evaluate_model_quality,
+            input_schema=EvaluateModelQualityInput,
+        )
+
+        self.tools["suggest_model_modifications"] = build_tool(
+            name="suggest_model_modifications",
+            description="Suggest targeted modifications to improve a geological model",
+            handler=self.suggest_model_modifications,
+            input_schema=SuggestModelModificationsInput,
         )
 
     def get_tools(self) -> dict[str, dict[str, Any]]:
@@ -330,6 +354,219 @@ class LoopStructuralMCPServer:
             }
         except Exception as e:
             logger.error(f"Error adding observations: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+            }
+
+    async def build_geological_model(
+        self,
+        bounding_box: dict[str, Any],
+        metadata: Optional[dict[str, Any]] = None,
+        features: Optional[list[dict[str, Any]]] = None,
+        observations: Optional[list[dict[str, Any]]] = None,
+        topology: Optional[list[dict[str, Any]]] = None,
+        solve: bool = False,
+        validation_mode: Optional[str] = None,
+        solver_kwargs: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Build a geological model configuration and optionally solve it."""
+        mode = validation_mode or self.validation_mode
+        config = {
+            "metadata": metadata or {},
+            "bounding_box": bounding_box,
+            "features": features or [],
+            "observations": observations or [],
+            "topology": topology or [],
+        }
+
+        try:
+            assembly = YAMLAssembly(config, validation_mode=mode)
+            result: dict[str, Any] = {
+                "status": "success",
+                "config": assembly.spec,
+                "diagnostics": assembly.diagnostics,
+            }
+
+            if solve:
+                kwargs = solver_kwargs or {}
+                model = Model.from_yaml(assembly.spec)
+                model.solve(**kwargs)
+                result["solve"] = {
+                    "status": "success",
+                    "message": "Model solved successfully",
+                }
+
+            return result
+        except Exception as e:
+            logger.error(f"Error building model: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "config": config,
+            }
+
+    async def evaluate_model_quality(
+        self,
+        model_config: dict[str, Any],
+        validation_mode: Optional[str] = None,
+        attempt_solve: bool = False,
+        solver_kwargs: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Evaluate model quality and provide a structured scorecard."""
+        mode = validation_mode or self.validation_mode
+        kwargs = solver_kwargs or {}
+
+        try:
+            assembly = YAMLAssembly(model_config, validation_mode=mode)
+            spec = assembly.spec
+            diagnostics = assembly.diagnostics
+
+            num_features = len(spec.get("features", []))
+            num_observations = len(spec.get("observations", []))
+            num_topology_rules = len(spec.get("topology", []))
+            has_bbox = bool(spec.get("bounding_box"))
+
+            issues: list[str] = []
+            if not has_bbox:
+                issues.append("Missing bounding_box")
+            if num_features == 0:
+                issues.append("No features defined")
+            if num_observations == 0:
+                issues.append("No observations provided")
+            if num_topology_rules == 0:
+                issues.append("No topology relationships defined")
+            if diagnostics:
+                issues.append("Validation diagnostics present")
+
+            quality_score = 100
+            quality_score -= min(len(diagnostics) * 10, 40)
+            quality_score -= 15 if not has_bbox else 0
+            quality_score -= 20 if num_features == 0 else 0
+            quality_score -= 15 if num_observations == 0 else 0
+            quality_score -= 10 if num_topology_rules == 0 else 0
+            quality_score = max(0, quality_score)
+
+            evaluation: dict[str, Any] = {
+                "status": "success",
+                "quality_score": quality_score,
+                "completeness": {
+                    "has_bounding_box": has_bbox,
+                    "num_features": num_features,
+                    "num_observations": num_observations,
+                    "num_topology_rules": num_topology_rules,
+                },
+                "diagnostics": diagnostics,
+                "issues": issues,
+                "readiness": "high" if quality_score >= 80 else "medium" if quality_score >= 55 else "low",
+            }
+
+            if attempt_solve:
+                try:
+                    model = Model.from_yaml(spec)
+                    model.solve(**kwargs)
+                    evaluation["solve_check"] = {
+                        "status": "success",
+                        "message": "Solve attempt completed",
+                    }
+                except Exception as solve_error:
+                    evaluation["solve_check"] = {
+                        "status": "error",
+                        "error": str(solve_error),
+                    }
+
+            return evaluation
+        except Exception as e:
+            logger.error(f"Error evaluating model quality: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+            }
+
+    async def suggest_model_modifications(
+        self,
+        model_config: dict[str, Any],
+        objective: str = "improve geological plausibility",
+        max_suggestions: int = 10,
+    ) -> dict[str, Any]:
+        """Suggest modifications to improve model quality for a stated objective."""
+        try:
+            evaluation = await self.evaluate_model_quality(model_config=model_config)
+            if evaluation.get("status") != "success":
+                return {
+                    "status": "error",
+                    "error": "Could not evaluate model before generating suggestions",
+                    "evaluation": evaluation,
+                }
+
+            completeness = evaluation.get("completeness", {})
+            suggestions: list[dict[str, Any]] = []
+
+            if not completeness.get("has_bounding_box", False):
+                suggestions.append(
+                    {
+                        "priority": "high",
+                        "action": "Define bounding_box with origin and maximum",
+                        "reason": "Bounding box is required to define model domain",
+                    }
+                )
+
+            if completeness.get("num_features", 0) == 0:
+                suggestions.append(
+                    {
+                        "priority": "high",
+                        "action": "Add at least one unit or fault feature",
+                        "reason": "Model has no geological structures to solve",
+                    }
+                )
+
+            if completeness.get("num_observations", 0) == 0:
+                suggestions.append(
+                    {
+                        "priority": "high",
+                        "action": "Add observations (pointset and orientation where possible)",
+                        "reason": "Observations constrain geometry and improve solution stability",
+                    }
+                )
+
+            if completeness.get("num_topology_rules", 0) == 0:
+                suggestions.append(
+                    {
+                        "priority": "medium",
+                        "action": "Add topology rules (overlies, faults, abuts, onlap)",
+                        "reason": "Topology improves geological consistency",
+                    }
+                )
+
+            diagnostics = evaluation.get("diagnostics", [])
+            if diagnostics:
+                suggestions.append(
+                    {
+                        "priority": "high",
+                        "action": "Resolve validation diagnostics before solve",
+                        "reason": "Diagnostics indicate schema or consistency issues",
+                        "details": diagnostics[:3],
+                    }
+                )
+
+            suggestions.append(
+                {
+                    "priority": "medium",
+                    "action": "Run iterative evaluate_model_quality after each major edit",
+                    "reason": "Incremental checks prevent compounding model errors",
+                }
+            )
+
+            suggestions = suggestions[:max_suggestions]
+            return {
+                "status": "success",
+                "objective": objective,
+                "current_quality_score": evaluation.get("quality_score"),
+                "suggestions": suggestions,
+                "evaluation": evaluation,
+            }
+        except Exception as e:
+            logger.error(f"Error generating modification suggestions: {e}")
             return {
                 "status": "error",
                 "error": str(e),

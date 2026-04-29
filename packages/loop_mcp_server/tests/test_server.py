@@ -27,6 +27,9 @@ def test_tools_registered(server):
         "get_model_info",
         "create_feature",
         "add_observations",
+        "build_geological_model",
+        "evaluate_model_quality",
+        "suggest_model_modifications",
     }
     
     assert set(tools.keys()) == expected_tools
@@ -104,6 +107,54 @@ async def test_add_observations(server):
     
     assert result["status"] == "success"
     assert result["total_observations"] == 2
+
+
+@pytest.mark.asyncio
+async def test_build_geological_model(server):
+    """Test building a model configuration."""
+    result = await server.build_geological_model(
+        metadata={"name": "build_test"},
+        bounding_box={"origin": [0, 0, 0], "maximum": [100, 100, 100]},
+        features=[],
+        observations=[],
+        topology=[],
+    )
+
+    assert result["status"] == "success"
+    assert result["config"]["metadata"]["name"] == "build_test"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_model_quality(server):
+    """Test model quality evaluation returns scorecard."""
+    config = {
+        "metadata": {"name": "quality_test"},
+        "bounding_box": {"origin": [0, 0, 0], "maximum": [100, 100, 100]},
+        "features": [],
+        "observations": [],
+        "topology": [],
+    }
+    result = await server.evaluate_model_quality(model_config=config)
+
+    assert result["status"] == "success"
+    assert "quality_score" in result
+    assert "readiness" in result
+
+
+@pytest.mark.asyncio
+async def test_suggest_model_modifications(server):
+    """Test model modification suggestions are returned."""
+    config = {
+        "metadata": {"name": "modify_test"},
+        "bounding_box": {"origin": [0, 0, 0], "maximum": [100, 100, 100]},
+        "features": [],
+        "observations": [],
+        "topology": [],
+    }
+    result = await server.suggest_model_modifications(model_config=config)
+
+    assert result["status"] == "success"
+    assert len(result["suggestions"]) > 0
 
 
 if __name__ == "__main__":

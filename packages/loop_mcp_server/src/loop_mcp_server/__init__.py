@@ -9,6 +9,9 @@ from .tools import (
     GetModelInfoInput,
     CreateFeatureInput,
     AddObservationsInput,
+    BuildGeologicalModelInput,
+    EvaluateModelQualityInput,
+    SuggestModelModificationsInput,
 )
 
 __version__ = "0.1.0"
@@ -22,4 +25,7 @@ __all__ = [
     "GetModelInfoInput",
     "CreateFeatureInput",
     "AddObservationsInput",
+    "BuildGeologicalModelInput",
+    "EvaluateModelQualityInput",
+    "SuggestModelModificationsInput",
 ]
