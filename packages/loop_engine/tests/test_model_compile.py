@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 
+from loop_common.geometry import BoundingBox
 from loop_common.observations import Orientation, PointSet
 from loop_engine.core.geological_feature import GeologicalFeature
+from loop_engine.core.linker import LinkedObservation
 from loop_engine.core.model import Model
 from loop_engine.core.state import ModelState
+from loop_engine.features.stratigraphy import StratigraphyBuilder
 from loop_model.manager import GeologicalSchema
 
 
@@ -221,3 +224,214 @@ def test_independent_strategy_solves_units_separately():
     assert isinstance(younger_solved, GeologicalFeature)
     assert isinstance(older_solved, GeologicalFeature)
     assert younger_solved.representation is not older_solved.representation
+
+
+def test_stratigraphy_builder_routes_gradient_role_to_gradient_constraints(monkeypatch):
+    class _FakeInterpolatorBuilder:
+        instances = []
+
+        def __init__(self, interpolatortype, bounding_box, nelements):
+            self.interpolatortype = interpolatortype
+            self.bounding_box = bounding_box
+            self.nelements = nelements
+            self.value_constraints = None
+            self.gradient_constraints = None
+            self.normal_constraints = None
+            self.tangent_constraints = None
+            self.inequality_constraints = None
+            self.inequality_pair_constraints = None
+            _FakeInterpolatorBuilder.instances.append(self)
+
+        def add_value_constraints(self, constraints):
+            self.value_constraints = constraints
+
+        def add_gradient_constraints(self, constraints):
+            self.gradient_constraints = constraints
+
+        def add_normal_constraints(self, constraints):
+            self.normal_constraints = constraints
+
+        def add_tangent_constraints(self, constraints):
+            self.tangent_constraints = constraints
+
+        def add_inequality_constraints(self, constraints):
+            self.inequality_constraints = constraints
+
+        def add_inequality_pair_constraints(self, constraints):
+            self.inequality_pair_constraints = constraints
+
+        def setup_interpolator(self):
+            return self
+
+        def solve(self, **kwargs):
+            return self
+
+        def build(self):
+            return "stratigraphy-interpolator"
+
+    class _Schema:
+        def __init__(self):
+            self.bounding_box = BoundingBox(
+                origin=np.array([-1.0, -1.0, -1.0]),
+                maximum=np.array([2.0, 2.0, 2.0]),
+            )
+
+    class _Model:
+        def __init__(self):
+            self.schema = _Schema()
+            self.interpolatortype = "FDI"
+            self.nelements = 100
+            self.interpolation_strategy = "independent"
+
+    gradient_obs = Orientation(
+        name="gradient",
+        coords=np.array([[0.0, 0.0, 0.0]]),
+        vector=np.array([[1.0, 0.0, 0.0]]),
+        magnitude=np.array([1.0]),
+        polarity=np.array([1.0]),
+        type="lineation",
+    )
+    orientation_obs = Orientation(
+        name="normal",
+        coords=np.array([[0.0, 0.0, 0.0]]),
+        vector=np.array([[0.0, 0.0, 1.0]]),
+        magnitude=np.array([1.0]),
+        polarity=np.array([1.0]),
+        type="plane",
+    )
+
+    linked_data = type("LinkedData", (), {})()
+    linked_data.by_role = {
+        "gradient": [
+            LinkedObservation(
+                obs_uid="g1",
+                role="gradient",
+                observation_type="Orientation",
+                observation=gradient_obs,
+            )
+        ],
+        "orientation": [
+            LinkedObservation(
+                obs_uid="o1",
+                role="orientation",
+                observation_type="Orientation",
+                observation=orientation_obs,
+            )
+        ],
+    }
+    linked_data.feature_id = "unit-1"
+    linked_data.feature_name = "U1"
+    linked_data.feature_type = "Unit"
+    linked_data.missing_observation_ids = []
+
+    monkeypatch.setattr("loop_interpolation.InterpolatorBuilder", _FakeInterpolatorBuilder)
+
+    result = StratigraphyBuilder(_Model()).build_from_linked_data(linked_data)
+
+    assert result == "stratigraphy-interpolator"
+    builder = _FakeInterpolatorBuilder.instances[-1]
+
+    assert builder.gradient_constraints is not None
+    assert builder.gradient_constraints.points.shape == (1, 3)
+    assert np.allclose(builder.gradient_constraints.vectors[0], np.array([1.0, 0.0, 0.0]))
+
+    assert builder.normal_constraints is not None
+    assert builder.normal_constraints.points.shape == (1, 3)
+    assert np.allclose(builder.normal_constraints.vectors[0], np.array([0.0, 0.0, 1.0]))
+
+
+def test_stratigraphy_builder_gradient_role_without_orientation_leaves_normals_empty(monkeypatch):
+    class _FakeInterpolatorBuilder:
+        instances = []
+
+        def __init__(self, interpolatortype, bounding_box, nelements):
+            self.interpolatortype = interpolatortype
+            self.bounding_box = bounding_box
+            self.nelements = nelements
+            self.value_constraints = None
+            self.gradient_constraints = None
+            self.normal_constraints = None
+            self.tangent_constraints = None
+            self.inequality_constraints = None
+            self.inequality_pair_constraints = None
+            _FakeInterpolatorBuilder.instances.append(self)
+
+        def add_value_constraints(self, constraints):
+            self.value_constraints = constraints
+
+        def add_gradient_constraints(self, constraints):
+            self.gradient_constraints = constraints
+
+        def add_normal_constraints(self, constraints):
+            self.normal_constraints = constraints
+
+        def add_tangent_constraints(self, constraints):
+            self.tangent_constraints = constraints
+
+        def add_inequality_constraints(self, constraints):
+            self.inequality_constraints = constraints
+
+        def add_inequality_pair_constraints(self, constraints):
+            self.inequality_pair_constraints = constraints
+
+        def setup_interpolator(self):
+            return self
+
+        def solve(self, **kwargs):
+            return self
+
+        def build(self):
+            return "stratigraphy-interpolator"
+
+    class _Schema:
+        def __init__(self):
+            self.bounding_box = BoundingBox(
+                origin=np.array([-1.0, -1.0, -1.0]),
+                maximum=np.array([2.0, 2.0, 2.0]),
+            )
+
+    class _Model:
+        def __init__(self):
+            self.schema = _Schema()
+            self.interpolatortype = "FDI"
+            self.nelements = 100
+            self.interpolation_strategy = "independent"
+
+    gradient_obs = Orientation(
+        name="gradient",
+        coords=np.array([[0.0, 0.0, 0.0]]),
+        vector=np.array([[1.0, 0.0, 0.0]]),
+        magnitude=np.array([1.0]),
+        polarity=np.array([1.0]),
+        type="lineation",
+    )
+
+    linked_data = type("LinkedData", (), {})()
+    linked_data.by_role = {
+        "gradient": [
+            LinkedObservation(
+                obs_uid="g1",
+                role="gradient",
+                observation_type="Orientation",
+                observation=gradient_obs,
+            )
+        ],
+    }
+    linked_data.feature_id = "unit-1"
+    linked_data.feature_name = "U1"
+    linked_data.feature_type = "Unit"
+    linked_data.missing_observation_ids = []
+
+    monkeypatch.setattr("loop_interpolation.InterpolatorBuilder", _FakeInterpolatorBuilder)
+
+    result = StratigraphyBuilder(_Model()).build_from_linked_data(linked_data)
+
+    assert result == "stratigraphy-interpolator"
+    builder = _FakeInterpolatorBuilder.instances[-1]
+
+    assert builder.gradient_constraints is not None
+    assert builder.gradient_constraints.points.shape == (1, 3)
+    assert np.allclose(builder.gradient_constraints.vectors[0], np.array([1.0, 0.0, 0.0]))
+
+    # Without orientation role data, normals should not be forwarded to the builder.
+    assert builder.normal_constraints is None
