@@ -67,7 +67,7 @@ from ._discrete_fold_interpolator import (
 from ._fd_fold_interpolator import FDFoldInterpolator
 from ._p2interpolator import P2Interpolator
 from ._p1interpolator import P1Interpolator
-from ._constant_norm import ConstantNormP1Interpolator, ConstantNormFDIInterpolator
+# from ._constant_norm import ConstantNormP1Interpolator, ConstantNormFDIInterpolator
 
 try:
     from ._surfe_wrapper import SurfeRBFInterpolator
@@ -110,8 +110,8 @@ interpolator_map = {
     InterpolatorType.PIECEWISE_QUADRATIC: P2Interpolator,
     InterpolatorType.BASE_DATA_SUPPORTED: GeologicalInterpolator,
     InterpolatorType.SURFE: SurfeRBFInterpolator,
-    InterpolatorType.PIECEWISE_LINEAR_CONSTANT_NORM: ConstantNormP1Interpolator,
-    InterpolatorType.FINITE_DIFFERENCE_CONSTANT_NORM: ConstantNormFDIInterpolator,
+    # InterpolatorType.PIECEWISE_LINEAR_CONSTANT_NORM: ConstantNormP1Interpolator,
+    # InterpolatorType.FINITE_DIFFERENCE_CONSTANT_NORM: ConstantNormFDIInterpolator,
 }
 
 support_interpolator_map = {
