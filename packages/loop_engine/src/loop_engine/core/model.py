@@ -23,6 +23,139 @@ class Model:
         self._linker = ObservationLinker(schema)
         self._builder_dispatcher = create_default_feature_builder_dispatcher(self)
 
+    @staticmethod
+    def _normalize_interpolation_strategy(strategy) -> dict:
+        if isinstance(strategy, dict):
+            strategy_dict = dict(strategy)
+        else:
+            strategy_dict = {"mode": strategy}
+
+        mode = str(strategy_dict.get("mode", "independent")).strip().lower()
+        aliases = {
+            "grouped_conformable": "shared_scalar_field",
+            "grouped": "shared_scalar_field",
+            "single": "shared_scalar_field",
+            "single_scalar": "shared_scalar_field",
+            "single_scalar_field": "shared_scalar_field",
+            "linked": "linked_scalar_fields",
+        }
+        mode = aliases.get(mode, mode)
+        if mode not in {"independent", "shared_scalar_field", "linked_scalar_fields"}:
+            mode = "independent"
+
+        scalar_increment = float(strategy_dict.get("scalar_increment", 1.0))
+        link_margin = float(strategy_dict.get("link_margin", 0.05))
+        link_bound = float(strategy_dict.get("link_bound", 1.0e6))
+
+        return {
+            "mode": mode,
+            "scalar_increment": scalar_increment,
+            "link_margin": abs(link_margin),
+            "link_bound": abs(link_bound),
+            "series_relation_types": ["overlies"],
+        }
+
+    def _compile_stratigraphic_interpretations(
+        self, execution_order: list[str]
+    ) -> dict[str, dict]:
+        strategy = self._normalize_interpolation_strategy(self.interpolation_strategy)
+        dag = self.schema.dag
+        features = getattr(self.schema, "features", {})
+        relation_types = set(strategy["series_relation_types"])
+
+        order_index = {feature_id: index for index, feature_id in enumerate(execution_order)}
+        unit_ids = [
+            feature_id
+            for feature_id in execution_order
+            if self._normalize_feature_type(features.get(feature_id)) in {"unit", "geologicalunit"}
+        ]
+
+        adjacency = {feature_id: set() for feature_id in unit_ids}
+        for feature_id in unit_ids:
+            neighbours = list(dag.predecessors(feature_id)) + list(dag.successors(feature_id))
+            for neighbour in neighbours:
+                if neighbour not in adjacency:
+                    continue
+                edge = dag.get_edge_data(feature_id, neighbour)
+                if edge is None:
+                    edge = dag.get_edge_data(neighbour, feature_id)
+                relation = self._normalize_relation(None if edge is None else edge.get("relation"))
+                if relation in relation_types:
+                    adjacency[feature_id].add(neighbour)
+
+        feature_to_series: dict[str, tuple[str, list[str]]] = {}
+        visited = set()
+        for feature_id in unit_ids:
+            if feature_id in visited:
+                continue
+            stack = [feature_id]
+            members = set()
+            while stack:
+                current = stack.pop()
+                if current in visited:
+                    continue
+                visited.add(current)
+                members.add(current)
+                stack.extend(n for n in adjacency[current] if n not in visited)
+
+            ordered_members = sorted(members, key=lambda fid: order_index[fid])
+            series_key = "series:" + "|".join(ordered_members)
+            for member in ordered_members:
+                feature_to_series[member] = (series_key, ordered_members)
+
+        interpretations = {}
+        for feature_id in execution_order:
+            feature = features.get(feature_id)
+            feature_type = self._normalize_feature_type(feature)
+
+            if feature_type not in {"unit", "geologicalunit"}:
+                interpretations[feature_id] = {"mode": strategy["mode"]}
+                continue
+
+            series_key, series_members = feature_to_series.get(feature_id, (f"series:{feature_id}", [feature_id]))
+            rank = series_members.index(feature_id)
+            predecessors = [
+                pred
+                for pred in dag.predecessors(feature_id)
+                if self._normalize_relation(dag.get_edge_data(pred, feature_id).get("relation")) == "overlies"
+            ]
+            successors = [
+                succ
+                for succ in dag.successors(feature_id)
+                if self._normalize_relation(dag.get_edge_data(feature_id, succ).get("relation")) == "overlies"
+            ]
+
+            interpretations[feature_id] = {
+                "mode": strategy["mode"],
+                "feature_type": feature_type,
+                "series_key": series_key,
+                "series_members": series_members,
+                "series_rank": rank,
+                "series_size": len(series_members),
+                "scalar_increment": strategy["scalar_increment"],
+                "basal_isovalue": rank * strategy["scalar_increment"],
+                "top_isovalue": (rank + 1) * strategy["scalar_increment"],
+                "overlying_units": predecessors,
+                "underlying_units": successors,
+                "link_margin": strategy["link_margin"],
+                "link_bound": strategy["link_bound"],
+            }
+
+        return interpretations
+
+    @staticmethod
+    def _normalize_feature_type(feature) -> str:
+        if feature is None:
+            return ""
+        return type(feature).__name__.strip().lower()
+
+    @staticmethod
+    def _normalize_relation(value) -> str:
+        text = "" if value is None else str(value).strip().lower()
+        if text.startswith("relationtype."):
+            return text.split(".", 1)[1]
+        return text
+
     def solve(self):
         """The 'Big Green Button'."""
         self._grouped_unit_build_cache = {}
@@ -88,6 +221,7 @@ class Model:
     def _compile_tasks(self):
         execution_order = self.schema.get_execution_order()
         linked = self._linker.build_inputs_by_feature(execution_order)
+        interpretations = self._compile_stratigraphic_interpretations(execution_order)
 
         tasks = []
         for feature_id in execution_order:
@@ -98,6 +232,7 @@ class Model:
                     dependencies=predecessors,
                     linked_data=linked[feature_id],
                     feature=self.schema.features[feature_id],
+                    interpretation=interpretations.get(feature_id, {}),
                 )
             )
         return tasks

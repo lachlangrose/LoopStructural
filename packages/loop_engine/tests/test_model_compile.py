@@ -226,6 +226,131 @@ def test_independent_strategy_solves_units_separately():
     assert younger_solved.representation is not older_solved.representation
 
 
+def test_grouped_conformable_alias_normalizes_to_shared_scalar_mode():
+    schema = GeologicalSchema(name="StrategyAlias")
+    schema.initialize_project()
+    older = schema.add_unit("Older")
+    younger = schema.add_unit("Younger")
+    schema.add_conformable_overlies_relation(master_uuid=younger.uuid, slave_uuid=older.uuid)
+
+    model = Model(schema=schema, interpolation_strategy="grouped_conformable")
+    tasks = model._compile_tasks()
+
+    by_id = {task.id: task for task in tasks}
+    assert by_id[older.uuid].interpretation["mode"] == "shared_scalar_field"
+    assert by_id[younger.uuid].interpretation["mode"] == "shared_scalar_field"
+
+
+def test_shared_scalar_field_strategy_dict_solves_shared_representation():
+    xy = np.random.default_rng(12).uniform(0, 1, (6, 2))
+
+    schema = GeologicalSchema(name="SharedScalarDict")
+    schema.initialize_project()
+    older = schema.add_unit(
+        "Older",
+        basal_contacts=[PointSet(name="b0", coords=np.hstack([xy, np.zeros((6, 1))]))],
+    )
+    younger = schema.add_unit(
+        "Younger",
+        basal_contacts=[PointSet(name="b1", coords=np.hstack([xy, np.ones((6, 1))]))],
+    )
+    schema.add_conformable_overlies_relation(master_uuid=younger.uuid, slave_uuid=older.uuid)
+
+    model = Model(
+        schema=schema,
+        interpolatortype="FDI",
+        nelements=200,
+        interpolation_strategy={"mode": "shared_scalar_field", "scalar_increment": 2.0},
+    )
+    state = model.solve()
+
+    younger_solved = state.get_feature(younger.uuid)
+    older_solved = state.get_feature(older.uuid)
+
+    assert isinstance(younger_solved, GeologicalFeature)
+    assert isinstance(older_solved, GeologicalFeature)
+    assert younger_solved.representation is older_solved.representation
+
+
+def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
+    class _FakeInterpolatorBuilder:
+        instances = []
+
+        def __init__(self, interpolatortype, bounding_box, nelements):
+            self.interpolatortype = interpolatortype
+            self.bounding_box = bounding_box
+            self.nelements = nelements
+            self.inequality_constraints = None
+            _FakeInterpolatorBuilder.instances.append(self)
+
+        def add_value_constraints(self, constraints):
+            return self
+
+        def add_gradient_constraints(self, constraints):
+            return self
+
+        def add_normal_constraints(self, constraints):
+            return self
+
+        def add_tangent_constraints(self, constraints):
+            return self
+
+        def add_inequality_constraints(self, constraints):
+            self.inequality_constraints = constraints
+            return self
+
+        def add_inequality_pair_constraints(self, constraints):
+            return self
+
+        def setup_interpolator(self):
+            return self
+
+        def solve(self, **kwargs):
+            return self
+
+        def build(self):
+            return "linked-stratigraphy-interpolator"
+
+    xy = np.random.default_rng(9).uniform(0, 1, (5, 2))
+
+    schema = GeologicalSchema(name="LinkedScalar")
+    schema.initialize_project()
+    older = schema.add_unit(
+        "Older",
+        basal_contacts=[PointSet(name="b0", coords=np.hstack([xy, np.zeros((5, 1))]))],
+    )
+    younger = schema.add_unit(
+        "Younger",
+        basal_contacts=[PointSet(name="b1", coords=np.hstack([xy, np.ones((5, 1))]))],
+    )
+    schema.add_conformable_overlies_relation(master_uuid=younger.uuid, slave_uuid=older.uuid)
+
+    monkeypatch.setattr("loop_interpolation.InterpolatorBuilder", _FakeInterpolatorBuilder)
+
+    model = Model(
+        schema=schema,
+        interpolation_strategy={
+            "mode": "linked_scalar_fields",
+            "link_margin": 0.2,
+            "link_bound": 5.0,
+        },
+    )
+    model.solve()
+
+    all_bounds = [
+        instance.inequality_constraints.bounds
+        for instance in _FakeInterpolatorBuilder.instances
+        if instance.inequality_constraints is not None
+    ]
+    assert all_bounds
+
+    stacked = np.vstack(all_bounds)
+    assert np.any(np.isclose(stacked[:, 0], 0.2))
+    assert np.any(np.isclose(stacked[:, 1], 5.0))
+    assert np.any(np.isclose(stacked[:, 0], -5.0))
+    assert np.any(np.isclose(stacked[:, 1], -0.2))
+
+
 def test_stratigraphy_builder_routes_gradient_role_to_gradient_constraints(monkeypatch):
     class _FakeInterpolatorBuilder:
         instances = []

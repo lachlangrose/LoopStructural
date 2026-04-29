@@ -53,8 +53,11 @@ class _FakeInterpolatorBuilder:
         self.bounding_box = bounding_box
         self.nelements = nelements
         self.value_constraints = None
+        self.gradient_constraints = None
         self.normal_constraints = None
         self.tangent_constraints = None
+        self.inequality_constraints = None
+        self.inequality_pair_constraints = None
         _FakeInterpolatorBuilder.instances.append(self)
 
     def add_value_constraints(self, constraints):
@@ -63,13 +66,22 @@ class _FakeInterpolatorBuilder:
     def add_normal_constraints(self, constraints):
         self.normal_constraints = constraints
 
+    def add_gradient_constraints(self, constraints):
+        self.gradient_constraints = constraints
+
     def add_tangent_constraints(self, constraints):
         self.tangent_constraints = constraints
+
+    def add_inequality_constraints(self, constraints):
+        self.inequality_constraints = constraints
+
+    def add_inequality_pair_constraints(self, constraints):
+        self.inequality_pair_constraints = constraints
 
     def setup_interpolator(self):
         return self
 
-    def solve(self):
+    def solve(self, **kwargs):
         return self
 
     def build(self):
@@ -122,8 +134,13 @@ def test_fault_builder_uses_role_specific_constraints(monkeypatch):
     assert result == "fault-interpolator"
     builder = _FakeInterpolatorBuilder.instances[-1]
 
-    assert builder.value_constraints.points.shape == (3, 3)
-    assert set(builder.value_constraints.values) == {0.0, 2.0, -2.0}
+    assert builder.value_constraints.points.shape == (1, 3)
+    assert set(builder.value_constraints.values) == {0.0}
+
+    assert builder.inequality_constraints is not None
+    assert builder.inequality_constraints.points.shape == (2, 3)
+    assert np.allclose(builder.inequality_constraints.bounds[0], np.array([0.0, 2.0]))
+    assert np.allclose(builder.inequality_constraints.bounds[1], np.array([-2.0, 0.0]))
 
     assert builder.normal_constraints.points.shape == (1, 3)
     assert np.allclose(builder.normal_constraints.vectors[0], np.array([0.0, 0.0, 1.0]))
