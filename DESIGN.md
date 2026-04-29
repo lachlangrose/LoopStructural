@@ -27,6 +27,11 @@ LoopStructural 2.0 is built on a **modular, layered architecture** with clear se
 ┌─────────────────────────────────────────────────────────┐
 │              User Applications / APIs                    │
 ├─────────────────────────────────────────────────────────┤
+│ loop_api         (External Assembly API)                │
+│ ├── YAMLAssembly (ingest + validate + normalize)        │
+│ ├── to_project()/to_model()/solve()                     │
+│ └── Adapter registries (obs/feature/relation)           │
+├─────────────────────────────────────────────────────────┤
 │ loop_model       (Geological Schema & Features)         │
 │ ├── GeologicalSchema (feature relationships)            │
 │ └── GeologicalFeature, Unit, Fault, Fold, ...          │
@@ -62,6 +67,26 @@ LoopStructural 2.0 is built on a **modular, layered architecture** with clear se
 ---
 
 ## Module Responsibilities
+
+### `loop_api`: The Assembly API Layer
+
+**Purpose**: Convert external model definitions (YAML in V1) into validated `LoopProject`, `GeologicalSchema`, and executable `Model` objects.
+
+**Key Responsibilities**:
+- Normalize and validate external contracts before schema construction
+- Load observations from inline payloads and file-backed references
+- Assemble features and topology through `loop_model` add-feature/add-relation methods
+- Expose top-level build entry points (`from_yaml`, `to_project`, `to_model`, `solve`)
+- Provide adapter registries for future feature/data/relation extension
+
+**Boundaries**:
+- Does **not** implement geological interpretation or interpolation logic
+- Delegates solve orchestration to `loop_engine.Model`
+- Preserves ownership of schema/project contracts in `loop_model`
+
+**Dependencies**: `loop_model`, `loop_engine`, `loop_common`
+
+---
 
 ### `loop_model`: The Schema Layer
 

@@ -1,0 +1,79 @@
+metadata:
+  name: YAML Integration Model
+bounding_box:
+  origin: [0.0, 0.0, -1.0]
+  maximum: [1.0, 1.0, 2.0]
+  nsteps: [16, 16, 16]
+solve:
+  interpolatortype: FDI
+  nelements: 200
+  interpolation_strategy: independent
+observations:
+  - id: lower_basal
+    type: pointset
+    file: contacts.csv
+  - id: upper_basal
+    type: pointset
+    inline:
+      coords:
+        - [0.2, 0.2, 1.0]
+        - [0.8, 0.2, 1.0]
+        - [0.2, 0.8, 1.0]
+        - [0.8, 0.8, 1.0]
+  - id: lower_orientation
+    type: orientation
+    inline:
+      coords:
+        - [0.5, 0.5, 0.0]
+      vector:
+        - [0.0, 0.0, 1.0]
+      magnitude: [1.0]
+      polarity: [1.0]
+      type: plane
+  - id: fault_trace
+    type: pointset
+    file: fault_trace.csv
+  - id: fault_hw
+    type: pointset
+    inline:
+      coords:
+        - [0.75, 0.3, 0.8]
+        - [0.75, 0.7, 0.8]
+  - id: fault_fw
+    type: pointset
+    inline:
+      coords:
+        - [0.25, 0.3, 0.2]
+        - [0.25, 0.7, 0.2]
+features:
+  - id: lower_unit
+    type: unit
+    name: Lower
+    data_links:
+      basal: [lower_basal]
+      orientation: [lower_orientation]
+  - id: upper_unit
+    type: unit
+    name: Upper
+    data_links:
+      basal: [upper_basal]
+  - id: fault_main
+    type: fault
+    name: Main Fault
+    displacement: 50.0
+    build_params:
+      fault_dip: 70.0
+    data_links:
+      trace: [fault_trace]
+      hanging_wall: [fault_hw]
+      footwall: [fault_fw]
+topology:
+  - type: faults
+    master: fault_main
+    slave: lower_unit
+  - type: faults
+    master: fault_main
+    slave: upper_unit
+  - type: overlies
+    master: upper_unit
+    slave: lower_unit

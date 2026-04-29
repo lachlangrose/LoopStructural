@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loop-api"
+description = "YAML-driven API assembly for LoopStructural"
+version = "0.1.0"
+readme = "API_DESIGN.md"
+requires-python = ">=3.8"
+dependencies = ["numpy", "networkx", "pydantic>=2", "pyyaml", "loop-common", "loop-model", "loop-engine"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["loop_api", "loop_api.*"]
