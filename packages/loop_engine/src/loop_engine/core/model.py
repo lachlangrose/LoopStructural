@@ -46,14 +46,246 @@ class Model:
         scalar_increment = float(strategy_dict.get("scalar_increment", 1.0))
         link_margin = float(strategy_dict.get("link_margin", 0.05))
         link_bound = float(strategy_dict.get("link_bound", 1.0e6))
+        parallel_tolerance = strategy_dict.get("parallel_tolerance", None)
+        if parallel_tolerance is not None:
+            parallel_tolerance = abs(float(parallel_tolerance))
+
+        series_config = strategy_dict.get("series_config", {})
+        if not isinstance(series_config, dict):
+            series_config = {}
+
+        default_series = series_config.get("default", {})
+        if not isinstance(default_series, dict):
+            default_series = {}
+
+        enforce_parallelism = bool(
+            strategy_dict.get(
+                "enforce_parallelism",
+                default_series.get("enforce_parallelism", False),
+            )
+        )
+        parallelism_weight = float(
+            strategy_dict.get(
+                "parallelism_weight",
+                default_series.get("parallelism_weight", 1.0),
+            )
+        )
 
         return {
             "mode": mode,
             "scalar_increment": scalar_increment,
             "link_margin": abs(link_margin),
             "link_bound": abs(link_bound),
+            "parallel_tolerance": parallel_tolerance,
+            "enforce_parallelism": enforce_parallelism,
+            "parallelism_weight": parallelism_weight,
+            "series_band_mode": str(
+                strategy_dict.get("series_band_mode", default_series.get("series_band_mode", "incremental"))
+            )
+            .strip()
+            .lower(),
+            "series_base_isovalue": float(
+                strategy_dict.get("series_base_isovalue", default_series.get("series_base_isovalue", 0.0))
+            ),
+            "series_thickness_source": str(
+                strategy_dict.get(
+                    "series_thickness_source",
+                    default_series.get("series_thickness_source", "unit_metadata"),
+                )
+            )
+            .strip()
+            .lower(),
+            "series_thickness_key": str(
+                strategy_dict.get("series_thickness_key", default_series.get("series_thickness_key", "thickness"))
+            ),
+            "series_thickness_fallback": float(
+                strategy_dict.get(
+                    "series_thickness_fallback",
+                    default_series.get("series_thickness_fallback", scalar_increment),
+                )
+            ),
+            "series_config": series_config,
             "series_relation_types": ["overlies"],
         }
+
+    def _resolve_series_config(
+        self,
+        strategy: dict,
+        series_members: list[str],
+    ) -> dict:
+        config = {
+            "scalar_increment": float(strategy["scalar_increment"]),
+            "series_band_mode": strategy["series_band_mode"],
+            "series_base_isovalue": float(strategy["series_base_isovalue"]),
+            "series_thickness_source": strategy["series_thickness_source"],
+            "series_thickness_key": strategy["series_thickness_key"],
+            "series_thickness_fallback": float(strategy["series_thickness_fallback"]),
+            "link_margin": float(strategy["link_margin"]),
+            "link_bound": float(strategy["link_bound"]),
+            "parallel_tolerance": strategy["parallel_tolerance"],
+            "enforce_parallelism": bool(strategy["enforce_parallelism"]),
+            "parallelism_weight": float(strategy["parallelism_weight"]),
+            "basal_isovalues": {},
+            "top_isovalues": {},
+        }
+
+        series_cfg = strategy.get("series_config", {})
+        default_cfg = series_cfg.get("default", {})
+        if isinstance(default_cfg, dict):
+            self._merge_series_config(config, default_cfg)
+
+        groups = series_cfg.get("groups", [])
+        if isinstance(groups, list):
+            for group_cfg in groups:
+                if not isinstance(group_cfg, dict):
+                    continue
+                units = group_cfg.get("units", [])
+                if not isinstance(units, list) or len(units) == 0:
+                    continue
+                resolved = {
+                    self._resolve_feature_token(token)
+                    for token in units
+                    if self._resolve_feature_token(token) is not None
+                }
+                if resolved and resolved == set(series_members):
+                    self._merge_series_config(config, group_cfg)
+
+        return config
+
+    def _merge_series_config(self, target: dict, source: dict) -> None:
+        scalar_keys = {
+            "scalar_increment",
+            "series_base_isovalue",
+            "series_thickness_fallback",
+            "link_margin",
+            "link_bound",
+            "parallelism_weight",
+            "parallel_tolerance",
+        }
+        bool_keys = {"enforce_parallelism"}
+        str_keys = {
+            "series_band_mode",
+            "series_thickness_source",
+            "series_thickness_key",
+        }
+
+        for key, value in source.items():
+            if key in {"units", "default", "groups"}:
+                continue
+            if key in {"isovalues", "basal_isovalues"} and isinstance(value, dict):
+                self._merge_explicit_isovalue_map(target["basal_isovalues"], value)
+                continue
+            if key == "top_isovalues" and isinstance(value, dict):
+                self._merge_explicit_isovalue_map(target["top_isovalues"], value)
+                continue
+            if key in scalar_keys and value is not None:
+                target[key] = float(value)
+                continue
+            if key in bool_keys and value is not None:
+                target[key] = bool(value)
+                continue
+            if key in str_keys and value is not None:
+                target[key] = str(value).strip().lower()
+
+    def _merge_explicit_isovalue_map(self, target: dict, source: dict) -> None:
+        for token, value in source.items():
+            feature_id = self._resolve_feature_token(token)
+            if feature_id is None:
+                continue
+            target[feature_id] = float(value)
+
+    def _resolve_feature_token(self, token) -> str | None:
+        text = "" if token is None else str(token)
+        if text in self.schema.features:
+            return text
+
+        for feature_id, feature in getattr(self.schema, "features", {}).items():
+            if getattr(feature, "name", None) == text:
+                return feature_id
+        return None
+
+    def _resolve_unit_thickness(self, feature, series_cfg: dict) -> float:
+        key = series_cfg["series_thickness_key"]
+        source = series_cfg["series_thickness_source"]
+        fallback = float(series_cfg["series_thickness_fallback"])
+
+        metadata = getattr(feature, "metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        build_params = getattr(feature, "build_params", {})
+        if not isinstance(build_params, dict):
+            build_params = {}
+        nested_meta = build_params.get("metadata", {})
+        if not isinstance(nested_meta, dict):
+            nested_meta = {}
+
+        candidates_by_source = {
+            "unit_metadata": [metadata.get(key), nested_meta.get(key)],
+            "unit_thickness": [getattr(feature, "thickness", None)],
+            "build_params": [build_params.get(key)],
+            "auto": [
+                metadata.get(key),
+                nested_meta.get(key),
+                getattr(feature, "thickness", None),
+                build_params.get(key),
+            ],
+        }
+        candidates = candidates_by_source.get(source, candidates_by_source["auto"])
+        for value in candidates:
+            if value is None:
+                continue
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if parsed > 0.0:
+                return parsed
+        return fallback
+
+    def _compute_series_isovalues(
+        self,
+        series_members: list[str],
+        series_cfg: dict,
+        order_index: dict[str, int],
+    ) -> tuple[list[str], dict[str, float], dict[str, float]]:
+        # Topological order runs younger -> older for overlies; reverse for base -> top traversal.
+        base_order = sorted(series_members, key=lambda fid: order_index[fid], reverse=True)
+        basal_map = dict(series_cfg["basal_isovalues"])
+        top_map = dict(series_cfg["top_isovalues"])
+
+        band_mode = str(series_cfg["series_band_mode"]).strip().lower()
+        base_isovalue = float(series_cfg["series_base_isovalue"])
+        scalar_increment = float(series_cfg["scalar_increment"])
+
+        if band_mode == "cumulative_thickness":
+            if base_order and base_order[0] not in basal_map:
+                basal_map[base_order[0]] = base_isovalue
+
+            for idx in range(1, len(base_order)):
+                current_id = base_order[idx]
+                if current_id in basal_map:
+                    continue
+                lower_id = base_order[idx - 1]
+                lower_feature = self.schema.features[lower_id]
+                lower_thickness = self._resolve_unit_thickness(lower_feature, series_cfg)
+                basal_map[current_id] = float(basal_map[lower_id]) + lower_thickness
+
+            for unit_id in base_order:
+                if unit_id not in top_map:
+                    feature = self.schema.features[unit_id]
+                    top_map[unit_id] = float(basal_map[unit_id]) + self._resolve_unit_thickness(
+                        feature,
+                        series_cfg,
+                    )
+        else:
+            for idx, unit_id in enumerate(base_order):
+                if unit_id not in basal_map:
+                    basal_map[unit_id] = base_isovalue + idx * scalar_increment
+                if unit_id not in top_map:
+                    top_map[unit_id] = basal_map[unit_id] + scalar_increment
+
+        return base_order, basal_map, top_map
 
     def _compile_stratigraphic_interpretations(
         self, execution_order: list[str]
@@ -84,6 +316,10 @@ class Model:
                     adjacency[feature_id].add(neighbour)
 
         feature_to_series: dict[str, tuple[str, list[str]]] = {}
+        series_configs: dict[str, dict] = {}
+        series_base_orders: dict[str, list[str]] = {}
+        series_basal_maps: dict[str, dict[str, float]] = {}
+        series_top_maps: dict[str, dict[str, float]] = {}
         visited = set()
         for feature_id in unit_ids:
             if feature_id in visited:
@@ -100,6 +336,17 @@ class Model:
 
             ordered_members = sorted(members, key=lambda fid: order_index[fid])
             series_key = "series:" + "|".join(ordered_members)
+            series_cfg = self._resolve_series_config(strategy, ordered_members)
+            base_order, basal_map, top_map = self._compute_series_isovalues(
+                ordered_members,
+                series_cfg,
+                order_index,
+            )
+
+            series_configs[series_key] = series_cfg
+            series_base_orders[series_key] = base_order
+            series_basal_maps[series_key] = basal_map
+            series_top_maps[series_key] = top_map
             for member in ordered_members:
                 feature_to_series[member] = (series_key, ordered_members)
 
@@ -114,6 +361,13 @@ class Model:
 
             series_key, series_members = feature_to_series.get(feature_id, (f"series:{feature_id}", [feature_id]))
             rank = series_members.index(feature_id)
+            series_cfg = series_configs.get(series_key, self._resolve_series_config(strategy, series_members))
+            base_order = series_base_orders.get(series_key, [feature_id])
+            basal_map = series_basal_maps.get(series_key, {feature_id: float(series_cfg["series_base_isovalue"])})
+            top_map = series_top_maps.get(
+                series_key,
+                {feature_id: float(series_cfg["series_base_isovalue"]) + float(series_cfg["scalar_increment"])},
+            )
             predecessors = [
                 pred
                 for pred in dag.predecessors(feature_id)
@@ -130,15 +384,25 @@ class Model:
                 "feature_type": feature_type,
                 "series_key": series_key,
                 "series_members": series_members,
+                "series_base_order": base_order,
                 "series_rank": rank,
                 "series_size": len(series_members),
-                "scalar_increment": strategy["scalar_increment"],
-                "basal_isovalue": rank * strategy["scalar_increment"],
-                "top_isovalue": (rank + 1) * strategy["scalar_increment"],
+                "series_band_mode": series_cfg["series_band_mode"],
+                "scalar_increment": series_cfg["scalar_increment"],
+                "basal_isovalue": float(basal_map.get(feature_id, 0.0)),
+                "top_isovalue": float(top_map.get(feature_id, 0.0)),
+                "series_basal_isovalues": basal_map,
+                "series_top_isovalues": top_map,
                 "overlying_units": predecessors,
                 "underlying_units": successors,
-                "link_margin": strategy["link_margin"],
-                "link_bound": strategy["link_bound"],
+                "link_margin": series_cfg["link_margin"],
+                "link_bound": series_cfg["link_bound"],
+                "parallel_tolerance": series_cfg["parallel_tolerance"],
+                "enforce_parallelism": series_cfg["enforce_parallelism"],
+                "parallelism_weight": series_cfg["parallelism_weight"],
+                "series_thickness_source": series_cfg["series_thickness_source"],
+                "series_thickness_key": series_cfg["series_thickness_key"],
+                "series_thickness_fallback": series_cfg["series_thickness_fallback"],
             }
 
         return interpretations

@@ -621,13 +621,37 @@ Each stratigraphic unit is solved as a separate scalar field using only its own 
 
 **Use when:** Units have distinct observation sets; unconformable sequences; rapid prototyping.
 
-### `"grouped_conformable"`
+### `"shared_scalar_field"`
 
-Conformable unit groups (units connected by `"overlies"` edges in the DAG) share a single interpolation problem. All their observations are pooled together. This enforces geometric consistency between conformable units at the cost of a larger (and slower) solve.
+Conformable unit groups (units connected by `"overlies"` edges in the DAG) share a single interpolation problem. All their observations are pooled together and each unit is mapped to a band of scalar values.
 
 **Use when:** The stratigraphic sequence is conformable and you want globally consistent stratigraphy. Requires `"overlies"` edges in the schema DAG.
 
-**Cache key format:** `"grouped_conformable:<uuid1>|<uuid2>|..."` (sorted UUIDs, `|`-joined).
+**Cache key format:** `"shared_scalar_field:series:<uuid1>|<uuid2>|..."`.
+
+### `"linked_scalar_fields"`
+
+Each unit remains an independent scalar field, but inequality constraints are added from overlying/underlying neighbours (`"overlies"` relations). Optional parallelism coupling can additionally pull unit normals toward neighbouring orientation data.
+
+**Use when:** You need separate unit scalar functions but still want stratigraphic ordering and optional near-parallel behaviour.
+
+### Backward-compatible alias
+
+`"grouped_conformable"` is accepted and normalized to `"shared_scalar_field"`.
+
+### Per-series Configuration
+
+When `interpolation_strategy` is a map, per-series overrides can be supplied via `series_config`:
+
+- `series_config.default`: defaults for all conformable series.
+- `series_config.groups`: list of overrides, each with `units` (unit ids or names).
+- `series_band_mode`: `incremental` or `cumulative_thickness`.
+- `series_thickness_source`: `unit_metadata`, `unit_thickness`, `build_params`, or `auto`.
+- `series_thickness_key`: key used when reading metadata/build_params thickness.
+- `series_thickness_fallback`: fallback thickness when not provided.
+- `isovalues` / `basal_isovalues` and `top_isovalues`: explicit per-unit scalar band values.
+
+For `cumulative_thickness`, the engine computes unit bands from the base of each conformable series using cumulative thickness.
 
 ---
 

@@ -114,10 +114,16 @@ class GeologicalSchema(LoopEntity):
         thicknesses: list[DataRole] | None = None,
         inside: list[DataRole] | None = None,
         outside: list[DataRole] | None = None,
+        thickness: float | None = None,
+        metadata: dict | None = None,
         build_params: dict | None = None,
     ):
         project = self._require_project()
         new_unit_kwargs = {"name": name}
+        if thickness is not None:
+            new_unit_kwargs["thickness"] = thickness
+        if metadata is not None:
+            new_unit_kwargs["metadata"] = metadata
         if build_params is not None:
             new_unit_kwargs["build_params"] = build_params
         new_unit = Unit(**new_unit_kwargs)

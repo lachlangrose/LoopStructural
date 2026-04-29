@@ -47,6 +47,8 @@ def _default_add_unit(
         thicknesses=_collect("thickness"),
         inside=_collect("inside"),
         outside=_collect("outside"),
+        thickness=feature_spec.get("thickness"),
+        metadata=feature_spec.get("metadata"),
         build_params=feature_spec.get("build_params"),
     )
     feature_uuid_by_key[feature_spec["id"]] = unit.uuid

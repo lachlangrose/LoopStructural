@@ -24,6 +24,19 @@ Top-level keys:
 - `metadata`: free-form metadata map.
 - `bounding_box`: `origin`, `maximum`, optional `nsteps`.
 - `solve`: optional model options (`interpolatortype`, `nelements`, `interpolation_strategy`).
+
+`interpolation_strategy` can be a string (`independent`, `shared_scalar_field`, `linked_scalar_fields`) or a map.
+Map mode supports per-series configuration:
+
+- `mode`: strategy mode.
+- `series_config.default`: default settings for all conformable series.
+- `series_config.groups`: list of per-series overrides matched by `units` (unit ids or names).
+- `series_band_mode`: `incremental` or `cumulative_thickness`.
+- `series_thickness_source`: `unit_metadata`, `unit_thickness`, `build_params`, or `auto`.
+- `series_thickness_key`: metadata/build_params key to read (default `thickness`).
+- `series_thickness_fallback`: fallback positive thickness when missing.
+- `isovalues`/`basal_isovalues` and `top_isovalues`: explicit per-unit isovalue maps.
+- `enforce_parallelism`, `parallelism_weight`, `parallel_tolerance`: linked-scalar coupling controls.
 - `observations`: list of named observations.
 - `features`: list of geological features (`unit`, `fault`).
 - `topology`: list of typed relationships (`overlies`, `faults`, `abuts`, `erode`, `onlap`, `folds`).

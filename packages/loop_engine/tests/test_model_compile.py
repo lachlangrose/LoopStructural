@@ -272,6 +272,46 @@ def test_shared_scalar_field_strategy_dict_solves_shared_representation():
     assert younger_solved.representation is older_solved.representation
 
 
+def test_shared_scalar_field_cumulative_thickness_uses_unit_metadata():
+    schema = GeologicalSchema(name="SharedScalarCumulativeThickness")
+    schema.initialize_project()
+    older = schema.add_unit(
+        "Older",
+        metadata={"thickness": 25.0},
+    )
+    younger = schema.add_unit(
+        "Younger",
+        metadata={"thickness": 10.0},
+    )
+    schema.add_conformable_overlies_relation(master_uuid=younger.uuid, slave_uuid=older.uuid)
+
+    model = Model(
+        schema=schema,
+        interpolation_strategy={
+            "mode": "shared_scalar_field",
+            "series_config": {
+                "default": {
+                    "series_band_mode": "cumulative_thickness",
+                    "series_thickness_source": "unit_metadata",
+                    "series_thickness_key": "thickness",
+                    "series_thickness_fallback": 1.0,
+                }
+            },
+        },
+    )
+    tasks = model._compile_tasks()
+    by_id = {task.id: task for task in tasks}
+
+    older_interp = by_id[older.uuid].interpretation
+    younger_interp = by_id[younger.uuid].interpretation
+
+    assert older_interp["basal_isovalue"] == 0.0
+    assert older_interp["top_isovalue"] == 25.0
+    assert younger_interp["basal_isovalue"] == 25.0
+    assert younger_interp["top_isovalue"] == 35.0
+    assert younger_interp["series_base_order"][0] == older.uuid
+
+
 def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
     class _FakeInterpolatorBuilder:
         instances = []
@@ -280,6 +320,7 @@ def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
             self.interpolatortype = interpolatortype
             self.bounding_box = bounding_box
             self.nelements = nelements
+            self.normal_constraints = None
             self.inequality_constraints = None
             _FakeInterpolatorBuilder.instances.append(self)
 
@@ -290,6 +331,7 @@ def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
             return self
 
         def add_normal_constraints(self, constraints):
+            self.normal_constraints = constraints
             return self
 
         def add_tangent_constraints(self, constraints):
@@ -318,10 +360,30 @@ def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
     older = schema.add_unit(
         "Older",
         basal_contacts=[PointSet(name="b0", coords=np.hstack([xy, np.zeros((5, 1))]))],
+        orientations=[
+            Orientation(
+                name="older_o",
+                coords=np.array([[0.3, 0.3, 0.0]]),
+                vector=np.array([[0.0, 0.0, 1.0]]),
+                magnitude=np.array([1.0]),
+                polarity=np.array([1.0]),
+                type="plane",
+            )
+        ],
     )
     younger = schema.add_unit(
         "Younger",
         basal_contacts=[PointSet(name="b1", coords=np.hstack([xy, np.ones((5, 1))]))],
+        orientations=[
+            Orientation(
+                name="younger_o",
+                coords=np.array([[0.7, 0.7, 1.0]]),
+                vector=np.array([[0.0, 0.0, 1.0]]),
+                magnitude=np.array([1.0]),
+                polarity=np.array([1.0]),
+                type="plane",
+            )
+        ],
     )
     schema.add_conformable_overlies_relation(master_uuid=younger.uuid, slave_uuid=older.uuid)
 
@@ -333,6 +395,9 @@ def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
             "mode": "linked_scalar_fields",
             "link_margin": 0.2,
             "link_bound": 5.0,
+            "parallel_tolerance": 0.3,
+            "enforce_parallelism": True,
+            "parallelism_weight": 2.0,
         },
     )
     model.solve()
@@ -346,9 +411,17 @@ def test_linked_scalar_fields_adds_ordering_inequalities(monkeypatch):
 
     stacked = np.vstack(all_bounds)
     assert np.any(np.isclose(stacked[:, 0], 0.2))
-    assert np.any(np.isclose(stacked[:, 1], 5.0))
-    assert np.any(np.isclose(stacked[:, 0], -5.0))
+    assert np.any(np.isclose(stacked[:, 1], 0.5))
+    assert np.any(np.isclose(stacked[:, 0], -0.5))
     assert np.any(np.isclose(stacked[:, 1], -0.2))
+
+    normal_counts = [
+        instance.normal_constraints.points.shape[0]
+        for instance in _FakeInterpolatorBuilder.instances
+        if instance.normal_constraints is not None
+    ]
+    assert normal_counts
+    assert max(normal_counts) >= 2
 
 
 def test_stratigraphy_builder_routes_gradient_role_to_gradient_constraints(monkeypatch):

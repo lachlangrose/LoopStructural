@@ -1,0 +1,114 @@
+metadata:
+  name: YAML Two Series Strategy Model
+bounding_box:
+  origin: [0.0, 0.0, -1.0]
+  maximum: [1.0, 1.0, 4.0]
+  nsteps: [16, 16, 24]
+solve:
+  interpolatortype: FDI
+  nelements: 250
+  interpolation_strategy:
+    mode: shared_scalar_field
+    series_config:
+      default:
+        series_band_mode: cumulative_thickness
+        series_thickness_source: unit_metadata
+        series_thickness_key: thickness
+        series_thickness_fallback: 1.0
+      groups:
+        - units: [A_Older, A_Younger]
+          series_base_isovalue: 0.0
+        - units: [B_Older, B_Younger]
+          series_base_isovalue: 100.0
+          series_thickness_key: series_thick
+observations:
+  - id: a_old_basal
+    type: pointset
+    inline:
+      coords:
+        - [0.15, 0.15, 0.0]
+        - [0.35, 0.15, 0.0]
+        - [0.15, 0.35, 0.0]
+        - [0.35, 0.35, 0.0]
+  - id: a_young_basal
+    type: pointset
+    inline:
+      coords:
+        - [0.15, 0.15, 1.0]
+        - [0.35, 0.15, 1.0]
+        - [0.15, 0.35, 1.0]
+        - [0.35, 0.35, 1.0]
+  - id: b_old_basal
+    type: pointset
+    inline:
+      coords:
+        - [0.65, 0.65, 2.0]
+        - [0.85, 0.65, 2.0]
+        - [0.65, 0.85, 2.0]
+        - [0.85, 0.85, 2.0]
+  - id: b_young_basal
+    type: pointset
+    inline:
+      coords:
+        - [0.65, 0.65, 3.0]
+        - [0.85, 0.65, 3.0]
+        - [0.65, 0.85, 3.0]
+        - [0.85, 0.85, 3.0]
+  - id: a_orientation
+    type: orientation
+    inline:
+      coords:
+        - [0.25, 0.25, 0.5]
+      vector:
+        - [0.0, 0.0, 1.0]
+      magnitude: [1.0]
+      polarity: [1.0]
+      type: plane
+  - id: b_orientation
+    type: orientation
+    inline:
+      coords:
+        - [0.75, 0.75, 2.5]
+      vector:
+        - [0.0, 0.0, 1.0]
+      magnitude: [1.0]
+      polarity: [1.0]
+      type: plane
+features:
+  - id: a_older
+    type: unit
+    name: A_Older
+    metadata:
+      thickness: 10.0
+    data_links:
+      basal: [a_old_basal]
+      orientation: [a_orientation]
+  - id: a_younger
+    type: unit
+    name: A_Younger
+    metadata:
+      thickness: 6.0
+    data_links:
+      basal: [a_young_basal]
+  - id: b_older
+    type: unit
+    name: B_Older
+    metadata:
+      series_thick: 4.0
+    data_links:
+      basal: [b_old_basal]
+      orientation: [b_orientation]
+  - id: b_younger
+    type: unit
+    name: B_Younger
+    metadata:
+      series_thick: 2.5
+    data_links:
+      basal: [b_young_basal]
+topology:
+  - type: overlies
+    master: a_younger
+    slave: a_older
+  - type: overlies
+    master: b_younger
+    slave: b_older
