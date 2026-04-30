@@ -16,6 +16,12 @@ For Jupyter notebook support with all visualization features:
 pip install loop-visualization[jupyter]
 ```
 
+For the standalone trame app:
+
+```bash
+pip install loop-visualization[trame]
+```
+
 ## Features
 
 - 3D visualization of geological models
@@ -24,6 +30,23 @@ pip install loop-visualization[jupyter]
 - Stratigraphic column visualization
 - Rotation angle controls
 - 2D and 3D viewer interfaces
+
+## Standalone Trame App
+
+Run the built-in standalone app from the command line:
+
+```bash
+loop-trame-app
+```
+
+Common options:
+
+```bash
+loop-trame-app --host 0.0.0.0 --port 8080 --scene wavelet
+loop-trame-app --scene sphere --mode client
+loop-trame-app --no-browser
+loop-trame-app --mesh ./mesh_1.vtk --mesh ./mesh_2.vtp
+```
 
 ## Documentation
 

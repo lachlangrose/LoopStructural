@@ -31,6 +31,24 @@ class Loop3DView(pv.Plotter):
         self.model = model
         self.objects = {}
 
+    def _extract_polydata(self, mesh: Any) -> Optional[pv.PolyData]:
+        """Best-effort conversion of any supported mesh-like object to PolyData."""
+        if mesh is None:
+            return None
+        if isinstance(mesh, pv.PolyData):
+            return mesh
+        if isinstance(mesh, pv.MultiBlock):
+            mesh = mesh.combine()
+
+        if hasattr(mesh, "extract_surface"):
+            try:
+                surface = mesh.extract_surface()
+                if isinstance(surface, pv.PolyData):
+                    return surface
+            except (TypeError, ValueError, AttributeError):
+                return None
+        return None
+
     def subplot(self, *args, **kwargs):
         logger.warning('subplot is not supported in Loop3DView')
         return self
@@ -55,13 +73,97 @@ class Loop3DView(pv.Plotter):
             raise ValueError('Cannot use __visibility in name')
         if '__control_visibility' in kwargs['name']:
             raise ValueError('Cannot use __control_visibility in name')
-        return super().add_mesh(*args, **kwargs)
+        actor = super().add_mesh(*args, **kwargs)
+        mesh = args[0] if len(args) > 0 else kwargs.get("mesh")
+        polydata = self._extract_polydata(mesh)
+        if polydata is not None:
+            self.objects[kwargs['name']] = polydata
+        return actor
+
+    def remove_actor(self, *args, **kwargs):
+        actor_ref = args[0] if len(args) > 0 else kwargs.get("actor")
+        if isinstance(actor_ref, str):
+            self.objects.pop(actor_ref, None)
+        elif actor_ref is not None:
+            for name, actor in self.actors.items():
+                if actor is actor_ref:
+                    self.objects.pop(name, None)
+                    break
+        return super().remove_actor(*args, **kwargs)
+
+    def clear(self):
+        self.objects.clear()
+        return super().clear()
+
+    def get_object_scalar_options(self, name: str) -> List[str]:
+        """Return available scalar array names for a tracked object."""
+        mesh = self.objects.get(name)
+        if mesh is None:
+            return []
+        options = []
+        for array_name in mesh.array_names:
+            array = mesh.get_array(array_name, preference='point')
+            if array is None:
+                array = mesh.get_array(array_name, preference='cell')
+            if array is None:
+                continue
+            if len(array.shape) == 1 or (len(array.shape) == 2 and array.shape[1] == 1):
+                options.append(array_name)
+        return options
+
+    def get_object_vector_options(self, name: str) -> List[str]:
+        """Return available vector array names for a tracked object."""
+        mesh = self.objects.get(name)
+        if mesh is None:
+            return []
+        options = []
+        for array_name in mesh.array_names:
+            array = mesh.get_array(array_name, preference='point')
+            if array is None:
+                array = mesh.get_array(array_name, preference='cell')
+            if array is None:
+                continue
+            if len(array.shape) == 2 and array.shape[1] == 3:
+                options.append(array_name)
+        return options
+
+    def set_object_active_scalars(self, name: str, scalar_name: Optional[str]) -> bool:
+        """Set active scalar array for a tracked object."""
+        mesh = self.objects.get(name)
+        if mesh is None:
+            return False
+        if scalar_name is None:
+            mesh.set_active_scalars(None)
+            return True
+        if scalar_name not in mesh.array_names:
+            return False
+        if scalar_name in mesh.point_data:
+            mesh.set_active_scalars(scalar_name, preference='point')
+        else:
+            mesh.set_active_scalars(scalar_name, preference='cell')
+        return True
+
+    def set_object_active_vectors(self, name: str, vector_name: Optional[str]) -> bool:
+        """Set active vector array for a tracked object."""
+        mesh = self.objects.get(name)
+        if mesh is None:
+            return False
+        if vector_name is None:
+            mesh.set_active_vectors(None)
+            return True
+        if vector_name not in mesh.array_names:
+            return False
+        if vector_name in mesh.point_data:
+            mesh.set_active_vectors(vector_name, preference='point')
+        else:
+            mesh.set_active_vectors(vector_name, preference='cell')
+        return True
 
     def increment_name(self, name):
         parts = name.split('_')
         if len(parts) == 1:
             name = name + '_1'
-        while name in self.actors:
+        while name in self.objects:
             parts = name.split('_')
             try:
                 parts[-1] = str(int(parts[-1]) + 1)

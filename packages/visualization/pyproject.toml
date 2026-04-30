@@ -26,7 +26,11 @@ dependencies = [
 
 [project.optional-dependencies]
 jupyter = ["pyvista[jupyter]"]
+trame = ["trame>=3.0", "trame-vuetify>=3.0", "trame-vtk>=2.0"]
 all = ["pyvista[all]"]
+
+[project.scripts]
+loop-trame-app = "loop_visualization.trame.app:main"
 
 [project.urls]
 Documentation = "https://Loop3d.org/LoopStructural/"
