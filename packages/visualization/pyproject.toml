@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loop-visualization"
-description = "3D visualization interface for LoopStructural using pyvista"
+description = "3D visualization interface for Loop 2.0 using pyvista"
 version = "0.1.0"
 authors = [{ name = "Lachlan Grose", email = "lachlan.grose@monash.edu" }]
 readme = "README.md"
@@ -17,7 +17,12 @@ keywords = [
     "visualization",
 ]
 license = { text = "MIT" }
-dependencies = ["numpy>=1.18", "pyvista>=0.42"]
+dependencies = [
+    "numpy>=1.18",
+    "pyvista>=0.42",
+    "loop-common",
+    "loop-engine",
+]
 
 [project.optional-dependencies]
 jupyter = ["pyvista[jupyter]"]

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
 

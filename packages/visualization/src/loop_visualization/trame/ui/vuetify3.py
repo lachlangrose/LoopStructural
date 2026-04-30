@@ -34,7 +34,7 @@ class LoopViewer(Viewer):
 
     def ui(self, *args, **kwargs):
         with self.layout as layout:
-            layout.title.set_text("LoopStructural Viewer")
+            layout.title.set_text("Loop 2.0 Viewer")
         with self.layout.content:
 
             return super().ui(*args, **kwargs)

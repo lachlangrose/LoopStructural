@@ -987,3 +987,14 @@ class DiscreteInterpolator(GeologicalInterpolator):
         if self.up_to_date is False:
             self.update()
         return self.support.vtk({"c": self.c})
+
+    def surfaces(self, value, **kwargs):
+        from loop_common.geometry._surface import Surface
+        if self.up_to_date is False:
+            self.update()
+        mesh = self.support.vtk({"c": self.c})
+        contour = mesh.contour([value], scalars="c")
+        if contour.n_points == 0:
+            return []
+        triangles = contour.faces.reshape(-1, 4)[:, 1:]
+        return [Surface(vertices=contour.points.copy(), triangles=triangles)]

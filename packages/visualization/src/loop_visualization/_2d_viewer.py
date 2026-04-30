@@ -1,10 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from LoopStructural.utils import getLogger
+from loop_common.logging import get_logger as getLogger
 
 logger = getLogger(__name__)
-from LoopStructural.modelling.features import FeatureType
 
 
 class Loop2DView:
@@ -357,7 +356,9 @@ class Loop2DView:
 
     def add_faults(self, **kwargs):
         for f in self.model.features:
-            if f.type == FeatureType.FAULT:
+            feature_type = getattr(f, "type", None)
+            feature_type_name = str(getattr(feature_type, "name", feature_type)).lower()
+            if feature_type_name == "fault":
                 # create a function to return true if displacement > 0
                 def mask(x):
                     val = f.displacementfeature.evaluate_value(x)

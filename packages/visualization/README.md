@@ -1,6 +1,6 @@
-# LoopStructural Visualization
+# Loop 2.0 Visualization
 
-A LoopStructural interface for pyvista's Plotter class.
+A Loop 2.0 interface for pyvista's Plotter class.
 
 ## Installation
 
@@ -27,7 +27,7 @@ pip install loop-visualization[jupyter]
 
 ## Documentation
 
-For more information, visit the [LoopStructural documentation](https://Loop3d.org/LoopStructural/)
+For more information, visit the [Loop 2.0 documentation](https://Loop3d.org/LoopStructural/)
 
 ## License
 

@@ -2,14 +2,11 @@ import pyvista as pv
 import numpy as np
 import re
 
-from LoopStructural.datatypes import VectorPoints, ValuePoints
-from LoopStructural.modelling.features import BaseFeature, StructuralFrame
-
-from LoopStructural.modelling.features.fault import FaultSegment
-from LoopStructural.datatypes import BoundingBox
-from LoopStructural import GeologicalModel
-from LoopStructural.utils import getLogger
-from typing import Callable, Union, Optional, List
+from loop_common.geometry import BoundingBox, ValuePoints, VectorPoints
+from loop_common.logging import get_logger as getLogger
+from loop_engine import Model as GeologicalModel
+from loop_engine.core.geological_feature import GeologicalFeature as BaseFeature
+from typing import Any, Callable, Union, Optional, List
 
 logger = getLogger(__name__)
 
@@ -17,12 +14,12 @@ logger = getLogger(__name__)
 class Loop3DView(pv.Plotter):
     def __init__(self, model=None, background='white', *args, **kwargs):
         """Loop3DView is a subclass of pyvista. Plotter that is designed to
-        interface with the LoopStructural geological modelling package.
+        interface with the Loop 2.0 geological modelling packages.
 
         Parameters
         ----------
         model : GeologicalModel, optional
-            A loopstructural model used as reference for some methods, by default None
+            A loop_engine model used as reference for some methods, by default None
         background : str, optional
             colour for the background, by default 'white'
         """
@@ -279,7 +276,7 @@ class Loop3DView(pv.Plotter):
         cmap : str, optional
             matplotlib cmap string, by default None
         model : GeologicalModel, optional
-            the model to pass if it is not the active geologicalmodel, by default None
+            the model to pass if it is not the active model, by default None
         pyvista_kwargs : dict, optional
             additional arguments to be passed to pyvista add_mesh, by default {}
         show_scalar_bar : bool, optional
@@ -317,7 +314,7 @@ class Loop3DView(pv.Plotter):
 
     def plot_fault_displacements(
         self,
-        fault_list: Optional[List[FaultSegment]] = None,
+        fault_list: Optional[List[Any]] = None,
         bounding_box: Optional[BoundingBox] = None,
         model=None,
         cmap="rainbow",
@@ -386,7 +383,7 @@ class Loop3DView(pv.Plotter):
         cmap : Optional[str], optional
             What cmap to use for the stratigraphy ids, by default None
         model : Optional[GeologicalModel], optional
-            a GeologicalModel, if not provided will use self.model, by default None
+            a loop_engine Model, if not provided will use self.model, by default None
         fault_colour : str, optional
             colour for the fault surfaces, by default "black"
         pyvista_kwargs : dict, optional
@@ -488,7 +485,7 @@ class Loop3DView(pv.Plotter):
 
     def plot_data(
         self,
-        feature: Union[BaseFeature, StructuralFrame],
+        feature: Union[BaseFeature, Any],
         value: bool = True,
         vector: bool = True,
         scale: Optional[Union[float, int]] = None,
@@ -502,7 +499,7 @@ class Loop3DView(pv.Plotter):
 
         Parameters
         ----------
-        feature : Union[BaseFeature, StructuralFrame]
+        feature : Union[BaseFeature, Any]
             feature to add data from
         value : bool, optional
             whether to add value data, by default True
@@ -531,7 +528,7 @@ class Loop3DView(pv.Plotter):
         multiplier for this value. If you sent normalise to False the vectors will not be normalised
 
         """
-        if issubclass(type(feature), BaseFeature):
+        if isinstance(feature, BaseFeature):
             feature = [feature]
         logger.info(f"Scale vectors by {scale}")
         scale = self._get_vector_scale(scale)
@@ -582,7 +579,7 @@ class Loop3DView(pv.Plotter):
 
     def plot_fault(
         self,
-        fault: FaultSegment,
+        fault: Any,
         surface: bool = True,
         slip_vector: bool = True,
         displacement_scale_vector: bool = True,
@@ -597,8 +594,8 @@ class Loop3DView(pv.Plotter):
 
         Parameters
         ----------
-        fault : FaultSegment
-            the fault to plot
+        fault : Any
+            fault-like object exposing surfaces/vector_field/displacementfeature
         surface : bool, optional
             flag for the 0.0 surface, by default True
         slip_vector : bool, optional
@@ -666,14 +663,14 @@ class Loop3DView(pv.Plotter):
         return actors
 
     def plot_fault_ellipsoid(
-        self, fault: FaultSegment, name: Optional[str] = None, pyvista_kwargs: dict = {}
+        self, fault: Any, name: Optional[str] = None, pyvista_kwargs: dict = {}
     ) -> pv.Actor:
         """Plot the fault ellipsoid
 
         Parameters
         ----------
-        fault : FaultSegment
-            the fault to plot
+        fault : Any
+            fault-like object exposing fault_ellipsoid
         name : Optional[str], optional
             name of the object for pyvista, by default None
         pyvista_kwargs : dict, optional

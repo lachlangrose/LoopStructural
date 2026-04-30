@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from LoopStructural.utils import rng
+from loop_common.math import rng
 
 
 class StratigraphicColumnView:

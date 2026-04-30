@@ -7,7 +7,7 @@ def plot_block_model(model, filename=None, **kwargs):
 
     Parameters
     ----------
-    model : LoopStructuralModel
+    model : loop_engine.Model
         The model to plot
     kwargs : dict
         Keyword arguments to pass to the plot
@@ -26,7 +26,7 @@ def plot_surface(model, geological_feature, **kwargs):
 
     Parameters
     ----------
-    model : LoopStructuralModel
+    model : loop_engine.Model
         The model to plot
     geological_feature : BaseFeature
         The feature to plot
