@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import time
 from typing import Sequence
 import webbrowser
 
@@ -83,6 +84,89 @@ def _initialize_trame_widgets(server) -> None:
         vuetify3_widgets.initialize(server)
 
 
+def _to_float(value, default=None):
+    if value is None:
+        return default
+    return float(value)
+
+
+def _register_control_api(server, plotter: Loop3DView, viewer, api_token: str | None) -> None:
+    """Register local HTTP endpoints for external process scene updates."""
+    from aiohttp import web
+
+    app = server._server.app
+
+    def _authorized(request) -> bool:
+        if not api_token:
+            return True
+        header_token = request.headers.get("X-Loop-Token")
+        return header_token == api_token
+
+    async def _objects(request):
+        if not _authorized(request):
+            return web.json_response({"error": "unauthorized"}, status=401)
+        names = [k for k in plotter.actors.keys() if not k.startswith("_")]
+        return web.json_response({"objects": names})
+
+    async def _add_mesh(request):
+        if not _authorized(request):
+            return web.json_response({"error": "unauthorized"}, status=401)
+        payload = await request.json()
+        mesh_path = payload.get("path")
+        if not mesh_path:
+            return web.json_response({"error": "Missing 'path'"}, status=400)
+
+        path = Path(mesh_path).expanduser().resolve()
+        if not path.exists():
+            return web.json_response({"error": f"Mesh path does not exist: {path}"}, status=404)
+
+        try:
+            mesh = pv.read(path)
+        except Exception as exc:  # pragma: no cover
+            return web.json_response({"error": f"Could not read mesh: {exc}"}, status=400)
+
+        name = payload.get("name") or path.stem
+        color = payload.get("color")
+        opacity = _to_float(payload.get("opacity"), default=None)
+        show_edges = bool(payload.get("show_edges", False))
+        plotter.add_mesh(
+            mesh,
+            name=name,
+            color=color,
+            opacity=opacity,
+            show_edges=show_edges,
+        )
+        viewer.update()
+        return web.json_response({"ok": True, "name": name})
+
+    async def _add_sphere(request):
+        if not _authorized(request):
+            return web.json_response({"error": "unauthorized"}, status=401)
+        payload = await request.json()
+
+        center = payload.get("center", [0.0, 0.0, 0.0])
+        if not isinstance(center, (list, tuple)) or len(center) != 3:
+            return web.json_response({"error": "'center' must be [x, y, z]"}, status=400)
+
+        radius = _to_float(payload.get("radius"), default=0.25)
+        name = payload.get("name") or "sphere"
+        color = payload.get("color", "lightgray")
+
+        mesh = pv.Sphere(
+            radius=radius,
+            center=(float(center[0]), float(center[1]), float(center[2])),
+            theta_resolution=48,
+            phi_resolution=48,
+        )
+        plotter.add_mesh(mesh, name=name, color=color)
+        viewer.update()
+        return web.json_response({"ok": True, "name": name})
+
+    app.router.add_get("/api/objects", _objects)
+    app.router.add_post("/api/add-mesh", _add_mesh)
+    app.router.add_post("/api/add-sphere", _add_sphere)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="loop-trame-app",
@@ -140,6 +224,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="loop_visualization",
         help="Trame server instance name.",
     )
+    parser.add_argument(
+        "--enable-api",
+        action="store_true",
+        help="Enable local HTTP control API for external Python clients.",
+    )
+    parser.add_argument(
+        "--api-token",
+        default=None,
+        help="Optional token required in X-Loop-Token header for API requests.",
+    )
     return parser
 
 
@@ -167,7 +261,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     server = get_server(name=args.server_name)
     _initialize_trame_widgets(server)
-    initialize(
+    viewer = initialize(
         server,
         plotter,
         mode=args.mode,
@@ -185,14 +279,35 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     print(f"Starting loop-trame-app at {app_url}")
-    if not args.no_browser:
-        webbrowser.open(app_url)
     server.start(
         host=args.host,
         port=args.port,
         open_browser=False,
-        exec_mode="main",
+        exec_mode="task",
+        timeout=0,
     )
+
+    # Wait briefly for the underlying aiohttp app to be available.
+    for _ in range(100):
+        if getattr(server, "_server", None) is not None:
+            break
+        time.sleep(0.01)
+
+    if args.enable_api:
+        _register_control_api(server, plotter, viewer, args.api_token)
+        print("Control API enabled:")
+        print("  GET  /api/objects")
+        print("  POST /api/add-mesh")
+        print("  POST /api/add-sphere")
+
+    if not args.no_browser:
+        webbrowser.open(app_url)
+
+    try:
+        while True:
+            time.sleep(0.25)
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
