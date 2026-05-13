@@ -23,8 +23,6 @@ class BoundingBox:
         self,
         origin: Optional[np.ndarray] = None,
         maximum: Optional[np.ndarray] = None,
-        global_origin: Optional[np.ndarray] = None,
-        global_maximum: Optional[np.ndarray] = None,
         nsteps: Optional[np.ndarray] = None,
         step_vector: Optional[np.ndarray] = None,
         dimensions: Optional[int] = 3,
@@ -58,18 +56,10 @@ class BoundingBox:
 
         origin = _coerce_point(origin, "Origin")
         maximum = _coerce_point(maximum, "Maximum")
-        legacy_global_origin = _coerce_point(global_origin, "Global origin")
-        legacy_global_maximum = _coerce_point(global_maximum, "Global maximum")
 
         if nsteps is not None and len(nsteps) != dimensions:
             logger.warning(f"Nsteps has {len(nsteps)} dimensions but bounding box has {dimensions}")
             raise LoopValueError("Nsteps has incorrect number of dimensions")
-
-        # Backward compatibility: legacy args represented world-space limits.
-        if origin is None and legacy_global_origin is not None:
-            origin = legacy_global_origin.copy()
-        if maximum is None and legacy_global_maximum is not None:
-            maximum = legacy_global_maximum.copy()
 
         if (
             maximum is None
@@ -103,12 +93,7 @@ class BoundingBox:
         if nsteps is not None:
             self.nsteps = np.array(nsteps)
 
-        # Keep old behaviour when legacy origin was provided: local coordinates
-        # are relative to that origin. Otherwise local frame defaults to world frame.
-        if legacy_global_origin is not None:
-            self.set_local_transform(local_origin=legacy_global_origin)
-        else:
-            self.set_local_transform(local_origin=np.zeros(self.dimensions, dtype=float))
+        self.set_local_transform(local_origin=np.zeros(self.dimensions, dtype=float))
 
         self.name_map = {
             "xmin": (0, 0),
@@ -188,28 +173,6 @@ class BoundingBox:
         return transformed
 
     @property
-    def global_origin(self):
-        """Get the legacy global origin.
-
-        Returns
-        -------
-        np.ndarray
-            World-space origin of the local coordinate frame.
-        """
-        return self.local_origin
-
-    @global_origin.setter
-    def global_origin(self, global_origin):
-        """Set the legacy global origin.
-
-        Parameters
-        ----------
-        global_origin : array_like
-            World-space origin of the local coordinate frame.
-        """
-        self.set_local_transform(local_origin=np.asarray(global_origin, dtype=float))
-
-    @property
     def local_origin(self):
         """World-space origin of the local interpolation frame."""
         return self._local_origin.copy()
@@ -228,17 +191,6 @@ class BoundingBox:
     def local_to_world_matrix(self):
         """Homogeneous 4x4 matrix for local -> world coordinates."""
         return self._local_to_world.copy()
-
-    @property
-    def global_maximum(self):
-        """Get the legacy global maximum coordinates of the bounding box.
-
-        Returns
-        -------
-        np.ndarray
-            World-space maximum coordinates.
-        """
-        return self.maximum
 
     @property
     def valid(self):
@@ -492,18 +444,6 @@ class BoundingBox:
             rotation_matrix=self.local_rotation,
         )
         return buffered
-
-    # def __call__(self, xyz):
-    #     xyz = np.array(xyz)
-    #     if len(xyz.shape) == 1:
-    #         xyz = xyz.reshape((1, -1))
-
-    #     distances = np.maximum(0,
-    #                         np.maximum(self.global_origin+self.origin - xyz,
-    #                                 xyz - self.global_maximum))
-    #     distance = np.linalg.norm(distances, axis=1)
-    #     distance[self.is_inside(xyz)] = -1
-    #     return distance
 
     def __call__(self, xyz):
         xyz = np.asarray(xyz, dtype=float)
