@@ -1,6 +1,6 @@
 from .linker import ObservationLinker
 from .state import ModelState
-from .geological_feature import GeologicalFeature as SolvedGeologicalFeature
+from .solved_geological_feature import SolvedGeologicalFeature
 from ..features.dispatch import create_default_feature_builder_dispatcher
 from ..tasks.base import Task
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from loop_common.base import LoopEntity
 from loop_common.geometry import BoundingBox
 
-from ..features import GeologicalFeature, Unit, Fault
+from ..features import GeologicalFeatureSpec, Unit, Fault
 from .role import DataRole
 from typing import TYPE_CHECKING, List
 import networkx as nx
@@ -28,7 +28,7 @@ class GeologicalSchema(LoopEntity):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
     )
-    features: dict[str, GeologicalFeature] = Field(default_factory=dict)
+    features: dict[str, GeologicalFeatureSpec] = Field(default_factory=dict)
     dag: nx.DiGraph = Field(default_factory=nx.DiGraph)
     bounding_box: BoundingBox = Field(default_factory=BoundingBox)
     # Excluded: circular back-reference to the parent project, not domain data.
@@ -207,11 +207,11 @@ class GeologicalSchema(LoopEntity):
 
         pass
 
-    def _add_feature(self, feature: GeologicalFeature):
+    def _add_feature(self, feature: GeologicalFeatureSpec):
         self.features[feature.uuid] = feature
         self.dag.add_node(feature.uuid)
 
-    def add_feature(self, feature: GeologicalFeature):
+    def add_feature(self, feature: GeologicalFeatureSpec):
         self._add_feature(feature)
 
     def _add_relation(self, master_uuid: str, slave_uuid: str, relation_type: str):
@@ -284,7 +284,7 @@ class GeologicalSchema(LoopEntity):
         if not nx.is_directed_acyclic_graph(self.dag):
             raise ValueError("Schema has cycles! Check feature relations.")
 
-    def get_feature_by_name(self, name: str) -> GeologicalFeature | None:
+    def get_feature_by_name(self, name: str) -> GeologicalFeatureSpec | None:
         """Returns the feature with the given name, or None if not found."""
         for feature in self.features.values():
             if feature.name == name:

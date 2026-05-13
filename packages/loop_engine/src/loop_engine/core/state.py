@@ -1,7 +1,7 @@
 class ModelState:
     def __init__(self, grid):
         self.grid = grid  # The common.StructuredGrid
-        self.results = {}  # {feature_id: GeologicalFeature}
+        self.results = {}  # {feature_id: SolvedGeologicalFeature}
         self.version = 0
 
     def get_feature(self, feature_id):

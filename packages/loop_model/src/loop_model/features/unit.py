@@ -1,10 +1,10 @@
-from .base import GeologicalFeature
+from .base import GeologicalFeatureSpec
 from typing import Any, Literal
 
 from pydantic import Field
 
 
-class GeologicalUnit(GeologicalFeature):
+class GeologicalUnit(GeologicalFeatureSpec):
     """Represents a stratigraphic layer or an intrusion."""
 
     name: str

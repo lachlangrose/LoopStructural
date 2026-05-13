@@ -133,7 +133,7 @@ class Loop2DView:
         Adds the data associated to the feature to the plot
         Parameters
         ----------
-        feature : GeologicalFeature
+        feature : SolvedGeologicalFeature
             the feature whose data you want to add
         val : bool
             whether to add value data
@@ -227,7 +227,7 @@ class Loop2DView:
 
         Parameters
         ----------
-        feature : GeologicalFeature
+        feature : SolvedGeologicalFeature
             which feature to plot on the map
         z : double/np.array
             height
@@ -261,7 +261,7 @@ class Loop2DView:
 
         Parameters
         ----------
-        feature : GeologicalFeature
+        feature : SolvedGeologicalFeature
             the feature to isosurface
         values : list
             list of values to contour

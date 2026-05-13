@@ -4,7 +4,7 @@ import numpy as np
 
 from loop_common.geometry import BoundingBox
 from loop_common.observations import Orientation, PointSet
-from loop_engine.core.geological_feature import GeologicalFeature
+from loop_engine.core.solved_geological_feature import SolvedGeologicalFeature
 from loop_engine.core.linker import LinkedObservation
 from loop_engine.core.model import Model
 from loop_engine.core.state import ModelState
@@ -112,9 +112,9 @@ def test_model_solve_wires_schema_to_interpolator():
     assert state.get_feature(bottom.uuid) is not None
     assert state.get_feature(top.uuid) is not None
 
-    # Retrieval API returns a GeologicalFeature wrapper for downstream operations.
+    # Retrieval API returns a SolvedGeologicalFeature wrapper for downstream operations.
     solved_top_feature = model.get_solved_feature(feature_name="Top")
-    assert isinstance(solved_top_feature, GeologicalFeature)
+    assert isinstance(solved_top_feature, SolvedGeologicalFeature)
 
     # Scalar values should be evaluable at points inside each unit's domain.
     # "Bottom" contacts are at z=0, so query near those contacts.
@@ -183,8 +183,8 @@ def test_grouped_stratigraphy_strategy_solves_shared_representation():
 
     assert younger_solved is not None
     assert older_solved is not None
-    assert isinstance(younger_solved, GeologicalFeature)
-    assert isinstance(older_solved, GeologicalFeature)
+    assert isinstance(younger_solved, SolvedGeologicalFeature)
+    assert isinstance(older_solved, SolvedGeologicalFeature)
     assert younger_solved.representation is older_solved.representation
 
     pts = np.array([[xy[0, 0], xy[0, 1], 0.0], [xy[0, 0], xy[0, 1], 1.0]])
@@ -221,8 +221,8 @@ def test_independent_strategy_solves_units_separately():
 
     assert younger_solved is not None
     assert older_solved is not None
-    assert isinstance(younger_solved, GeologicalFeature)
-    assert isinstance(older_solved, GeologicalFeature)
+    assert isinstance(younger_solved, SolvedGeologicalFeature)
+    assert isinstance(older_solved, SolvedGeologicalFeature)
     assert younger_solved.representation is not older_solved.representation
 
 
@@ -267,8 +267,8 @@ def test_shared_scalar_field_strategy_dict_solves_shared_representation():
     younger_solved = state.get_feature(younger.uuid)
     older_solved = state.get_feature(older.uuid)
 
-    assert isinstance(younger_solved, GeologicalFeature)
-    assert isinstance(older_solved, GeologicalFeature)
+    assert isinstance(younger_solved, SolvedGeologicalFeature)
+    assert isinstance(older_solved, SolvedGeologicalFeature)
     assert younger_solved.representation is older_solved.representation
 
 

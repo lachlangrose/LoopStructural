@@ -4,8 +4,8 @@ from pydantic import Field
 from loop_common.base import LoopEntity
 from ..manager.role import DataRole
 
-class GeologicalFeature(LoopEntity):
-    """Base class for all features in the schema."""
+class GeologicalFeatureSpec(LoopEntity):
+    """Base class for declarative feature specifications in the schema."""
 
     # List of UIDs pointing to ObservationSets in the data registry
     data_links: List[str | DataRole] = Field(default_factory=list)

@@ -1,10 +1,10 @@
-from .base import GeologicalFeature
+from .base import GeologicalFeatureSpec
 from typing import Any
 
 from pydantic import Field
 
 
-class Fault(GeologicalFeature):
+class Fault(GeologicalFeatureSpec):
     """Represents a fault in the geological model."""
 
     name: str | None = None

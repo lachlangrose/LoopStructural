@@ -3,7 +3,7 @@ from loop_common.interfaces.representation import BaseRepresentation
 import numpy as np
 
 
-class GeologicalFeature:
+class SolvedGeologicalFeature:
     def __init__(self, name, representation: BaseRepresentation):
         self.name = name
         self.representation = representation

@@ -5,7 +5,7 @@ import re
 from loop_common.geometry import BoundingBox, ValuePoints, VectorPoints
 from loop_common.logging import get_logger as getLogger
 from loop_engine import Model as GeologicalModel
-from loop_engine.core.geological_feature import GeologicalFeature as BaseFeature
+from loop_engine.core.solved_geological_feature import SolvedGeologicalFeature as BaseFeature
 from typing import Any, Callable, Union, Optional, List
 
 logger = getLogger(__name__)
