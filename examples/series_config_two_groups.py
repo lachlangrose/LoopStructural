@@ -1,3 +1,5 @@
+"""Build an example model with two configured stratigraphic series."""
+
 from __future__ import annotations
 
 import numpy as np

@@ -1,3 +1,5 @@
+"""Create a simple layer-cake geological model example."""
+
 import numpy as np
 from loop_common.observations import PointSet
 from loop_model.features import GeologicalUnit

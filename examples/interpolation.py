@@ -1,3 +1,5 @@
+"""Build and solve a basic interpolation example."""
+
 from loop_interpolation import InterpolatorBuilder, InterpolatorType
 from loop_common.geometry import BoundingBox
 

@@ -1,15 +1,17 @@
-API
----
+Workspace API
+-------------
 
 
 .. autosummary::
-   :caption: API
+   :caption: Libraries
    :toctree: _autosummary
    :template: custom-module-template.rst
    :recursive:
 
-   LoopStructural
-   LoopStructural.modelling
-   LoopStructural.interpolators
-   LoopStructural.visualisation
-   LoopStructural.datatypes
+   loop_api
+   loop_common
+   loop_engine
+   loop_interpolation
+   loop_model
+   loop_visualization
+   loop_mcp_server

@@ -131,6 +131,7 @@ constraints.
    getting_started/index
    _auto_examples/index
    user_guide/index
+   libraries/index
 
    
    .. toctree::

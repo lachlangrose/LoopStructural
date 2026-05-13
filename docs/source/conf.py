@@ -10,21 +10,29 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
 import sys
+from importlib.metadata import PackageNotFoundError, version as pkg_version
+from pathlib import Path
 
-# import m2r
-sys.path.insert(0, os.path.abspath("../.."))
-import LoopStructural
+# Make workspace root and all package src directories importable for autodoc.
+DOCS_SOURCE = Path(__file__).resolve().parent
+WORKSPACE_ROOT = DOCS_SOURCE.parent.parent
+sys.path.insert(0, str(WORKSPACE_ROOT))
+
+for package_src in sorted((WORKSPACE_ROOT / "packages").glob("*/src")):
+    sys.path.insert(0, str(package_src))
 
 # -- Project information -----------------------------------------------------
 
-project = "LoopStructural"
+project = "Loop2"
 copyright = "2020, Lachlan Grose"
 author = "Lachlan Grose"
 
 # The full version, including alpha/beta/rc tags
-release = LoopStructural.__version__
+try:
+    release = pkg_version("loop2-workspace")
+except PackageNotFoundError:
+    release = "0.0.0"
 
 # -- Internationalization ----------------------------------------------------
 
