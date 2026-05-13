@@ -1,86 +1,76 @@
-[build-system]
-requires = ['setuptools']
-build-backend = 'setuptools.build_meta'
-
 [project]
-name = 'LoopStructural'
-description = '3D geological modelling'
-authors = [{ name = 'Lachlan Grose', email = 'lachlan.grose@monash.edu' }]
+name = 'loop2-workspace'
+description = 'Local uv workspace for Loop2 packages'
+version = '0.0.0'
 readme = 'README.md'
-requires-python = '>=3.8'
+requires-python = '>=3.10'
 keywords = [
     "earth sciences",
     "geology",
     "3-D modelling",
     "structural geology",
-    "uncertainty",
-
+    "workspace",
 ]
 license = { text = 'MIT' }
-classifiers = [
-    'Development Status :: 5 - Production/Stable',
-    'Intended Audience :: Science/Research',
-    'Topic :: Scientific/Engineering :: Information Analysis',
-    'License :: OSI Approved :: MIT License',
-    'Operating System :: Microsoft :: Windows',
-    'Operating System :: POSIX',
-    'Operating System :: MacOS',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
-]
 dependencies = [
-    "numpy>=1.18",
-    "pandas",
-    "scipy",
-    "scikit-image",
-    "scikit-learn",
+    "loop-api",
+    "loop-common",
+    "loop-engine",
+    "loop-interpolation",
+    "loop-model",
+    "loop-visualization",
 ]
-dynamic = ['version']
 
-[project.optional-dependencies]
-all = ['loopstructural[visualisation,inequalities,export,jupyter]', 'tqdm']
-visualisation = ["matplotlib", "pyvista", "loopstructuralvisualisation>=0.1.14"]
-export = ["geoh5py", "pyevtk", "dill"]
-jupyter = ["pyvista[all]"]
-inequalities = ["loopsolver"]
-docs = [
-    "pyvista[all]",
-    "pydata-sphinx-theme",
-    "meshio",
-    "loopstructuralvisualisation[all]",
-    "networkx",
-    "scikit-learn",
-    "scikit-image",
-    "sphinx",
-    "sphinx-gallery",
-    "geoh5py",
-    "geopandas",
-    "sphinxcontrib-bibtex",
-    "myst-parser",
-    "sphinx-design",
+[dependency-groups]
+dev = [
+    "black",
+    "build",
+    "isort",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "twine",
 ]
+docs = [
+    "myst-parser",
+    "pydata-sphinx-theme",
+    "sphinx",
+    "sphinx-design",
+    "sphinx-gallery",
+    "sphinxcontrib-bibtex",
+]
+examples = [
+    "dill",
+    "matplotlib",
+    "pyevtk",
+    "pyvista[all]",
+    "tqdm",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+
 [project.urls]
 Documentation = 'https://Loop3d.org/LoopStructural/'
 "Bug Tracker" = 'https://github.com/loop3d/loopstructural/issues'
 "Source Code" = 'https://github.com/loop3d/loopstructural'
 
-[tool.setuptools.dynamic]
-version = { attr = 'LoopStructural.version.__version__' }
+[tool.uv]
+package = false
+default-groups = ["dev", "test"]
 
-[tool.setuptools.packages.find]
-include = ['LoopStructural', 'LoopStructural.*']
+[tool.uv.workspace]
+members = ["packages/*"]
 
-[tool.setuptools.package-data]
-LoopStructural = [
-    "datasets/data/fault_trace/*",
-    "datasets/data/*.csv",
-    "datasets/data/*.txt",
-    "datasets/data/geological_map_data/*.csv",
-    "datasets/data/geological_map_data/*.txt",
-]
+[tool.uv.sources]
+loop-api = { workspace = true }
+loop-common = { workspace = true }
+loop-engine = { workspace = true }
+loop-interpolation = { workspace = true }
+loop-mcp-server = { workspace = true }
+loop-model = { workspace = true }
+loop-visualization = { workspace = true }
 
 [tool.isort]
 profile = 'black'
