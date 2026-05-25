@@ -6,7 +6,6 @@ Workspace API
    :caption: Libraries
    :toctree: _autosummary
    :template: custom-module-template.rst
-   :recursive:
 
    loop_api
    loop_common

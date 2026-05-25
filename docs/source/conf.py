@@ -51,7 +51,7 @@ autodoc_default_flags = [
 autosummary_generate = True  # Make _autosummary files and include them
 napoleon_numpy_docstring = True  # False  # Force consistency, leave only Google
 napoleon_use_rtype = False  # More legible
-autosummary_imported_members = True
+autosummary_imported_members = False
 autosummary_ignore_module_all = False
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
