@@ -23,6 +23,7 @@
 12. [Best Practices](#best-practices)
 13. [Examples and Use Cases](#examples-and-use-cases)
 14. [Serialization & Round-Trip](#serialization--round-trip)
+15. [ADMM Implementation Note](#admm-implementation-note)
 
 ---
 
@@ -1973,6 +1974,12 @@ Files:
 
 **Internal Implementation (Deduplication Pattern):**
 - `_set_constraint(method_name, constraint_data)`: Unified constraint forwarding helper
+
+---
+
+## ADMM Implementation Note
+
+For a detailed, code-level walkthrough of the inequality ADMM solver path (major iteration flow, residual criteria, active-set logic, inner solver scheduling, and integration in `DiscreteInterpolator.solve_system`), see [ADMM_IMPLEMENTATION.md](ADMM_IMPLEMENTATION.md).
   - Replaces 6 nearly-identical `add_*_constraints` method bodies
   - Converts `constraint_data` to numpy array if needed
   - Calls `getattr(self.interpolator, method_name)(constraint_data)` to delegate to interpolator setter

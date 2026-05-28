@@ -54,3 +54,35 @@ def test_finite_difference_border_regularisation_constraints():
 
 def test_update_interpolator():
     pass
+
+
+def test_solve_timing_breakdown_available():
+    from loop_interpolation import FiniteDifferenceInterpolator, StructuredGrid
+
+    origin = np.array([0.0, 0.0, 0.0])
+    nsteps = np.array([4, 4, 4])
+    step_vector = np.array([1.0, 1.0, 1.0])
+    grid = StructuredGrid(origin=origin, nsteps=nsteps, step_vector=step_vector)
+    interpolator = FiniteDifferenceInterpolator(grid)
+
+    interpolator.setup_interpolator(
+        dxy=0.0,
+        dyz=0.0,
+        dxz=0.0,
+        dxx=1.0,
+        dyy=1.0,
+        dzz=1.0,
+        cpw=0.0,
+        gpw=0.0,
+        npw=0.0,
+        tpw=0.0,
+        ipw=0.0,
+    )
+    ok = interpolator.solve_system("lsmr")
+    assert ok is True
+
+    timing = interpolator.get_last_solve_timing()
+    assert "assembly_seconds" in timing
+    assert "solve_seconds" in timing
+    assert "total_seconds" in timing
+    assert timing["total_seconds"] >= timing["solve_seconds"]

@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Callable, Optional, Union
 import logging
 import inspect
+from time import perf_counter
 
 import numpy as np
 from scipy import sparse  # import sparse.coo_matrix, sparse.bmat, sparse.eye
@@ -74,6 +75,11 @@ class DiscreteInterpolator(GeologicalInterpolator):
         self.add_ridge_regulatisation = True
         self.ridge_factor = 1e-8
         self.solver_history = None
+        self.latest_solve_timing = {}
+
+    def get_last_solve_timing(self) -> dict:
+        """Return timing metrics captured during the most recent solve."""
+        return dict(self.latest_solve_timing)
 
     def set_nelements(self, nelements: int) -> int:
         return self.support.set_nelements(nelements)
@@ -760,6 +766,126 @@ class DiscreteInterpolator(GeologicalInterpolator):
         bounds = np.vstack(bounds)
         return Q, bounds
 
+    def _remove_constraints_with_prefix(self, prefix: str) -> None:
+        to_remove = [name for name in self.constraints if name.startswith(prefix)]
+        for name in to_remove:
+            self.constraints.pop(name, None)
+
+    def _constant_norm_gradient_data(self):
+        support = self.support
+        if not hasattr(support, "elements") or not hasattr(support, "barycentre"):
+            return None
+
+        try:
+            element_indices = np.arange(support.elements.shape[0], dtype=int)
+            _, gradient, elements, inside = support.get_element_gradient_for_location(
+                support.barycentre[element_indices]
+            )
+        except Exception as err:
+            logger.debug("Unable to build constant-norm gradient rows: %s", err)
+            return None
+
+        inside = np.asarray(inside, dtype=bool)
+        gradient = np.asarray(gradient, dtype=float)
+        if inside.shape[0] != gradient.shape[0]:
+            inside = np.ones(gradient.shape[0], dtype=bool)
+        if not np.any(inside):
+            return None
+
+        element_ids = np.asarray(elements, dtype=int)[inside]
+        gradient = gradient[inside]
+        idc = np.asarray(support.elements[element_ids], dtype=int)
+        values = np.asarray(self.c[idc], dtype=float)
+        grad_vec = np.einsum("ijk,ik->ij", gradient, values)
+        grad_norm = np.linalg.norm(grad_vec, axis=1)
+        valid = np.isfinite(grad_norm) & (grad_norm > 1e-10)
+        if not np.any(valid):
+            return None
+
+        volume = np.ones(np.sum(valid), dtype=float)
+        if hasattr(support, "element_size"):
+            raw_volume = np.asarray(support.element_size, dtype=float)
+            if raw_volume.ndim == 0:
+                volume = np.full(np.sum(valid), float(raw_volume), dtype=float)
+            else:
+                volume = raw_volume[element_ids][valid]
+            volume = np.maximum(volume, 1e-12)
+
+        return {
+            "gradient": gradient[valid],
+            "grad_vec": grad_vec[valid],
+            "grad_norm": grad_norm[valid],
+            "idc": idc[valid],
+            "volume": volume,
+        }
+
+    def _run_constant_norm_polish(
+        self,
+        solver_kwargs: dict,
+        iterations: int,
+        base_weight: float,
+        target_norm: Optional[float],
+    ) -> None:
+        if iterations <= 0 or base_weight <= 0.0:
+            return
+
+        if not np.all(np.isfinite(self.c)):
+            logger.warning("Skipping constant-norm polish because current solution is not finite")
+            return
+
+        prefix = "__constant_norm_polish__"
+        self._remove_constraints_with_prefix(prefix)
+
+        stable_solver_kwargs = dict(solver_kwargs or {})
+        stable_solver_kwargs.pop("x0", None)
+
+        for i in range(int(iterations)):
+            grad_data = self._constant_norm_gradient_data()
+            if grad_data is None:
+                logger.warning("Constant-norm polish stopped: gradient rows unavailable")
+                break
+
+            if target_norm is None:
+                norm_target = float(np.median(grad_data["grad_norm"]))
+            else:
+                norm_target = float(target_norm)
+
+            unit_grad = grad_data["grad_vec"] / grad_data["grad_norm"][:, None]
+            A = np.einsum("ij,ijk->ik", unit_grad, grad_data["gradient"])
+            A = A / grad_data["volume"][:, None]
+            b = np.full(A.shape[0], norm_target, dtype=float) / grad_data["volume"]
+            iter_weight = float(base_weight) * float(i + 1)
+
+            self.add_constraints_to_least_squares(
+                A,
+                b,
+                grad_data["idc"],
+                w=np.full(A.shape[0], iter_weight, dtype=float),
+                name=f"{prefix}{i}",
+            )
+
+            x0_seed = np.asarray(self.c[self.region], dtype=float).copy()
+            polish_solver_kwargs = dict(stable_solver_kwargs)
+            polish_solver_kwargs["x0"] = lambda _support, x0=x0_seed: np.array(x0, copy=True)
+            polish_solver_kwargs["constant_norm_iterations"] = 0
+
+            solved = self.solve_system("admm", solver_kwargs=polish_solver_kwargs)
+            if not solved:
+                logger.warning("Constant-norm polish terminated because ADMM solve failed")
+                break
+
+            updated = self._constant_norm_gradient_data()
+            if updated is not None:
+                logger.info(
+                    "Constant-norm iter %d: target=%.3e, grad_norm mean=%.3e, std=%.3e",
+                    i + 1,
+                    norm_target,
+                    float(np.mean(updated["grad_norm"])),
+                    float(np.std(updated["grad_norm"])),
+                )
+
+        self._remove_constraints_with_prefix(prefix)
+
     def solve_system(
         self,
         solver: Optional[Union[Callable[[sparse.csr_matrix, np.ndarray], np.ndarray], str]] = None,
@@ -787,9 +913,33 @@ class DiscreteInterpolator(GeologicalInterpolator):
         if not self._pre_solve():
             raise ValueError("Pre solve failed")
 
+        solve_started = perf_counter()
+        solver_kwargs = dict(solver_kwargs or {})
+        constant_norm_iterations = max(0, int(solver_kwargs.pop("constant_norm_iterations", 0)))
+        constant_norm_weight = float(solver_kwargs.pop("constant_norm_weight", 0.0))
+        constant_norm_target = solver_kwargs.pop("constant_norm_target", None)
+        if constant_norm_target is not None:
+            constant_norm_target = float(constant_norm_target)
+            if constant_norm_target <= 0.0:
+                logger.warning(
+                    "constant_norm_target must be > 0; disabling explicit target and using auto mode"
+                )
+                constant_norm_target = None
+        timing = {
+            "solver": "callable" if callable(solver) else (solver if solver is not None else "cg"),
+            "backend": "python",
+        }
+
         self.solver_history = None
 
+        assembly_started = perf_counter()
         A, b = self.build_matrix()
+        timing["assembly_seconds"] = perf_counter() - assembly_started
+        timing["matrix_rows"] = int(A.shape[0])
+        timing["matrix_cols"] = int(A.shape[1])
+        timing["matrix_nnz"] = int(A.nnz)
+
+        preprocess_started = perf_counter()
         if self.add_ridge_regulatisation:
             ridge = sparse.eye(A.shape[1]) * self.ridge_factor
             A = sparse.vstack([A, ridge])
@@ -798,11 +948,20 @@ class DiscreteInterpolator(GeologicalInterpolator):
         if self.apply_scaling_matrix:
             S = self.compute_column_scaling_matrix(A)
             A = A @ S
+        timing["preprocess_seconds"] = perf_counter() - preprocess_started
 
+        inequality_started = perf_counter()
         Q, bounds = self.build_inequality_matrix()
+        timing["inequality_seconds"] = perf_counter() - inequality_started
+        timing["inequality_rows"] = int(Q.shape[0])
+        # Legacy compatibility: ignore deprecated backend switch.
+        solver_kwargs.pop("backend", None)
+
         if callable(solver):
             logger.warning("Using custom solver")
+            solve_step_started = perf_counter()
             self.c = solver(A.tocsr(), b)
+            timing["solve_seconds"] = perf_counter() - solve_step_started
             self.up_to_date = True
         elif isinstance(solver, str) or solver is None:
             if solver not in ["cg", "lsmr", "admm"]:
@@ -818,7 +977,9 @@ class DiscreteInterpolator(GeologicalInterpolator):
 
             logger.info(f"Solver kwargs: {solver_kwargs}")
 
+            solve_step_started = perf_counter()
             res = sparse.linalg.cg(A.T @ A, A.T @ b, **solver_kwargs)
+            timing["solve_seconds"] = perf_counter() - solve_step_started
             if res[1] > 0:
                 logger.warning(
                     f"CG reached iteration limit ({res[1]})and did not converge, check input data. Setting solution to last iteration"
@@ -837,7 +998,9 @@ class DiscreteInterpolator(GeologicalInterpolator):
                     solver_kwargs["atol"] = 0.0
                     logger.info(f"Setting lsmr btol to {tol}")
             logger.info(f"Solver kwargs: {solver_kwargs}")
+            solve_step_started = perf_counter()
             res = sparse.linalg.lsmr(A, b, **solver_kwargs)
+            timing["solve_seconds"] = perf_counter() - solve_step_started
             if res[1] == 1 or res[1] == 4 or res[1] == 2 or res[1] == 5:
                 self.c = res[0]
             elif res[1] == 0:
@@ -854,6 +1017,8 @@ class DiscreteInterpolator(GeologicalInterpolator):
 
         elif solver == "admm":
             logger.info("Solving using admm")
+
+            constant_norm_solver_kwargs = dict(solver_kwargs)
 
             if "x0" in solver_kwargs:
                 x0 = solver_kwargs["x0"](self.support)
@@ -878,10 +1043,33 @@ class DiscreteInterpolator(GeologicalInterpolator):
                         "adaptive_rho_tau": solver_kwargs.pop("adaptive_rho_tau", 2.0),
                         "adaptive_rho_min": solver_kwargs.pop("adaptive_rho_min", 1e-4),
                         "adaptive_rho_max": solver_kwargs.pop("adaptive_rho_max", 1e3),
+                        "admm_weight_final": solver_kwargs.pop("admm_weight_final", None),
+                        "admm_weight_schedule": solver_kwargs.pop("admm_weight_schedule", "geometric"),
+                        "admm_abs_tol": solver_kwargs.pop("admm_abs_tol", 1e-4),
+                        "admm_rel_tol": solver_kwargs.pop("admm_rel_tol", 1e-3),
+                        "min_iterations": solver_kwargs.pop("min_iterations", 5),
+                        "reuse_inner_solve": solver_kwargs.pop("reuse_inner_solve", True),
+                        "active_set": solver_kwargs.pop("active_set", False),
+                        "active_set_padding": solver_kwargs.pop("active_set_padding", 1e-3),
+                        "active_set_min_size": solver_kwargs.pop("active_set_min_size", 0),
+                        "active_set_max_size": solver_kwargs.pop("active_set_max_size", 0),
+                        "active_set_hysteresis": solver_kwargs.pop("active_set_hysteresis", True),
+                        "active_set_refresh_interval": solver_kwargs.pop("active_set_refresh_interval", 1),
+                        "cg_preconditioner": solver_kwargs.pop("cg_preconditioner", True),
+                        "cg_preconditioner_shift": solver_kwargs.pop("cg_preconditioner_shift", 1e-12),
+                        "inner_rtol_start": solver_kwargs.pop("inner_rtol_start", None),
+                        "inner_rtol_end": solver_kwargs.pop("inner_rtol_end", None),
+                        "inner_atol_start": solver_kwargs.pop("inner_atol_start", None),
+                        "inner_atol_end": solver_kwargs.pop("inner_atol_end", None),
+                        "inner_maxiter_start": solver_kwargs.pop("inner_maxiter_start", None),
+                        "inner_maxiter_end": solver_kwargs.pop("inner_maxiter_end", None),
+                        "inner_maxiter_schedule": solver_kwargs.pop("inner_maxiter_schedule", "linear"),
+                        "model_update_tol": solver_kwargs.pop("model_update_tol", 0.0),
                         "return_history": solver_kwargs.pop("return_history", False),
                     }
                     supported_optional = set(inspect.signature(admm_solve).parameters.keys())
                     admm_kwargs = {k: v for k, v in admm_kwargs.items() if k in supported_optional}
+                    solve_step_started = perf_counter()
                     res = admm_solve(
                         A,
                         b,
@@ -894,12 +1082,20 @@ class DiscreteInterpolator(GeologicalInterpolator):
                         linsys_solver=linsys_solver,
                         **admm_kwargs,
                     )
+                    timing["solve_seconds"] = perf_counter() - solve_step_started
                     if isinstance(res, tuple):
                         self.c, self.solver_history = res
                     else:
                         self.c = res
                         self.solver_history = None
                     self.up_to_date = True
+                    if self.up_to_date and constant_norm_iterations > 0 and constant_norm_weight > 0.0:
+                        self._run_constant_norm_polish(
+                            solver_kwargs=constant_norm_solver_kwargs,
+                            iterations=constant_norm_iterations,
+                            base_weight=constant_norm_weight,
+                            target_norm=constant_norm_target,
+                        )
                 except ValueError as e:
                     logger.error(f"ADMM solver failed: {e}")
                     self.up_to_date = False
@@ -913,6 +1109,9 @@ class DiscreteInterpolator(GeologicalInterpolator):
         # apply scaling matrix to solution
         if self.apply_scaling_matrix:
             self.c = S @ self.c
+        timing["total_seconds"] = perf_counter() - solve_started
+        timing["up_to_date"] = bool(self.up_to_date)
+        self.latest_solve_timing = timing
         return self.up_to_date
 
     def update(self) -> bool:
