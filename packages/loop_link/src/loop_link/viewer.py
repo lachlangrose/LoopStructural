@@ -320,7 +320,8 @@ class Viewer:
             object, or the viewer refused a colour command. The object stays in
             the viewer.
         loop_link.errors.ViewerRefusedError
-            The viewer refused the object and ``colour`` is given.
+            The viewer refused this object and ``colour`` is given. Refusals of
+            other objects stay for the next ``flush``.
         loop_link.errors.MissingFeatureError
             ``colour`` is given and the viewer does not support the colour commands.
         loop_link.errors.ViewerClosedError
@@ -344,7 +345,13 @@ class Viewer:
         object_type = str(protocol.decode_header(data).get("object_type", ""))
         self._inventory[id] = InventoryEntry(id, object_type, revision)
         if colour is not None:
-            self.flush()
+            refusals = self.flush(raise_on_refusal=False)
+            own = [r for r in refusals if r.object_id == id]
+            others = [r for r in refusals if r.object_id != id]
+            # Keep the refusals of other objects for the next flush.
+            self._refusals = others + self._refusals
+            if own:
+                raise ViewerRefusedError(own)
             self.apply_colour(id, colour)
         return revision
 

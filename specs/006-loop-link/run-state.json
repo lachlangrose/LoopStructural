@@ -765,7 +765,7 @@
         "wave": 20,
         "base": "f9ea0423",
         "commit": "pending",
-        "review": "orchestrator check (test and README)"
+        "review": "see end review"
       }
     ],
     "runs": {
@@ -902,11 +902,17 @@
       "S4 W10 T072: data-unchanged test does not compare with the sent buffers",
       "S4 W10 T072: argument checks (timeout <= 0, non-bool flags, empty ids) are untested",
       "S4 W17 T075: a None result of colour map names (viewer below 1.18) is not cached, so each set_colour_map sends commands.list again",
-      "S4 W17 T075: apply_colour checks the colour map name only at set_map, so colour.set_active may go out first (partial apply)"
+      "S4 W17 T075: apply_colour checks the colour map name only at set_map, so colour.set_active may go out first (partial apply)",
+      "S4 end review: README example grid has no grade or unit property",
+      "S4 end review: fake .filters docstring still says kind can be None; refused add leaves an empty object entry in .filters"
     ],
     "findings": {
-      "found": 12,
-      "fixed": 0
+      "found": 18,
+      "fixed": 2
+    },
+    "end_review": {
+      "round1": "changes needed: 2 major (send colour= flush raised for a refusal of another object; SC-007 test used 64 cells), 4 minor",
+      "fix": "fix commit: send keeps refusals of other objects; SC-007 test with 1,000,000 cells; 2 regression tests"
     }
   }
 }
