@@ -904,15 +904,25 @@
       "S4 W17 T075: a None result of colour map names (viewer below 1.18) is not cached, so each set_colour_map sends commands.list again",
       "S4 W17 T075: apply_colour checks the colour map name only at set_map, so colour.set_active may go out first (partial apply)",
       "S4 end review: README example grid has no grade or unit property",
-      "S4 end review: fake .filters docstring still says kind can be None; refused add leaves an empty object entry in .filters"
+      "S4 end review: fake .filters docstring still says kind can be None; refused add leaves an empty object entry in .filters",
+      "S4 recheck T076: the new regression test does not check that the refusal of the other object stays for the next flush",
+      "S4 recheck T077: self._refusals = others + self._refusals runs without self._lock (tiny race with the heartbeat thread)",
+      "S4 recheck T077: a late refusal of an earlier revision of the same id stops the colour of a later accepted revision"
     ],
     "findings": {
-      "found": 18,
+      "found": 21,
       "fixed": 2
     },
     "end_review": {
       "round1": "changes needed: 2 major (send colour= flush raised for a refusal of another object; SC-007 test used 64 cells), 4 minor",
-      "fix": "fix commit: send keeps refusals of other objects; SC-007 test with 1,000,000 cells; 2 regression tests"
-    }
+      "fix": "fix commit: send keeps refusals of other objects; SC-007 test with 1,000,000 cells; 2 regression tests",
+      "round2": "pass: no blocker or major; 3 minor"
+    },
+    "blocked": [
+      "T080",
+      "T081",
+      "T086",
+      "T087 (OP15)"
+    ]
   }
 }
