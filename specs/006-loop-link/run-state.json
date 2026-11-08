@@ -712,6 +712,12 @@
         "base": "10c82b76",
         "commit": "pending",
         "review": "reviewed together with wave 7"
+      },
+      {
+        "wave": 7,
+        "base": "c70fdb20",
+        "commit": "pending",
+        "review": "pending"
       }
     ],
     "runs": {
@@ -766,6 +772,12 @@
       "T068": [
         {
           "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T078": [
+        {
+          "model": "haiku",
           "result": "pass"
         }
       ]

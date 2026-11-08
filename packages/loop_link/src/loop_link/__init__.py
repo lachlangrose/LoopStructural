@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
+from .commands import ColourSettings
 from .errors import (
     BusyError,
     CancelledError,
@@ -31,6 +32,7 @@ __all__ = [
     "BusyError",
     "CancelledError",
     "Categorical",
+    "ColourSettings",
     "Drillhole",
     "FetchResult",
     "InvalidInputError",

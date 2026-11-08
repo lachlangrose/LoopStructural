@@ -585,7 +585,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py packages/loop_link/tests/test_viewer.py packages/loop_link/tests/test_push.py` passes and `ruff check packages/loop_link` passes.
   - Context: Change the signature to `send(self, obj, *, id, name=None, parent=None, colour: Optional[ColourSettings] = None, **hints)`; the argument is before `**hints`, so it does not go to the adapter. First check `colour` (`None` or a `ColourSettings`, else `InvalidInputError("colour must be a ColourSettings object.")`) before `convert` and before any frame. Send the object as before. Then, when `colour is not None`: call `self.flush()` (this waits up to 0.5 s for a late refusal of the object and raises `ViewerRefusedError`), then `self.apply_colour(id, colour)`. If a colour command fails, the object stays in the viewer and the error goes up. The method returns the revision as before. Add the argument to the docstring (Parameters, Raises). Import `ColourSettings` from `loop_link.commands`. Do not change `push_objects`.
 
-- [ ] T078 [P] [Found] [S] Export `ColourSettings`.
+- [x] T078 [P] [Found] [S] Export `ColourSettings`.
   - Files: `packages/loop_link/src/loop_link/__init__.py`
   - Needs: T068
   - Wave: 7
