@@ -499,7 +499,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` fails with ImportError of `commands_list_frame`, then passes after T066.
   - Context: Create the file (module docstring, `from __future__ import annotations`). Under test, in `loop_link.encode`: `commands_list_frame(request: int) -> bytes` and `command_frame(request: int, command: str, input: Mapping[str, Any]) -> bytes`. Decode with `loop_link.protocol.decode_frame`. Expected headers (the geoviewer fixtures, decoded): `commands_list_frame(1)` gives `{"type": "commands.list", "version": {"major": 1, "minor": 11}, "request": 1, "buffers": []}`; `command_frame(2, "object.set_visible", {"id": "p1", "visible": False})` gives `{"type": "command.run", "version": {"major": 1, "minor": 11}, "request": 2, "command": "object.set_visible", "input": {"id": "p1", "visible": False}, "buffers": []}`. Tests: the two header equalities; the frame has no buffers (`frame.buffers == {}`); `command_frame` does not change the input mapping (pass a dict, compare after); a nested input (`{"object": "g", "edit": {"kind": "set_values", "array": "a", "values": [0, 2]}}`) round trips; a NaN in the input raises `ProtocolError` (`allow_nan=False`).
 
-- [ ] T066 [Found] [S] Implement `commands_list_frame` and `command_frame` in `encode.py`.
+- [x] T066 [Found] [S] Implement `commands_list_frame` and `command_frame` in `encode.py`.
   - Files: `packages/loop_link/src/loop_link/encode.py`
   - Needs: T065, T042
   - Wave: 4

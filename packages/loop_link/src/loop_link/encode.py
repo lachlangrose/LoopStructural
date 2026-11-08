@@ -29,6 +29,8 @@ from loop_link.objects import (
 __all__ = [
     "cancel_frame",
     "clear_frame",
+    "command_frame",
+    "commands_list_frame",
     "encode_object",
     "fetch_frame",
     "group_frame",
@@ -221,6 +223,65 @@ def cancel_frame(request: int) -> bytes:
         {"type": "command.cancel", "request": request},
         version=protocol.CANCEL_PROTOCOL_VERSION,
     )
+
+
+def commands_list_frame(request: int) -> bytes:
+    """Return a ``commands.list`` frame.
+
+    Parameters
+    ----------
+    request : int
+        The request number.
+
+    Returns
+    -------
+    bytes
+        The frame.
+    """
+    return protocol.encode_frame(
+        {"type": "commands.list", "request": request},
+        version=protocol.COMMAND_PROTOCOL_VERSION,
+    )
+
+
+def command_frame(request: int, command: str, input: Mapping[str, Any]) -> bytes:
+    """Return a ``command.run`` frame.
+
+    The function copies the input mapping. It does not change the mapping of the
+    caller. The input must be JSON values. A NaN or an infinite number raises an error.
+
+    Parameters
+    ----------
+    request : int
+        The request number.
+    command : str
+        The name of the command, for example ``"object.set_visible"``.
+    input : Mapping[str, Any]
+        The arguments of the command.
+
+    Returns
+    -------
+    bytes
+        The frame.
+
+    Raises
+    ------
+    ProtocolError
+        If the input cannot be encoded as JSON, for example for a NaN value.
+    """
+    header = {
+        "type": "command.run",
+        "request": request,
+        "command": command,
+        "input": dict(input),
+    }
+    try:
+        return protocol.encode_frame(header, version=protocol.COMMAND_PROTOCOL_VERSION)
+    except ValueError as error:
+        raise protocol.ProtocolError(
+            "The input of the command has a value that JSON cannot store, such as NaN "
+            "or an infinite number. Use finite numbers."
+        ) from error
 
 
 def _upsert_header(
