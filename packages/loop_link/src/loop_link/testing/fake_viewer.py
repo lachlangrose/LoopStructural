@@ -8,6 +8,7 @@ objects that it receives. It has its own small server-side WebSocket code.
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import math
@@ -123,6 +124,125 @@ _SELECTION_KINDS: dict[str, tuple[str, ...]] = {
     "Drillhole": (),
     "Group": (),
 }
+
+
+# The value types of the command inputs, with the JSON schema of each type.
+_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
+    "str": {"type": "string"},
+    "str_or_null": {"type": ["string", "null"]},
+    "bool": {"type": "boolean"},
+    "u32_list": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+    "colour": {
+        "type": ["array", "null"],
+        "items": {"type": "integer", "minimum": 0, "maximum": 255},
+        "minItems": 3,
+        "maxItems": 3,
+    },
+    "scale": {"type": "string", "enum": ["linear", "log"]},
+    "edit": {"type": "object"},
+}
+# The commands: (description, needs_window, {field: (value type, required)}).
+_COMMANDS: dict[str, tuple[str, bool, dict[str, tuple[str, bool]]]] = {
+    "filter.edit": (
+        "Change the filters of an object.",
+        False,
+        {"object": ("str", True), "edit": ("edit", True)},
+    ),
+    "colour.set_active": (
+        "Choose the array that colours an object.",
+        False,
+        {"id": ("str", True), "array": ("str_or_null", False)},
+    ),
+    "colour.set_map": (
+        "Choose the colour map of an object.",
+        False,
+        {"id": ("str", True), "name": ("str", True)},
+    ),
+    "colour.set_range": (
+        "Set the colour range of an object.",
+        False,
+        {"id": ("str", True), "min": ("str", True), "max": ("str", True)},
+    ),
+    "colour.clear_range": (
+        "Clear the colour range of an object.",
+        False,
+        {"id": ("str", True)},
+    ),
+    "colour.set_scale": (
+        "Set the colour scale of an object.",
+        True,
+        {"object": ("str", True), "scale": ("scale", True)},
+    ),
+    "object.set_colour": (
+        "Set the plain colour of an object, or clear it.",
+        False,
+        {"id": ("str", True), "colour": ("colour", True)},
+    ),
+}
+# The fields of each kind of filter edit.
+_EDIT_FIELDS: dict[str, dict[str, str]] = {
+    "add": {"array": "str"},
+    "set_range": {"array": "str", "min": "str", "max": "str", "keep_nan": "bool"},
+    "set_values": {"array": "str", "values": "u32_list"},
+    "set_on": {"array": "str", "on": "bool"},
+    "set_exclude": {"array": "str", "exclude": "bool"},
+    "remove": {"array": "str"},
+    "cancel": {},
+}
+# The colour maps that the viewer lists from minor version 18.
+_COLOUR_MAPS = ["viridis", "grey", "coolwarm"]
+# The data types that have no colour map, range or scale.
+_FIXED_COLOUR_TYPES = ("referenced", "boolean")
+
+
+def _value_ok(kind: str, value: object) -> bool:
+    """Return whether ``value`` fits the input type ``kind``."""
+    if kind == "str":
+        return isinstance(value, str)
+    if kind == "str_or_null":
+        return value is None or isinstance(value, str)
+    if kind == "bool":
+        return isinstance(value, bool)
+    if kind == "u32_list":
+        return isinstance(value, list) and all(type(v) is int and 0 <= v < 1 << 32 for v in value)
+    if kind == "colour":
+        return value is None or (
+            isinstance(value, list)
+            and len(value) == 3
+            and all(type(v) is int and 0 <= v <= 255 for v in value)
+        )
+    if kind == "scale":
+        return value in ("linear", "log")
+    return isinstance(value, dict)
+
+
+def _check_input(fields: dict[str, tuple[str, bool]], given: object) -> str | None:
+    """Return the name of the first bad field of a command input, or ``None``.
+
+    A field is bad if it is unknown, missing, or of the wrong type.
+    """
+    if not isinstance(given, dict):
+        return "input"
+    for key in given:
+        if key not in fields:
+            return str(key)
+    for key, (kind, required) in fields.items():
+        if key not in given:
+            if required:
+                return key
+        elif not _value_ok(kind, given[key]):
+            return key
+    return None
+
+
+def _check_edit(edit: dict[str, Any]) -> str | None:
+    """Return the name of the first bad field of a filter edit, or ``None``."""
+    kind = edit.get("kind")
+    if not isinstance(kind, str) or kind not in _EDIT_FIELDS:
+        return "edit"
+    fields = {key: (value_kind, True) for key, value_kind in _EDIT_FIELDS[kind].items()}
+    fields["kind"] = ("str", True)
+    return _check_input(fields, edit)
 
 
 def _send(conn: socket.socket, payload: bytes) -> None:
@@ -348,6 +468,11 @@ class FakeViewer:
         The size in bytes of one part of an ``object.fetch`` reply.
     fetch_delay : float
         The seconds to wait between the parts of an ``object.fetch`` reply.
+    filter_delay : float
+        The seconds that the scene stays busy after a ``filter.edit`` that changes a filter.
+    busy_wait : float
+        The seconds that a waiting command waits for the busy time to end. After that,
+        the viewer answers ``busy``.
 
     Attributes
     ----------
@@ -373,6 +498,8 @@ class FakeViewer:
         protocol_minor: int = 18,
         part_bytes: int = 64 * 1024 * 1024,
         fetch_delay: float = 0.0,
+        filter_delay: float = 0.0,
+        busy_wait: float = 5.0,
     ) -> None:
         self.token = token
         self.crs = crs
@@ -384,6 +511,11 @@ class FakeViewer:
         self.protocol_minor = protocol_minor
         self.part_bytes = part_bytes
         self.fetch_delay = fetch_delay
+        self.filter_delay = filter_delay
+        self.busy_wait = busy_wait
+        self._filters: dict[str, dict[str, dict[str, Any]]] = {}
+        self._colouring: dict[str, dict[str, Any]] = {}
+        self._busy_until = 0.0
         self._selection: dict[str, Any] | None = None
         self.tool_requests: list[Frame] = []
         self.objects: dict[str, StoredObject] = {}
@@ -439,6 +571,26 @@ class FakeViewer:
             }
             for object_id, stored in items
         ]
+
+    @property
+    def filters(self) -> dict[str, dict[str, dict[str, Any]]]:
+        """A copy of the filters, by object id and then by array name.
+
+        A filter is a dict with the keys ``kind`` (``"range"``, ``"values"`` or ``None``),
+        ``on``, ``minimum``, ``maximum``, ``keep_nan``, ``values`` and ``exclude``.
+        """
+        with self._state_lock:
+            return copy.deepcopy(self._filters)
+
+    @property
+    def colouring(self) -> dict[str, dict[str, Any]]:
+        """A copy of the colouring, by object id.
+
+        Each value is a dict with the keys ``array``, ``colour_map``, ``range``,
+        ``scale`` and ``plain``.
+        """
+        with self._state_lock:
+            return copy.deepcopy(self._colouring)
 
     @property
     def selection(self) -> dict[str, Any] | None:
@@ -611,8 +763,12 @@ class FakeViewer:
         problem = self._check_object(frame)
         if problem is not None:
             return [_error("invalid_object", problem, object_id)]
+        names = {entry.get("name") for entry in header.get("data") or [] if isinstance(entry, dict)}
         with self._state_lock:
             self.objects[object_id] = StoredObject(header=header, buffers=dict(frame.buffers))
+            kept = self._filters.get(object_id)
+            if kept is not None:
+                self._filters[object_id] = {k: v for k, v in kept.items() if k in names}
         return []
 
     @staticmethod
@@ -714,6 +870,10 @@ class FakeViewer:
         """
         kind = frame.header.get("type")
         request = frame.header.get("request")
+        if self.protocol_minor >= 11 and kind == "commands.list":
+            return [self._commands_list(request)]
+        if self.protocol_minor >= 11 and kind == "command.run":
+            return [self._command_run(frame)]
         if self.protocol_minor >= 18 and kind == "object.fetch":
             return list(self._fetch_frames(frame))
         if self.protocol_minor >= 18 and kind in ("selection.set", "selection.get"):
@@ -723,6 +883,156 @@ class FakeViewer:
                 return [self._selection_get(request)]
             return [self._selection_set(frame)]
         return [_error("unknown_message", f"The message type {kind!r} is not known.")]
+
+    def _commands_list(self, request: object) -> Frame:
+        """Return the ``commands`` frame for ``commands.list``."""
+        entries = []
+        for name, (description, needs_window, fields) in _COMMANDS.items():
+            properties = {key: dict(_INPUT_SCHEMAS[kind]) for key, (kind, _) in fields.items()}
+            if name == "colour.set_map":
+                properties["name"] = (
+                    {"type": "string", "enum": list(_COLOUR_MAPS)}
+                    if self.protocol_minor >= 18
+                    else {"type": "string"}
+                )
+            entries.append(
+                {
+                    "name": name,
+                    "description": description,
+                    "needs_window": needs_window,
+                    "tool_available": True,
+                    "unavailable_reason": None,
+                    "input_schema": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": [key for key, (_, required) in fields.items() if required],
+                        "additionalProperties": False,
+                    },
+                    "result_schema": {
+                        "type": "object",
+                        "properties": {
+                            "status": {"enum": ["done", "refused"]},
+                            "text": {"type": "string"},
+                        },
+                        "required": ["status"],
+                    },
+                }
+            )
+        header = {"type": "commands", "request": request, "viewer": self.kind, "commands": entries}
+        return Frame(header=header, buffers={})
+
+    def _wait_if_busy(self, command: str) -> bool:
+        """Wait for the busy time to end. Return ``False`` if the command must get ``busy``.
+
+        ``colour.set_scale`` does not wait. It gets ``busy`` at once. Other commands wait
+        at most ``busy_wait`` seconds.
+        """
+        with self._state_lock:
+            remaining = self._busy_until - time.monotonic()
+        if remaining <= 0:
+            return True
+        if command == "colour.set_scale":
+            return False
+        time.sleep(min(remaining, self.busy_wait))
+        return remaining <= self.busy_wait
+
+    def _command_run(self, frame: Frame) -> Frame:
+        """Check and run one command. Return the ``command.result`` or ``request.error`` frame."""
+        request = frame.header.get("request")
+        command = frame.header.get("command")
+        spec = _COMMANDS.get(command) if isinstance(command, str) else None
+        if spec is None:
+            return _request_error(
+                request, "invalid_input", f"The command {command!r} is not known."
+            )
+        _, needs_window, fields = spec
+        given = frame.header.get("input")
+        bad = _check_input(fields, given)
+        if bad is None and command == "filter.edit":
+            bad = _check_edit(given["edit"])
+        if bad is not None:
+            return _request_error(
+                request, "invalid_input", f"The input field {bad!r} is not valid.", bad
+            )
+        id_field = "object" if "object" in fields else "id"
+        with self._state_lock:
+            known = given[id_field] in self.objects
+        if not known:
+            return _request_error(
+                request,
+                "invalid_input",
+                f"The object {given[id_field]!r} is not in the scene.",
+                id_field,
+            )
+        if needs_window and self.kind == "headless":
+            return _request_error(request, "needs_window", "The viewer has no window.")
+        cancel = command == "filter.edit" and given["edit"]["kind"] == "cancel"
+        if not cancel and not self._wait_if_busy(command):
+            return _request_error(request, "busy", "The scene is busy with a filter change.")
+        if command == "filter.edit":
+            result = self._filter_edit(given["object"], given["edit"])
+        else:
+            result = self._colour_command(command, given)
+        header = {"type": "command.result", "request": request, "result": result}
+        return Frame(header=header, buffers={})
+
+    def _filter_edit(self, object_id: str, edit: dict[str, Any]) -> dict[str, Any]:
+        """Apply one filter edit and return the result. It does nothing yet."""
+        return {"status": "done"}
+
+    def _colour_command(self, command: str, given: dict[str, Any]) -> dict[str, Any]:
+        """Run one colour command and return its result dict."""
+        object_id = given["object"] if command == "colour.set_scale" else given["id"]
+        with self._state_lock:
+            stored = self.objects[object_id]
+            state = self._colouring.setdefault(
+                object_id,
+                {
+                    "array": None,
+                    "colour_map": None,
+                    "range": None,
+                    "scale": "linear",
+                    "plain": None,
+                },
+            )
+            entries = {
+                e.get("name"): e for e in stored.header.get("data") or [] if isinstance(e, dict)
+            }
+            if command == "colour.set_active":
+                array = given.get("array")
+                if array is not None and array not in entries:
+                    return {
+                        "status": "refused",
+                        "text": f"The object {object_id!r} has no array {array!r}.",
+                    }
+                state["array"] = array
+            elif command == "colour.clear_range":
+                state["range"] = None
+            elif command == "object.set_colour":
+                colour = given["colour"]
+                state["plain"] = None if colour is None else list(colour)
+            else:
+                active = entries.get(state["array"])
+                if active is not None and active.get("data_type") in _FIXED_COLOUR_TYPES:
+                    return {
+                        "status": "refused",
+                        "text": f"The array {state['array']!r} has a fixed colouring.",
+                    }
+                if command == "colour.set_map":
+                    if self.protocol_minor >= 18 and given["name"] not in _COLOUR_MAPS:
+                        return {
+                            "status": "refused",
+                            "text": f"The colour map {given['name']!r} is not known.",
+                        }
+                    state["colour_map"] = given["name"]
+                elif command == "colour.set_range":
+                    try:
+                        state["range"] = (float(given["min"]), float(given["max"]))
+                    except ValueError:
+                        return {"status": "refused", "text": "The range is not a number."}
+                else:
+                    state["scale"] = given["scale"]
+        return {"status": "done"}
 
     def _selection_get(self, request: object) -> Frame:
         """Return the ``selection.result`` frame for ``selection.get``."""

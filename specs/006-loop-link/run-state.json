@@ -711,11 +711,17 @@
         "wave": 6,
         "base": "10c82b76",
         "commit": "pending",
-        "review": "reviewed together with wave 7"
+        "review": "pass (1 minor, waves 6 and 7 reviewed together)"
       },
       {
         "wave": 7,
         "base": "c70fdb20",
+        "commit": "pending",
+        "review": "pass (1 minor, waves 6 and 7 reviewed together)"
+      },
+      {
+        "wave": 8,
+        "base": "9f925ce9",
         "commit": "pending",
         "review": "pending"
       }
@@ -780,16 +786,23 @@
           "model": "haiku",
           "result": "pass"
         }
+      ],
+      "T070": [
+        {
+          "model": "sonnet",
+          "result": "pass (colour-stay test needs T071)"
+        }
       ]
     },
     "open_minor": [
       "S4 W5 T069: no test for a filter on an object-association array (the fake rejects that association at upsert)",
       "S4 W5 T069: wrong-type rule for nested filter.edit fields, values not u32, keep_nan not bool and colour not 3 ints is not tested",
       "S4 W5 T069: busy test uses 40 ms real-time margins (possible flake on a loaded machine)",
-      "S4 W5 T067: np.bool_ and a non-list commands value are not tested"
+      "S4 W5 T067: np.bool_ and a non-list commands value are not tested",
+      "S4 W6 T068: check_number(10**400) raises OverflowError instead of InvalidInputError"
     ],
     "findings": {
-      "found": 4,
+      "found": 5,
       "fixed": 0
     }
   }
