@@ -742,6 +742,12 @@
         "base": "b959c483",
         "commit": "pending",
         "review": "pending (with wave 17)"
+      },
+      {
+        "wave": 17,
+        "base": "caf2c5aa",
+        "commit": "pending",
+        "review": "pending"
       }
     ],
     "runs": {
@@ -830,6 +836,12 @@
         }
       ],
       "T074": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T075": [
         {
           "model": "sonnet",
           "result": "pass"

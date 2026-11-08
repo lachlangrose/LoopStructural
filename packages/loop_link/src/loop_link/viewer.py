@@ -16,7 +16,16 @@ import numpy as np
 from loop_link import discovery, encode, protocol
 from loop_link._websocket import WebSocketClient, WebSocketClosed, WebSocketError
 from loop_link.adapters import convert
-from loop_link.commands import check_codes, check_number, check_text, format_number, run_command
+from loop_link.commands import (
+    ColourSettings,
+    check_codes,
+    check_number,
+    check_rgb,
+    check_text,
+    format_number,
+    list_colour_map_names,
+    run_command,
+)
 from loop_link.errors import (
     BusyError,
     InvalidInputError,
@@ -34,6 +43,7 @@ _LINK_ERRORS = (OSError, WebSocketClosed, WebSocketError)
 _SELECTION_FEATURE = "selection and fetch (geoviewer protocol 1.18)"
 _KIND_NAMES = {"cells": "cell", "nodes": "vertex"}
 _INDEX_MAX = 2**32 - 1
+_COLOUR_SCALES = ("linear", "log")
 
 
 @dataclass(frozen=True)
@@ -111,6 +121,7 @@ class Viewer:
         self._tool_lock = threading.Lock()
         self._tool_connection: ToolConnection | None = None
         self._watchers: list[SelectionWatcher] = []
+        self._colour_map_names: tuple[str, ...] | None = None
 
         self._revisions: dict[str, int] = {}
         self._inventory: dict[str, InventoryEntry] = {}
@@ -737,6 +748,229 @@ class Viewer:
         except InvalidInputError:
             pass
 
+    # -- colour ---------------------------------------------------------------
+
+    def colour_map_names(self) -> tuple[str, ...]:
+        """Return the names of the colour maps of the viewer.
+
+        The names are kept until the viewer is closed.
+
+        Returns
+        -------
+        tuple of str
+            The names.
+
+        Raises
+        ------
+        loop_link.errors.MissingFeatureError
+            The viewer does not give the names.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        names = self._read_colour_map_names(self._tool())
+        if names is None:
+            raise MissingFeatureError("colour map names (geoviewer protocol 1.18)")
+        return names
+
+    def set_colour_property(self, object_id: str, array: str | None) -> None:
+        """Set the array that colours an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        array : str or None
+            The name of the array. ``None`` shows no array.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        body: dict[str, Any] = {"id": object_id}
+        if array is not None:
+            body["array"] = check_text(array, "array")
+        run_command(self._tool(), "colour.set_active", body, object_id=object_id)
+
+    def set_colour_map(self, object_id: str, name: str) -> None:
+        """Set the colour map of an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        name : str
+            The name of the colour map.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, the name is not known, or the viewer refused
+            the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        name = check_text(name, "name")
+        tool = self._tool()
+        self._check_colour_map(tool, name)
+        run_command(tool, "colour.set_map", {"id": object_id, "name": name}, object_id=object_id)
+
+    def set_colour_range(self, object_id: str, minimum: float, maximum: float) -> None:
+        """Set the colour range of an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        minimum : float
+            The low limit of the range.
+        maximum : float
+            The high limit of the range. It is more than ``minimum``.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        low = check_number(minimum, "minimum")
+        high = check_number(maximum, "maximum")
+        if not low < high:
+            raise InvalidInputError("'minimum' must be less than 'maximum'.")
+        body = {"id": object_id, "min": format_number(low), "max": format_number(high)}
+        run_command(self._tool(), "colour.set_range", body, object_id=object_id)
+
+    def clear_colour_range(self, object_id: str) -> None:
+        """Remove the colour range of an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            The id is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        run_command(self._tool(), "colour.clear_range", {"id": object_id}, object_id=object_id)
+
+    def set_colour_scale(self, object_id: str, scale: str) -> None:
+        """Set the colour scale of an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        scale : str
+            The scale, ``"linear"`` or ``"log"``.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour scale.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        if scale not in _COLOUR_SCALES:
+            raise InvalidInputError(f"'scale' must be 'linear' or 'log'. Got {scale!r}.")
+        body = {"object": object_id, "scale": scale}
+        run_command(self._tool(), "colour.set_scale", body, object_id=object_id)
+
+    def set_object_colour(self, object_id: str, colour: Sequence[int] | None) -> None:
+        """Set the plain colour of an object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        colour : sequence of int or None
+            The red, green and blue values from 0 to 255. ``None`` removes the plain colour.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        value = None if colour is None else list(check_rgb(colour, "colour"))
+        body = {"id": object_id, "colour": value}
+        run_command(self._tool(), "object.set_colour", body, object_id=object_id)
+
+    def apply_colour(self, object_id: str, settings: ColourSettings) -> None:
+        """Apply the colour settings of an object.
+
+        The commands go in this order: array, colour map, range, scale, plain colour.
+        A field that is ``None`` sends no command.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        settings : loop_link.commands.ColourSettings
+            The colour settings.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused a command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the colour commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        if not isinstance(settings, ColourSettings):
+            raise InvalidInputError("The settings must be a ColourSettings object.")
+        if settings.array is not None:
+            self.set_colour_property(object_id, settings.array)
+        if settings.colour_map is not None:
+            self.set_colour_map(object_id, settings.colour_map)
+        if settings.range is not None:
+            self.set_colour_range(object_id, *settings.range)
+        if settings.scale is not None:
+            self.set_colour_scale(object_id, settings.scale)
+        if settings.plain is not None:
+            self.set_object_colour(object_id, settings.plain)
+
+    def _read_colour_map_names(self, tool: ToolConnection) -> tuple[str, ...] | None:
+        """Return the colour map names. Ask the viewer at the first call only."""
+        if self._colour_map_names is None:
+            self._colour_map_names = list_colour_map_names(tool)
+        return self._colour_map_names
+
+    def _check_colour_map(self, tool: ToolConnection, name: str) -> None:
+        """Raise when the viewer has names and ``name`` is not one of them."""
+        names = self._read_colour_map_names(tool)
+        if names is not None and name not in names:
+            raise InvalidInputError(
+                f"The viewer has no colour map '{name}'. The names are: {', '.join(names)}."
+            )
+
     # -- fetching -------------------------------------------------------------
 
     def fetch(
@@ -807,6 +1041,7 @@ class Viewer:
         with self._tool_lock:
             self._dead = True
             tool, self._tool_connection = self._tool_connection, None
+            self._colour_map_names = None
         if tool is not None:
             tool.close()
         self._stop_thread()
