@@ -686,26 +686,32 @@
       {
         "wave": 2,
         "base": "88ca4475",
-        "commit": "pending",
+        "commit": "see git log",
         "review": "orchestrator check (2 tiny tasks, diff read)"
       },
       {
         "wave": 3,
         "base": "a1d16349",
-        "commit": "pending",
+        "commit": "see git log",
         "review": "orchestrator check (test file read; one test task)"
       },
       {
         "wave": 4,
         "base": "2fa32b26",
-        "commit": "pending",
+        "commit": "see git log",
         "review": "orchestrator check (diff read, tests pass)"
       },
       {
         "wave": 5,
         "base": "57bf0fc0",
+        "commit": "10c82b76",
+        "review": "pass (4 minor)"
+      },
+      {
+        "wave": 6,
+        "base": "10c82b76",
         "commit": "pending",
-        "review": "pending"
+        "review": "reviewed together with wave 7"
       }
     ],
     "runs": {
@@ -756,11 +762,22 @@
           "model": "haiku",
           "result": "pass"
         }
+      ],
+      "T068": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
       ]
     },
-    "open_minor": [],
+    "open_minor": [
+      "S4 W5 T069: no test for a filter on an object-association array (the fake rejects that association at upsert)",
+      "S4 W5 T069: wrong-type rule for nested filter.edit fields, values not u32, keep_nan not bool and colour not 3 ints is not tested",
+      "S4 W5 T069: busy test uses 40 ms real-time margins (possible flake on a loaded machine)",
+      "S4 W5 T067: np.bool_ and a non-list commands value are not tested"
+    ],
     "findings": {
-      "found": 0,
+      "found": 4,
       "fixed": 0
     }
   }
