@@ -723,11 +723,17 @@
         "wave": 8,
         "base": "9f925ce9",
         "commit": "pending",
-        "review": "pending"
+        "review": "pass (2 minor, waves 8 and 9 reviewed together)"
       },
       {
         "wave": 9,
         "base": "9e0b77ee",
+        "commit": "pending",
+        "review": "pass (2 minor, waves 8 and 9 reviewed together)"
+      },
+      {
+        "wave": 10,
+        "base": "a39aa8ea",
         "commit": "pending",
         "review": "pending"
       }
@@ -804,6 +810,18 @@
           "model": "sonnet",
           "result": "pass"
         }
+      ],
+      "T072": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T073": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
       ]
     },
     "open_minor": [
@@ -811,10 +829,12 @@
       "S4 W5 T069: wrong-type rule for nested filter.edit fields, values not u32, keep_nan not bool and colour not 3 ints is not tested",
       "S4 W5 T069: busy test uses 40 ms real-time margins (possible flake on a loaded machine)",
       "S4 W5 T067: np.bool_ and a non-list commands value are not tested",
-      "S4 W6 T068: check_number(10**400) raises OverflowError instead of InvalidInputError"
+      "S4 W6 T068: check_number(10**400) raises OverflowError instead of InvalidInputError",
+      "S4 W9 T071: the fake add sets kind by array type (range or values) not None as the T071 Context says; the T069 test needs it; the refusal by kind is a fake assumption (M4 checks)",
+      "S4 W9 T071: a second add replaces the filter; set_values does not check ids against value_map; set_range accepts nan/inf texts"
     ],
     "findings": {
-      "found": 5,
+      "found": 7,
       "fixed": 0
     }
   }

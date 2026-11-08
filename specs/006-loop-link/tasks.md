@@ -543,14 +543,14 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 
 ### Stage S4b: filter and colour members of `Viewer`
 
-- [ ] T072 [P] [US1] [M] Test: filter calls in `test_filter.py` (story 6).
+- [x] T072 [P] [US1] [M] Test: filter calls in `test_filter.py` (story 6).
   - Files: `packages/loop_link/tests/test_filter.py`
   - Needs: T071
   - Wave: 10
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py` fails with AttributeError on `filter_range`, then passes after T074.
   - Context: Use `fake_viewer` and `viewer_factory` (`fake_viewer.viewer` is the `FakeViewer`; use its `.filters`, `.objects`, `.tool_requests`). First send a `BlockModel` (cells 4x4x4, id `grid`) with `cell_properties={"grade": float array, "unit": Categorical(...)}` and `properties={"t": np.array(["a"] * 125)}`. API on `Viewer`: `filter_range(object_id, array, minimum, maximum, *, keep_nan=False, wait=True, cancel=None, timeout=60.0)`, `filter_values(object_id, array, values, *, exclude=False, wait=True, cancel=None, timeout=60.0)`, `filter_enable(object_id, array, on=True)`, `filter_remove(object_id, array)`, `cancel_filter(object_id)`. In this task `wait` has no effect (S4d). Tests: story 6 scenario 1 (`filter_range("grid", "grade", 0.2, 0.8, keep_nan=True)` gives in `fake.filters["grid"]["grade"]` kind `range`, `on` True, minimum 0.2, maximum 0.8, `keep_nan` True; the edits arrive in the order `add`, `set_range`, `set_on` in `fake.tool_requests`; `min` and `max` are the texts `"0.2"` and `"0.8"`); scenario 2 (`filter_values("grid", "unit", [0, 2], exclude=True)` gives kind `values`, `values` [0, 2], `exclude` True, `on` True; edits `add`, `set_values`, `set_exclude`, `set_on`); scenario 3 (`filter_enable(..., False)` gives `on` False; `filter_remove` deletes the filter; the buffers of `fake.objects["grid"]` equal the sent buffers before and after: the data does not change); scenario 4 (an array that does not exist, and `"t"` (text), each give `InvalidInputError` whose text has the array name; `filter_range` on `unit` and `filter_values` on `grade` give `InvalidInputError`; `minimum > maximum` gives `InvalidInputError` and `fake.tool_requests` has no `command.run`; values with a float, a bool, a negative number or 2**32 give `InvalidInputError`); scenario 6 (send `grid` again as revision 2: `fake.filters` is unchanged); an `add` that is refused for an existing filter: monkeypatch `FakeViewer._filter_edit` so that kind `add` returns `{"status": "refused", "text": "exists"}`, then `filter_range` still succeeds; `cancel_filter("grid")` sends one `filter.edit` with edit `{"kind": "cancel"}`; `FakeViewer(kind="headless")` still filters; `FakeViewer(protocol_minor=10)` gives `MissingFeatureError`; FR-014 tool part: program A (`viewer_factory()`) sends, program B (`viewer_factory()`) gets `BusyError` from `send`, but B can call `filter_range` and `filter_remove`; none of these opens the data connection (`B.connected` is false).
 
-- [ ] T073 [P] [US1] [M] Test: colour calls in `test_colour.py` (story 7).
+- [x] T073 [P] [US1] [M] Test: colour calls in `test_colour.py` (story 7).
   - Files: `packages/loop_link/tests/test_colour.py`
   - Needs: T071
   - Wave: 10
