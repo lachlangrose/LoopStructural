@@ -592,7 +592,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -c "import loop_link as l; [getattr(l, n) for n in l.__all__]; assert 'ColourSettings' in l.__all__"` passes and `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_import.py` passes.
   - Context: Add `from .commands import ColourSettings` before the `from .errors import (...)` block (the module imports are in alphabetical order, `.commands` is before `.errors`) and add `"ColourSettings"` to `__all__` after `"Categorical"` (the list is sorted). Keep all other lines. Do not import pyvista, pandas, Qt or LoopStructural (SC-005, `test_import.py`).
 
-- [ ] T079 [US1] [M] Test: SC-007 speed of filter and colour commands in `test_colour.py`.
+- [x] T079 [US1] [M] Test: SC-007 speed of filter and colour commands in `test_colour.py`.
   - Files: `packages/loop_link/tests/test_colour.py`
   - Needs: T077
   - Wave: 20
@@ -640,7 +640,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `git grep -n -c "^## M4" packages/loop_link/tests/manual_checks.md` gives 1.
   - Context: Add a section `## M4: filter and colour with the real window viewer (stories 6 and 7)` before `## Record`, in ASD-STE100 English, in the style of M3. Intro: use a viewer of protocol 1.18, start with `Viewer.clear()`, and place the test objects near the origin of the scene. Steps: (1) send a `BlockModel` with a number property `grade`, call `filter_range("grid", "grade", 0.5, 1.0)`, check that only the cells in the range show; (2) send an object with a category property, call `filter_values` with two codes, then with `exclude=True`, check the picture each time; (3) call `filter_enable(False)`, then `filter_remove`, check that all cells show again; (4) call `filter_range` for a text property and for a property that does not exist, check the `InvalidInputError` and its text; (5) call `set_colour_property`, `set_colour_map("coolwarm")`, `set_colour_range`, `set_colour_scale("log")` and `set_object_colour`, check the picture after each call; (6) call the map, range and scale methods for a category property and check the error, then call `colour_map_names()` and check that it gives the names of the viewer; (7) send the same id again (a new revision) and check that the filter and colours stay; then send an object of 1,000,000 cells, call `filter_range` with `wait=False`, check what a second command does while the viewer builds (OP15), and call `cancel_filter` during the build; (8) send an object of 1,000,000 cells with `colour=ColourSettings(...)` and check that the settings apply (OP19: the 0.5 s of `flush` can be too short); (9) check the assumptions: `add` for an existing filter (OP16), and that a new filter is on after `add` and `set_range`. Closing paragraph: M4 checks OP15, OP16, OP18 and OP19, and records the time of one `set_range` on the object of 1,000,000 cells. Pass line: all 9 steps give the expected result.
 
-- [ ] T085 [P] [Finish] [S] README section "Filter and colour".
+- [x] T085 [P] [Finish] [S] README section "Filter and colour".
   - Files: `packages/loop_link/README.md`
   - Needs: T077, T078
   - Wave: 20

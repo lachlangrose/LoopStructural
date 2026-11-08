@@ -753,13 +753,19 @@
         "wave": 18,
         "base": "609dde54",
         "commit": "pending",
-        "review": "pending (with wave 19)"
+        "review": "pass (no findings, waves 18 and 19 reviewed together)"
       },
       {
         "wave": 19,
         "base": "5748ead2",
         "commit": "pending",
-        "review": "pending"
+        "review": "pass (no findings, waves 18 and 19 reviewed together)"
+      },
+      {
+        "wave": 20,
+        "base": "f9ea0423",
+        "commit": "pending",
+        "review": "orchestrator check (test and README)"
       }
     ],
     "runs": {
@@ -868,6 +874,18 @@
       "T077": [
         {
           "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T079": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T085": [
+        {
+          "model": "haiku",
           "result": "pass"
         }
       ]

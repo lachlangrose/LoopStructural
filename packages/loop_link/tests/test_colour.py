@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -361,3 +362,28 @@ def test_send_colour_wrong_type_is_refused_before_send(
         viewer.send(_grid(), id="grid", colour={"array": "grade"})
     viewer.flush()
     assert not fake_viewer.viewer.objects
+
+
+SPEED_LIMIT = 0.250  # seconds for one filter or colour call, SC-007
+
+
+@pytest.mark.slow
+def test_filter_and_colour_calls_speed(viewer: Any) -> None:
+    """SC-007: each filter or colour call returns in 0.250 s or less."""
+    calls = {
+        "filter_range": lambda: viewer.filter_range("grid", "grade", 0.1, 0.9),
+        "filter_values": lambda: viewer.filter_values("grid", "unit", [0]),
+        "filter_enable": lambda: viewer.filter_enable("grid", "grade", False),
+        "filter_remove": lambda: viewer.filter_remove("grid", "grade"),
+        "set_colour_property": lambda: viewer.set_colour_property("grid", "grade"),
+        "set_colour_map": lambda: viewer.set_colour_map("grid", "coolwarm"),
+        "set_colour_range": lambda: viewer.set_colour_range("grid", 0.1, 0.9),
+        "set_colour_scale": lambda: viewer.set_colour_scale("grid", "log"),
+        "set_object_colour": lambda: viewer.set_object_colour("grid", (1, 2, 3)),
+    }
+    for name, call in calls.items():
+        start = time.perf_counter()
+        call()
+        elapsed = time.perf_counter() - start
+        print(f"\nSC-007 {name}: {elapsed:.3f} s")
+        assert elapsed <= SPEED_LIMIT, f"{name} took {elapsed:.3f} s"
