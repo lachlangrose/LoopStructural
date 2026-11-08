@@ -724,6 +724,12 @@
         "base": "9f925ce9",
         "commit": "pending",
         "review": "pending"
+      },
+      {
+        "wave": 9,
+        "base": "9e0b77ee",
+        "commit": "pending",
+        "review": "pending"
       }
     ],
     "runs": {
@@ -791,6 +797,12 @@
         {
           "model": "sonnet",
           "result": "pass (colour-stay test needs T071)"
+        }
+      ],
+      "T071": [
+        {
+          "model": "sonnet",
+          "result": "pass"
         }
       ]
     },

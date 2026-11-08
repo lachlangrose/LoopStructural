@@ -977,7 +977,76 @@ class FakeViewer:
         return Frame(header=header, buffers={})
 
     def _filter_edit(self, object_id: str, edit: dict[str, Any]) -> dict[str, Any]:
-        """Apply one filter edit and return the result. It does nothing yet."""
+        """Apply one filter edit and return the result dict.
+
+        ``add`` makes an off filter. Its kind is ``"values"`` for a ``referenced`` or
+        ``boolean`` array, and ``"range"`` for other arrays. The ``set_*`` edits change
+        a filter that exists. ``remove`` deletes a filter. ``cancel`` ends the busy time.
+        An edit that changes a filter starts the busy time.
+        """
+        kind = edit["kind"]
+        if kind == "cancel":
+            with self._state_lock:
+                self._busy_until = 0.0
+            return {"status": "done"}
+        array = edit["array"]
+        with self._state_lock:
+            entries = {
+                e.get("name"): e
+                for e in self.objects[object_id].header.get("data") or []
+                if isinstance(e, dict)
+            }
+            entry = entries.get(array)
+            filters = self._filters.setdefault(object_id, {})
+            if kind == "add":
+                if entry is None:
+                    return {"status": "refused", "text": f"The object has no array {array!r}."}
+                if entry.get("data_type") == "text" or entry.get("association") == "object":
+                    return {
+                        "status": "refused",
+                        "text": f"The array {array!r} cannot have a filter.",
+                    }
+                by_values = entry.get("data_type") in _FIXED_COLOUR_TYPES
+                filters[array] = {
+                    "kind": "values" if by_values else "range",
+                    "on": False,
+                    "minimum": None,
+                    "maximum": None,
+                    "keep_nan": False,
+                    "values": [],
+                    "exclude": False,
+                }
+            elif kind == "remove":
+                if filters.pop(array, None) is None:
+                    return {"status": "done"}
+            else:
+                state = filters.get(array)
+                if state is None:
+                    return {"status": "refused", "text": f"The array {array!r} has no filter."}
+                if kind == "set_range":
+                    if state["kind"] != "range":
+                        return {
+                            "status": "refused",
+                            "text": f"The array {array!r} has no range filter.",
+                        }
+                    try:
+                        state["minimum"] = float(edit["min"])
+                        state["maximum"] = float(edit["max"])
+                    except ValueError:
+                        return {"status": "refused", "text": "The range is not a number."}
+                    state["keep_nan"] = edit["keep_nan"]
+                elif kind == "set_values":
+                    if state["kind"] != "values":
+                        return {
+                            "status": "refused",
+                            "text": f"The array {array!r} has no values filter.",
+                        }
+                    state["values"] = list(edit["values"])
+                elif kind == "set_on":
+                    state["on"] = edit["on"]
+                else:
+                    state["exclude"] = edit["exclude"]
+            self._busy_until = time.monotonic() + self.filter_delay
         return {"status": "done"}
 
     def _colour_command(self, command: str, given: dict[str, Any]) -> dict[str, Any]:
