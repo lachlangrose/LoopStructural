@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -14,6 +15,8 @@ from loop_link import protocol
 from loop_link._websocket import WebSocketClient
 from loop_link.encode import (
     cancel_frame,
+    command_frame,
+    commands_list_frame,
     encode_object,
     fetch_frame,
     group_frame,
@@ -21,7 +24,7 @@ from loop_link.encode import (
     selection_get_frame,
     selection_set_frame,
 )
-from loop_link.objects import BlockModel, Drillhole, Points, Surface, Vectors
+from loop_link.objects import BlockModel, Categorical, Drillhole, Points, Surface, Vectors
 from loop_link.protocol import Frame, decode_frame, encode_frame
 from loop_link.testing import FakeViewer
 
@@ -593,3 +596,289 @@ def test_tool_requests_keep_the_frames_of_the_tool_endpoint() -> None:
         client.send_binary(selection_get_frame(1))
         reply(client)
         assert [f.header["type"] for f in viewer.tool_requests] == ["selection.get"]
+
+
+# -- the commands endpoint ---------------------------------------------------------------
+
+COMMAND_NAMES = [
+    "filter.edit",
+    "colour.set_active",
+    "colour.set_map",
+    "colour.set_range",
+    "colour.clear_range",
+    "colour.set_scale",
+    "object.set_colour",
+]
+
+
+def command_points() -> Points:
+    """Return 3 points with a float, an integer, a referenced, a boolean and a text array."""
+    return Points(
+        np.arange(9, dtype=np.float64).reshape(3, 3),
+        {
+            "val": np.array([1.0, 2.0, 3.0]),
+            "num": np.array([1, 2, 3]),
+            "cat": Categorical([0, 1, 0], ["a", "b"]),
+            "flag": np.array([True, False, True]),
+            "txt": np.array(["a", "b", "c"]),
+        },
+    )
+
+
+@contextlib.contextmanager
+def command_session(**options: Any) -> Iterator[FakeViewer]:
+    """Start a fake viewer that has the object ``obj`` (see ``command_points``)."""
+    viewer = FakeViewer(**options)
+    try:
+        viewer.accept_frame(hello_frame("EPSG:28350", (0.0, 0.0, 0.0), "test"))
+        _upsert(viewer, command_points(), "obj", 1)
+        yield viewer
+    finally:
+        viewer.close()
+
+
+def run_command(viewer: FakeViewer, command: str, **fields: Any) -> Frame:
+    """Send ``command.run`` to the fake viewer and return the one reply frame."""
+    replies = viewer.tool_frame(command_frame(3, command, fields))
+    assert len(replies) == 1, replies
+    return replies[0]
+
+
+def result_of(frame: Frame) -> dict[str, Any]:
+    """Return the ``result`` of a ``command.result`` frame."""
+    assert frame.header["type"] == "command.result", frame.header
+    assert frame.header["request"] == 3
+    return frame.header["result"]
+
+
+def edit(viewer: FakeViewer, kind: str, **fields: Any) -> Frame:
+    """Send a ``filter.edit`` command for the object ``obj``."""
+    return run_command(viewer, "filter.edit", object="obj", edit={"kind": kind, **fields})
+
+
+def test_fake_command_list_answers_the_seven_commands() -> None:
+    """commands.list names the kind of the viewer and the 7 commands, with all keys."""
+    with command_session(kind="headless") as viewer:
+        (answer,) = viewer.tool_frame(commands_list_frame(4))
+        assert answer.header["type"] == "commands"
+        assert answer.header["request"] == 4
+        assert answer.header["viewer"] == "headless"
+        entries = answer.header["commands"]
+        assert sorted(e["name"] for e in entries) == sorted(COMMAND_NAMES)
+        keys = {
+            "name",
+            "description",
+            "needs_window",
+            "tool_available",
+            "unavailable_reason",
+            "input_schema",
+            "result_schema",
+        }
+        for item in entries:
+            assert keys <= set(item)
+            assert item["needs_window"] == (item["name"] == "colour.set_scale")
+
+
+def test_fake_command_list_colour_map_enum_depends_on_protocol_minor() -> None:
+    """The names of colour.set_map are listed from minor 18. Below 18 the property is text."""
+
+    def name_property(minor: int) -> dict[str, Any]:
+        with command_session(protocol_minor=minor) as viewer:
+            (answer,) = viewer.tool_frame(commands_list_frame(1))
+        entry = next(e for e in answer.header["commands"] if e["name"] == "colour.set_map")
+        return entry["input_schema"]["properties"]["name"]
+
+    assert name_property(18)["enum"] == ["viridis", "grey", "coolwarm"]
+    assert name_property(17) == {"type": "string"}
+
+
+def test_fake_command_below_minor_11_is_unknown_message() -> None:
+    """With protocol_minor below 11, both command messages give unknown_message."""
+    with command_session(protocol_minor=10) as viewer:
+        for data in (commands_list_frame(1), command_frame(2, "colour.clear_range", {"id": "obj"})):
+            (answer,) = viewer.tool_frame(data)
+            assert answer.header["type"] == "error"
+            assert answer.header["code"] == "unknown_message"
+
+
+def test_fake_command_run_checks_command_and_input() -> None:
+    """An unknown command, an unknown or missing field or a wrong type is invalid_input."""
+    with command_session() as viewer:
+        assert error_of(run_command(viewer, "no.such", id="obj"))["code"] == "invalid_input"
+        for fields, field_name in (
+            ({"id": "obj", "extra": 1}, "extra"),
+            ({}, "id"),
+            ({"id": 5}, "id"),
+        ):
+            error = error_of(run_command(viewer, "colour.clear_range", **fields))
+            assert error["code"] == "invalid_input", fields
+            assert error["field"] == field_name, fields
+        wrong = error_of(run_command(viewer, "colour.set_range", id="obj", min=1, max="2"))
+        assert (wrong["code"], wrong["field"]) == ("invalid_input", "min")
+
+
+def test_fake_command_unknown_object_names_the_id_field() -> None:
+    """An unknown object gives the field id, or object for colour.set_scale and filter.edit."""
+    with command_session() as viewer:
+        error = error_of(run_command(viewer, "colour.clear_range", id="missing"))
+        assert (error["code"], error["field"]) == ("invalid_input", "id")
+        error = error_of(run_command(viewer, "colour.set_scale", object="missing", scale="log"))
+        assert (error["code"], error["field"]) == ("invalid_input", "object")
+        error = error_of(
+            run_command(viewer, "filter.edit", object="missing", edit={"kind": "cancel"})
+        )
+        assert (error["code"], error["field"]) == ("invalid_input", "object")
+
+
+def test_fake_command_headless_needs_a_window_for_set_scale_only() -> None:
+    """A headless viewer refuses colour.set_scale with needs_window. Other commands run."""
+    with command_session(kind="headless") as viewer:
+        error = error_of(run_command(viewer, "colour.set_scale", object="obj", scale="log"))
+        assert error["code"] == "needs_window"
+        assert result_of(run_command(viewer, "colour.clear_range", id="obj")) == {"status": "done"}
+
+
+def test_fake_filter_add_and_set_commands_change_the_filter() -> None:
+    """add makes an off filter. The set commands change it. remove deletes it."""
+    with command_session() as viewer:
+        assert result_of(edit(viewer, "add", array="val")) == {"status": "done"}
+        assert viewer.filters["obj"]["val"]["kind"] == "range"
+        assert viewer.filters["obj"]["val"]["on"] is False
+        assert result_of(edit(viewer, "set_on", array="val", on=True)) == {"status": "done"}
+        edit(viewer, "set_range", array="val", min="1.5", max="2.5", keep_nan=True)
+        state = viewer.filters["obj"]["val"]
+        assert (state["on"], state["minimum"], state["maximum"], state["keep_nan"]) == (
+            True,
+            1.5,
+            2.5,
+            True,
+        )
+        edit(viewer, "add", array="cat")
+        assert viewer.filters["obj"]["cat"]["kind"] == "values"
+        edit(viewer, "set_values", array="cat", values=[1])
+        edit(viewer, "set_exclude", array="cat", exclude=True)
+        state = viewer.filters["obj"]["cat"]
+        assert (list(state["values"]), state["exclude"]) == ([1], True)
+        edit(viewer, "remove", array="val")
+        assert list(viewer.filters["obj"]) == ["cat"]
+
+
+def test_fake_filter_property_returns_a_copy() -> None:
+    """Changing the dict from .filters does not change the viewer."""
+    with command_session() as viewer:
+        edit(viewer, "add", array="val")
+        viewer.filters["obj"]["val"]["on"] = True
+        viewer.filters["obj"].clear()
+        assert viewer.filters["obj"]["val"]["on"] is False
+
+
+def test_fake_filter_set_without_filter_is_refused() -> None:
+    """A set command for an array that has no filter gives refused."""
+    with command_session() as viewer:
+        result = result_of(edit(viewer, "set_on", array="val", on=True))
+        assert result["status"] == "refused"
+        assert "val" in result["text"]
+        assert viewer.filters.get("obj", {}) == {}
+
+
+def test_fake_filter_refuses_arrays_and_edits_that_do_not_fit() -> None:
+    """A filter on a missing or text array, or an edit of the wrong kind, gives refused."""
+    with command_session() as viewer:
+        for array in ("missing", "txt"):
+            result = result_of(edit(viewer, "add", array=array))
+            assert result["status"] == "refused", array
+            assert array in result["text"]
+        for array in ("cat", "flag", "val", "num"):
+            edit(viewer, "add", array=array)
+        for array in ("cat", "flag"):
+            result = result_of(
+                edit(viewer, "set_range", array=array, min="0", max="1", keep_nan=False)
+            )
+            assert result["status"] == "refused", array
+            assert array in result["text"]
+        for array in ("val", "num"):
+            result = result_of(edit(viewer, "set_values", array=array, values=[0]))
+            assert result["status"] == "refused", array
+            assert array in result["text"]
+
+
+def test_fake_filter_busy_time_makes_commands_wait_and_cancel_ends_it() -> None:
+    """After a filter change, commands wait busy_wait s, then fail with busy."""
+    with command_session(filter_delay=30.0, busy_wait=0.05) as viewer:
+        edit(viewer, "add", array="val")
+        started = time.monotonic()
+        error = error_of(run_command(viewer, "colour.set_active", id="obj", array="val"))
+        assert error["code"] == "busy"
+        assert time.monotonic() - started >= 0.04
+        started = time.monotonic()
+        error = error_of(run_command(viewer, "colour.set_scale", object="obj", scale="log"))
+        assert error["code"] == "busy"
+        assert time.monotonic() - started < 0.04
+        assert result_of(edit(viewer, "cancel")) == {"status": "done"}
+        assert result_of(run_command(viewer, "colour.clear_range", id="obj")) == {"status": "done"}
+
+
+def test_fake_filter_command_runs_when_busy_time_ends_inside_the_wait() -> None:
+    """A waiting command runs when the busy time ends before busy_wait."""
+    with command_session(filter_delay=0.1, busy_wait=5.0) as viewer:
+        edit(viewer, "add", array="val")
+        assert result_of(run_command(viewer, "colour.clear_range", id="obj")) == {"status": "done"}
+
+
+def test_fake_colour_commands_fill_the_colouring() -> None:
+    """The colour commands store their values in .colouring."""
+    with command_session() as viewer:
+        run_command(viewer, "colour.set_active", id="obj", array="val")
+        run_command(viewer, "colour.set_map", id="obj", name="grey")
+        run_command(viewer, "colour.set_range", id="obj", min="1", max="3")
+        run_command(viewer, "colour.set_scale", object="obj", scale="log")
+        state = viewer.colouring["obj"]
+        assert state["array"] == "val"
+        assert state["colour_map"] == "grey"
+        assert tuple(float(v) for v in state["range"]) == (1.0, 3.0)
+        assert state["scale"] == "log"
+        run_command(viewer, "colour.clear_range", id="obj")
+        assert viewer.colouring["obj"]["range"] is None
+        run_command(viewer, "object.set_colour", id="obj", colour=[1, 2, 3])
+        assert list(viewer.colouring["obj"]["plain"]) == [1, 2, 3]
+        run_command(viewer, "object.set_colour", id="obj", colour=None)
+        assert viewer.colouring["obj"]["plain"] is None
+        viewer.colouring["obj"]["scale"] = "changed"
+        assert viewer.colouring["obj"]["scale"] == "log"
+
+
+def test_fake_colour_set_active_unknown_array_is_refused() -> None:
+    """colour.set_active with an array that the object lacks gives refused."""
+    with command_session() as viewer:
+        result = result_of(run_command(viewer, "colour.set_active", id="obj", array="missing"))
+        assert result["status"] == "refused"
+        assert "missing" in result["text"]
+
+
+def test_fake_colour_map_range_and_scale_are_refused_on_referenced_or_boolean_array() -> None:
+    """With a referenced or boolean active array, three colour commands give refused."""
+    with command_session() as viewer:
+        for array in ("cat", "flag"):
+            run_command(viewer, "colour.set_active", id="obj", array=array)
+            for command, fields in (
+                ("colour.set_map", {"id": "obj", "name": "grey"}),
+                ("colour.set_range", {"id": "obj", "min": "0", "max": "1"}),
+                ("colour.set_scale", {"object": "obj", "scale": "log"}),
+            ):
+                result = result_of(run_command(viewer, command, **fields))
+                assert result["status"] == "refused", (array, command)
+                assert array in result["text"]
+
+
+def test_fake_colour_and_filters_stay_after_a_new_revision() -> None:
+    """A new scene.upsert keeps .filters and .colouring and drops a filter of a lost array."""
+    with command_session() as viewer:
+        edit(viewer, "add", array="val")
+        edit(viewer, "add", array="num")
+        run_command(viewer, "colour.set_active", id="obj", array="val")
+        points = Points(
+            np.arange(9, dtype=np.float64).reshape(3, 3), {"val": np.array([1.0, 2.0, 3.0])}
+        )
+        _upsert(viewer, points, "obj", 2)
+        assert list(viewer.filters["obj"]) == ["val"]
+        assert viewer.colouring["obj"]["array"] == "val"

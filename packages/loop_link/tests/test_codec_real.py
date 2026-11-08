@@ -229,6 +229,40 @@ def _cases() -> dict[str, bytes]:
     cases["selection_get"] = encode.selection_get_frame(4)
     cases["object_fetch"] = encode.fetch_frame(5, "grid")
     cases["command_cancel"] = encode.cancel_frame(6)
+    cases["commands_list"] = encode.commands_list_frame(1)
+    filter_edits = {
+        "add": {"kind": "add", "array": "grade"},
+        "set_range": {
+            "kind": "set_range",
+            "array": "grade",
+            "min": "0.5",
+            "max": "1.0",
+            "keep_nan": False,
+        },
+        "set_values": {"kind": "set_values", "array": "unit", "values": [0, 2]},
+        "set_on": {"kind": "set_on", "array": "grade", "on": True},
+        "set_exclude": {"kind": "set_exclude", "array": "unit", "exclude": True},
+        "remove": {"kind": "remove", "array": "grade"},
+        "cancel": {"kind": "cancel"},
+    }
+    for name, edit in filter_edits.items():
+        cases[f"command_filter_{name}"] = encode.command_frame(
+            2, "filter.edit", {"object": "grid", "edit": edit}
+        )
+    colour_commands = {
+        "command_colour_set_active": ("colour.set_active", {"id": "grid", "array": "grade"}),
+        "command_colour_set_map": ("colour.set_map", {"id": "grid", "name": "coolwarm"}),
+        "command_colour_set_range": (
+            "colour.set_range",
+            {"id": "grid", "min": "0.0", "max": "1.0"},
+        ),
+        "command_colour_clear_range": ("colour.clear_range", {"id": "grid"}),
+        "command_colour_set_scale": ("colour.set_scale", {"object": "grid", "scale": "log"}),
+        "command_object_set_colour": ("object.set_colour", {"id": "grid", "colour": [1, 2, 3]}),
+        "command_object_set_colour_none": ("object.set_colour", {"id": "grid", "colour": None}),
+    }
+    for case, (command, arguments) in colour_commands.items():
+        cases[case] = encode.command_frame(2, command, arguments)
     return cases
 
 

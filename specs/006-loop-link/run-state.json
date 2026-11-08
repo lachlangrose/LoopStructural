@@ -700,6 +700,12 @@
         "base": "2fa32b26",
         "commit": "pending",
         "review": "orchestrator check (diff read, tests pass)"
+      },
+      {
+        "wave": 5,
+        "base": "57bf0fc0",
+        "commit": "pending",
+        "review": "pending"
       }
     ],
     "runs": {
@@ -722,6 +728,30 @@
         }
       ],
       "T066": [
+        {
+          "model": "haiku",
+          "result": "pass"
+        }
+      ],
+      "T067": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T069": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T082": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
+      ],
+      "T083": [
         {
           "model": "haiku",
           "result": "pass"

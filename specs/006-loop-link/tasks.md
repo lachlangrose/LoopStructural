@@ -506,7 +506,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` passes and `ruff check packages/loop_link` passes.
   - Context: Add after `cancel_frame` (same style, numpy-style docstring with Parameters and Returns): `def commands_list_frame(request: int) -> bytes` returning `protocol.encode_frame({"type": "commands.list", "request": request}, version=protocol.COMMAND_PROTOCOL_VERSION)`, and `def command_frame(request: int, command: str, input: Mapping[str, Any]) -> bytes` returning `protocol.encode_frame({"type": "command.run", "request": request, "command": command, "input": dict(input)}, version=protocol.COMMAND_PROTOCOL_VERSION)`. `encode_frame` adds `buffers`. Add both names to `__all__` of `encode.py` (keep it sorted). Import `Mapping` from `collections.abc` if it is not imported (the file has `from __future__ import annotations`).
 
-- [ ] T067 [Found] [M] Test: the commands module in `test_commands.py`.
+- [x] T067 [Found] [M] Test: the commands module in `test_commands.py`.
   - Files: `packages/loop_link/tests/test_commands.py`
   - Needs: T066
   - Wave: 5
@@ -520,7 +520,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` passes and `ruff check packages/loop_link` passes.
   - Context: Create the module with the names and rules of T067 (docstrings and type hints on all public names; `__all__`). `ColourSettings` is `@dataclass(frozen=True)` with fields `array: Optional[str] = None`, `colour_map: Optional[str] = None`, `range: Optional[tuple[float, float]] = None`, `scale: Optional[str] = None`, `plain: Optional[tuple[int, int, int]] = None`; `__post_init__` stores the checked values with `object.__setattr__` (`range` as a tuple of two floats). `run_command` calls `tool.request(lambda n: encode.command_frame(n, command, input), until=("command.result",), feature="filter and colour commands (geoviewer protocol 1.11)", object_id=object_id, cancel=cancel, timeout=timeout)`, reads `frame.header.get("result")`, raises `ProtocolError` when it is not a mapping with a str `status`, calls `raise_for_command_result`, returns the mapping. `list_colour_map_names(tool)` calls `tool.request(lambda n: encode.commands_list_frame(n), until=("commands",), feature="filter and colour commands (geoviewer protocol 1.11)")` and returns `parse_colour_map_names(frame)`. `parse_colour_map_names` looks in `frame.header["commands"]` (a list) for `name == "colour.set_map"` and reads `input_schema["properties"]["name"]["enum"]`. `raise_for_command_result`: `refused` gives `InvalidInputError(f"The viewer refused the command '{command}': {text}")`; another status that is not `done` gives `ProtocolError(f"The viewer sent an unknown result status '{status}'.")`. Imports: `loop_link.encode`, `loop_link.errors.InvalidInputError`, `loop_link.protocol.Frame` and `ProtocolError`, `loop_link.tool.ToolConnection` (type only). No pyvista, pandas or Qt.
 
-- [ ] T069 [P] [Found] [M] Test: the commands endpoint of the fake viewer in `test_fake_viewer.py`.
+- [x] T069 [P] [Found] [M] Test: the commands endpoint of the fake viewer in `test_fake_viewer.py`.
   - Files: `packages/loop_link/tests/test_fake_viewer.py`
   - Needs: T066, T043
   - Wave: 5
@@ -619,14 +619,14 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 
 ### Stage S4e: real codec, fixtures, manual check M4, docs
 
-- [ ] T082 [P] [Finish] [M] Test: command frames against the real geoviewer codec.
+- [x] T082 [P] [Finish] [M] Test: command frames against the real geoviewer codec.
   - Files: `packages/loop_link/tests/test_codec_real.py`
   - Needs: T066, T058
   - Wave: 5
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_codec_real.py -rs` passes or skips with the reason that the variable is not set; with `LOOP_LINK_GEOVIEWER_REPO=C:\Users\lachl\dev\geoviewer` and `cargo` on the PATH it passes with no skip.
   - Context: In `_cases()` add these frames (the key is the case name): `commands_list` = `encode.commands_list_frame(1)`; `command_filter_add`, `command_filter_set_range`, `command_filter_set_values`, `command_filter_set_on`, `command_filter_set_exclude`, `command_filter_remove`, `command_filter_cancel` = `encode.command_frame(2, "filter.edit", {"object": "grid", "edit": {...}})` with the edits `{"kind": "add", "array": "grade"}`, `{"kind": "set_range", "array": "grade", "min": "0.5", "max": "1.0", "keep_nan": False}`, `{"kind": "set_values", "array": "unit", "values": [0, 2]}`, `{"kind": "set_on", "array": "grade", "on": True}`, `{"kind": "set_exclude", "array": "unit", "exclude": True}`, `{"kind": "remove", "array": "grade"}`, `{"kind": "cancel"}`; `command_colour_set_active` (`colour.set_active`, `{"id": "grid", "array": "grade"}`), `command_colour_set_map` (`colour.set_map`, `{"id": "grid", "name": "coolwarm"}`), `command_colour_set_range` (`colour.set_range`, `{"id": "grid", "min": "0.0", "max": "1.0"}`), `command_colour_clear_range` (`colour.clear_range`, `{"id": "grid"}`), `command_colour_set_scale` (`colour.set_scale`, `{"object": "grid", "scale": "log"}`), `command_object_set_colour` (`object.set_colour`, `{"id": "grid", "colour": [1, 2, 3]}`), `command_object_set_colour_none` (`object.set_colour`, `{"id": "grid", "colour": None}`). The helper, the validator program and the negative control stay. Do not change `codec_validator/`. If the validator reports FAIL for a case, make the task fail with the validator output; do not drop the case.
 
-- [ ] T083 [P] [Finish] [S] Test: command fixtures of the geoviewer repository.
+- [x] T083 [P] [Finish] [S] Test: command fixtures of the geoviewer repository.
   - Files: `packages/loop_link/tests/test_fixtures.py`
   - Needs: T066, T059
   - Wave: 5

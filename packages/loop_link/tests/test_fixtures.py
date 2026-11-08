@@ -12,6 +12,8 @@ from conftest import geoviewer_fixtures
 
 from loop_link.encode import (
     cancel_frame,
+    command_frame,
+    commands_list_frame,
     encode_object,
     fetch_frame,
     hello_frame,
@@ -158,3 +160,19 @@ def test_command_cancel_matches_fixture() -> None:
     fixture = _tool_header("command.cancel.json")
     assert "request" in fixture, "command.cancel.json has no request"
     _check_header(cancel_frame(fixture["request"]), fixture)
+
+
+def test_commands_list_matches_fixture() -> None:
+    """The encoder builds the commands.list frame of the geoviewer repository."""
+    fixture = _tool_header("commands.list.json")
+    assert "request" in fixture, "commands.list.json has no request"
+    _check_header(commands_list_frame(fixture["request"]), fixture)
+
+
+def test_command_run_matches_fixture() -> None:
+    """The encoder builds the command.run frame of the geoviewer repository."""
+    fixture = _tool_header("command.run.json")
+    assert (
+        "request" in fixture and "command" in fixture and "input" in fixture
+    ), "command.run.json has no request, command or input"
+    _check_header(command_frame(fixture["request"], fixture["command"], fixture["input"]), fixture)
