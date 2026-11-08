@@ -578,7 +578,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py -k send` fails (the `colour` argument is passed to the adapter hints and refused), then passes after T077.
   - Context: Add tests named `test_send_colour_*` to the file of T073. New keyword-only argument `colour: Optional[ColourSettings] = None` of `Viewer.send(obj, *, id, name=None, parent=None, colour=None, **hints)`. Tests: `send(BlockModel(...with "grade"), id="grid", colour=ColourSettings(array="grade", colour_map="coolwarm", range=(0.0, 1.0), scale="log", plain=(9, 8, 7)))` returns revision 1, the object is in `fake.objects`, and `fake.colouring["grid"]` has all five settings; the object is in the fake before the first colour command (monkeypatch `FakeViewer._tool_reply` to record `"grid" in fake.objects` at the first `colour.set_active`); the commands arrive in the order of `apply_colour`; a failed command (`ColourSettings(array="missing")`) raises `InvalidInputError`, and the object stays in the viewer (`"grid" in fake.objects`, `viewer.revisions["grid"] == 1`); a refused object (`FakeViewer(reply_errors={"grid": "bad"})`) raises `ViewerRefusedError` and no colour command is sent (`flush` raises first); `colour=None` sends no tool frame (`fake.tool_requests` is empty and `viewer.tool_connected` is false); a `colour` that is not a `ColourSettings` gives `InvalidInputError` before the object goes out (`fake.objects` stays empty).
 
-- [ ] T077 [US1] [M] Add the `colour` argument to `Viewer.send`.
+- [x] T077 [US1] [M] Add the `colour` argument to `Viewer.send`.
   - Files: `packages/loop_link/src/loop_link/viewer.py`
   - Needs: T076
   - Wave: 19

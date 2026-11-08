@@ -285,9 +285,13 @@ class Viewer:
         id: str,
         name: str | None = None,
         parent: str | None = None,
+        colour: ColourSettings | None = None,
         **hints: Any,  # noqa: ANN401
     ) -> int:
         """Send one object to the viewer.
+
+        If ``colour`` is given, the method waits for a late refusal of the object
+        and then applies the colour settings with ``apply_colour``.
 
         Parameters
         ----------
@@ -299,6 +303,8 @@ class Viewer:
             The display name. The default is the id.
         parent : str, optional
             The identifier of a group that holds the object.
+        colour : loop_link.commands.ColourSettings, optional
+            The colour settings to apply after the object is sent.
         **hints : Any
             Options for the adapter that converts ``obj``.
 
@@ -310,10 +316,18 @@ class Viewer:
         Raises
         ------
         loop_link.errors.InvalidInputError
-            The input type is not accepted.
+            The input type is not accepted, ``colour`` is not a ``ColourSettings``
+            object, or the viewer refused a colour command. The object stays in
+            the viewer.
+        loop_link.errors.ViewerRefusedError
+            The viewer refused the object and ``colour`` is given.
+        loop_link.errors.MissingFeatureError
+            ``colour`` is given and the viewer does not support the colour commands.
         loop_link.errors.ViewerClosedError
             The connection is closed.
         """
+        if colour is not None and not isinstance(colour, ColourSettings):
+            raise InvalidInputError("colour must be a ColourSettings object.")
         obj = convert(obj, **hints)
         self._ensure_connected()
         revision = self._next_revision(id)
@@ -329,6 +343,9 @@ class Viewer:
         self._revisions[id] = revision
         object_type = str(protocol.decode_header(data).get("object_type", ""))
         self._inventory[id] = InventoryEntry(id, object_type, revision)
+        if colour is not None:
+            self.flush()
+            self.apply_colour(id, colour)
         return revision
 
     def send_group(self, id: str, name: str | None = None, parent: str | None = None) -> int:
