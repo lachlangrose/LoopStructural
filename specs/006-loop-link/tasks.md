@@ -3,8 +3,8 @@
 **Feature**: `006-loop-link` | **Plan**: [plan.md](plan.md)
 
 <!--
-Scope: stages S1 to S3 of the plan (stories 1 and 5, built, T001 to T038) and stage S5
-(stories 2 to 4, T039 to T063). Stage S4 (stories 6, 7; OP6) gets tasks after its own planner run.
+Scope: stages S1 to S3 of the plan (stories 1 and 5, built, T001 to T038), stage S5
+(stories 2 to 4, T039 to T063) and stage S4 (stories 6 and 7, T064 to T087).
 Package test command: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/<file>`.
 The root `pytest` does not run these tests (testpaths = ["tests"]).
 OP5 RESULT (2026-11-06): the uv workspace fallback was used (`packages/loop_link` is in the
@@ -22,7 +22,7 @@ length 100; keep string quotes as written (Black `skip-string-normalization`).
 
 - Run this file with the spec-orchestrator skill. It has the rules for the
   worktree, the sub agents, the checks and the commits.
-- Waves: 19. Tiers: [S] = simple model, [M] = standard model.
+- Waves: 22. Tiers: [S] = simple model, [M] = standard model.
 - Do not start a task with "Blocked by".
 
 ## Phase 1: Setup
@@ -478,45 +478,237 @@ Test command in this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyte
   - Wave: 19
   - Done when: `ruff check LoopStructural packages && pytest` passes, `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests` passes, and `black --check packages/loop_link` passes.
   - Context: Constitution merge gate: `pytest` and `ruff check LoopStructural packages` must both pass. The root `pytest` does not run the package tests, so run the package command too. Run `black packages/loop_link` to fix the format (line length 100, quotes kept). Fix only problems in `packages/loop_link/`. Do not change a gate or add a Ruff ignore for `packages/loop_link/src`. Also run `packages/loop_link/tests/test_import.py` alone (SC-005: no Qt or extras at import). If `LOOP_LINK_GEOVIEWER_REPO` and `LOOP_LINK_GEOVIEWER_FIXTURES` are set on this machine, run `test_codec_real.py` and `test_fixtures.py` with them. Report the result of each command in the commit message.
+
+## Phase 10: Stage S4, filter and colour (stories 6 and 7)
+
+Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/<file>`. All S4 tasks use the tool connection of S5 (`loop_link.tool.ToolConnection`, method `request`). Waves follow the shared graph: a task that changes a file that an earlier task changed `Needs` that task.
+
+### Stage S4a: frames, commands module, fake commands endpoint
+
+- [ ] T064 [Found] [S] Add `COMMAND_PROTOCOL_VERSION` to `protocol.py`.
+  - Files: `packages/loop_link/src/loop_link/protocol.py`
+  - Needs: T040
+  - Wave: 2
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -c "from loop_link import protocol; assert protocol.COMMAND_PROTOCOL_VERSION == {'major': 1, 'minor': 11}"` passes and `ruff check packages/loop_link` passes.
+  - Context: In `protocol.py`, after the line `CANCEL_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}`, add the line `COMMAND_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}` and a one-line comment above it: the version of the `commands.list` and `command.run` frames (the fixtures of the geoviewer repository use 1.11, so a viewer of 1.11 to 1.17 accepts them). Change nothing else.
+
+- [ ] T065 [Found] [S] Test: the frames `commands_list_frame` and `command_frame` in `test_commands.py`.
+  - Files: `packages/loop_link/tests/test_commands.py`
+  - Needs: T064
+  - Wave: 3
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` fails with ImportError of `commands_list_frame`, then passes after T066.
+  - Context: Create the file (module docstring, `from __future__ import annotations`). Under test, in `loop_link.encode`: `commands_list_frame(request: int) -> bytes` and `command_frame(request: int, command: str, input: Mapping[str, Any]) -> bytes`. Decode with `loop_link.protocol.decode_frame`. Expected headers (the geoviewer fixtures, decoded): `commands_list_frame(1)` gives `{"type": "commands.list", "version": {"major": 1, "minor": 11}, "request": 1, "buffers": []}`; `command_frame(2, "object.set_visible", {"id": "p1", "visible": False})` gives `{"type": "command.run", "version": {"major": 1, "minor": 11}, "request": 2, "command": "object.set_visible", "input": {"id": "p1", "visible": False}, "buffers": []}`. Tests: the two header equalities; the frame has no buffers (`frame.buffers == {}`); `command_frame` does not change the input mapping (pass a dict, compare after); a nested input (`{"object": "g", "edit": {"kind": "set_values", "array": "a", "values": [0, 2]}}`) round trips; a NaN in the input raises `ProtocolError` (`allow_nan=False`).
+
+- [ ] T066 [Found] [S] Implement `commands_list_frame` and `command_frame` in `encode.py`.
+  - Files: `packages/loop_link/src/loop_link/encode.py`
+  - Needs: T065, T042
+  - Wave: 4
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Add after `cancel_frame` (same style, numpy-style docstring with Parameters and Returns): `def commands_list_frame(request: int) -> bytes` returning `protocol.encode_frame({"type": "commands.list", "request": request}, version=protocol.COMMAND_PROTOCOL_VERSION)`, and `def command_frame(request: int, command: str, input: Mapping[str, Any]) -> bytes` returning `protocol.encode_frame({"type": "command.run", "request": request, "command": command, "input": dict(input)}, version=protocol.COMMAND_PROTOCOL_VERSION)`. `encode_frame` adds `buffers`. Add both names to `__all__` of `encode.py` (keep it sorted). Import `Mapping` from `collections.abc` if it is not imported (the file has `from __future__ import annotations`).
+
+- [ ] T067 [Found] [M] Test: the commands module in `test_commands.py`.
+  - Files: `packages/loop_link/tests/test_commands.py`
+  - Needs: T066
+  - Wave: 5
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` fails with ImportError of `loop_link.commands`, then passes after T068.
+  - Context: Add tests to the file of T065. Under test, in `loop_link.commands`: `ColourSettings(array=None, colour_map=None, range=None, scale=None, plain=None)` (frozen dataclass; `__post_init__` checks each field that is not None: `array` and `colour_map` by `check_text`; `range` a pair of numbers with minimum < maximum; `scale` `"linear"` or `"log"`; `plain` by `check_rgb`; each error is `InvalidInputError` that names the field); `format_number(value) -> str` (`repr(float(value))`: `0.5` gives `"0.5"`, `1e-05` gives `"1e-05"`, `3` gives `"3.0"`); `check_number(value, name) -> float` (accepts int, float, numpy numbers; refuses `bool`, NaN, infinity, a str, None); `check_text(value, name) -> str` (non-empty str); `check_rgb(value, name) -> tuple[int, int, int]` (three ints 0 to 255, not bool; refuses 256, -1, 2 values, floats); `check_codes(values, name) -> list[int]` (sequence or array of ints 0 to 2**32-1; refuses bool, float, negative, 2**32; returns a `list[int]`); `raise_for_command_result(result, *, command)` (`{"status": "done"}` returns None; `{"status": "refused", "text": "x"}` raises `InvalidInputError` with the text "The viewer refused the command 'filter.edit': x"; another status raises `ProtocolError` with "The viewer sent an unknown result status 'weird'."); `parse_colour_map_names(frame) -> tuple[str, ...] | None` with a `Frame(header, {})` of type `commands`: an entry `{"name": "colour.set_map", "input_schema": {"properties": {"name": {"type": "string", "enum": ["viridis", "grey", "coolwarm"]}}}}` gives the 3 names; no `enum` gives None; no entry gives None; an `enum` that is not a list of str gives `ProtocolError`; `run_command(tool, command, input, *, object_id=None, timeout=None, cancel=None) -> Mapping`: use a small stub class with a method `request(build, *, until, feature, object_id=None, on_frame=None, progress=None, cancel=None, timeout=None)` that records its arguments and returns `Frame({"type": "command.result", "request": 1, "result": {"status": "done"}}, {})`; check `until == ("command.result",)`, `feature == "filter and colour commands (geoviewer protocol 1.11)"`, that `decode_frame(build(7)).header` has `request` 7, `command` and `input`, that the result mapping is returned, that a `refused` result raises, and that a result that is not a mapping with a `status` str raises `ProtocolError`; `list_colour_map_names(tool)`: the stub returns a `commands` frame; check `until == ("commands",)` and the names.
+
+- [ ] T068 [Found] [M] Implement `commands.py`.
+  - Files: `packages/loop_link/src/loop_link/commands.py`
+  - Needs: T067
+  - Wave: 6
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_commands.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Create the module with the names and rules of T067 (docstrings and type hints on all public names; `__all__`). `ColourSettings` is `@dataclass(frozen=True)` with fields `array: Optional[str] = None`, `colour_map: Optional[str] = None`, `range: Optional[tuple[float, float]] = None`, `scale: Optional[str] = None`, `plain: Optional[tuple[int, int, int]] = None`; `__post_init__` stores the checked values with `object.__setattr__` (`range` as a tuple of two floats). `run_command` calls `tool.request(lambda n: encode.command_frame(n, command, input), until=("command.result",), feature="filter and colour commands (geoviewer protocol 1.11)", object_id=object_id, cancel=cancel, timeout=timeout)`, reads `frame.header.get("result")`, raises `ProtocolError` when it is not a mapping with a str `status`, calls `raise_for_command_result`, returns the mapping. `list_colour_map_names(tool)` calls `tool.request(lambda n: encode.commands_list_frame(n), until=("commands",), feature="filter and colour commands (geoviewer protocol 1.11)")` and returns `parse_colour_map_names(frame)`. `parse_colour_map_names` looks in `frame.header["commands"]` (a list) for `name == "colour.set_map"` and reads `input_schema["properties"]["name"]["enum"]`. `raise_for_command_result`: `refused` gives `InvalidInputError(f"The viewer refused the command '{command}': {text}")`; another status that is not `done` gives `ProtocolError(f"The viewer sent an unknown result status '{status}'.")`. Imports: `loop_link.encode`, `loop_link.errors.InvalidInputError`, `loop_link.protocol.Frame` and `ProtocolError`, `loop_link.tool.ToolConnection` (type only). No pyvista, pandas or Qt.
+
+- [ ] T069 [P] [Found] [M] Test: the commands endpoint of the fake viewer in `test_fake_viewer.py`.
+  - Files: `packages/loop_link/tests/test_fake_viewer.py`
+  - Needs: T066, T043
+  - Wave: 5
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fake_viewer.py -k "fake_command or fake_filter or fake_colour"` fails (TypeError on the new constructor arguments or missing replies), then passes after T071. The old tests of the file still pass.
+  - Context: Test the rules below through `FakeViewer.tool_frame(bytes) -> list[Frame]` with frames from `encode.command_frame` and `encode.commands_list_frame`, as the selection tests of this file do (read them first, and `_upsert` in this file for how to put an object in the fake). Name the tests `test_fake_command_*`, `test_fake_filter_*`, `test_fake_colour_*`. New constructor arguments: `filter_delay: float = 0.0` (seconds that the scene stays busy after a `filter.edit` that changes a filter) and `busy_wait: float = 5.0` (seconds that a waiting command waits before `request.error` `busy`; tests use 0.05). New read-only properties that return copies: `.filters` (`dict[object id, dict[array name, dict]]`, keys `kind` `"range"` or `"values"`, `on`, `minimum`, `maximum`, `keep_nan`, `values`, `exclude`) and `.colouring` (`dict[object id, dict]`, keys `array`, `colour_map`, `range`, `scale`, `plain`). Rules: `commands.list` answers `commands` with `viewer` = the kind and one entry for each of the 7 commands `filter.edit`, `colour.set_active`, `colour.set_map`, `colour.set_range`, `colour.clear_range`, `colour.set_scale`, `object.set_colour` (and no other; entry keys `name`, `description`, `needs_window` true only for `colour.set_scale`, `tool_available`, `unavailable_reason`, `input_schema`, `result_schema`); `input_schema["properties"]["name"]["enum"]` of `colour.set_map` is `["viridis", "grey", "coolwarm"]` when `protocol_minor >= 18`, and the property has only `type: "string"` below 18; `protocol_minor < 11` answers `error` `unknown_message` to both messages. `command.run`: an unknown command, an unknown or missing input field, or a wrong field type gives `request.error` `invalid_input` with that `field`; an unknown object gives `invalid_input` with field `id` (`object` for `colour.set_scale` and `filter.edit`); `kind="headless"` gives `needs_window` for `colour.set_scale` only. Reply `{"type": "command.result", "request": n, "result": {"status": "done"}}`. Inputs: `filter.edit` `{"object", "edit": {"kind": ...}}` with `add` (`array`), `set_range` (`array`, `min` str, `max` str, `keep_nan` bool), `set_values` (`array`, `values` list of u32), `set_on` (`array`, `on`), `set_exclude` (`array`, `exclude`), `remove` (`array`), `cancel` (nothing else); `colour.set_active` `{"id", "array"?}`; `colour.set_map` `{"id", "name"}`; `colour.set_range` `{"id", "min" str, "max" str}`; `colour.clear_range` `{"id"}`; `colour.set_scale` `{"object", "scale"}` (`linear` or `log`); `object.set_colour` `{"id", "colour"}` (list of 3 ints or null). Effects: `add` makes an off filter; `set_*` change it (a missing filter gives `refused`); `remove` deletes it; the colour commands fill `.colouring`; a later `scene.upsert` of the same id keeps `.filters` and `.colouring`, and drops the filter of an array that the new revision does not have. `refused` (`{"status": "refused", "text": ...}` with the array name in the text): a filter on an array that is missing, `text`, or of association `object`; a range edit on a `referenced` or `boolean` array; a values edit on a number array; `colour.set_active` with an unknown array; `colour.set_map`, `colour.set_range` and `colour.set_scale` when the active array is `referenced` or `boolean`. Busy: while `filter_delay` has not passed since a filter change, each command except `colour.set_scale` waits up to `busy_wait` s, then runs or gets `request.error` `busy`; `colour.set_scale` gets `busy` at once; `filter.edit` with `kind: "cancel"` ends the busy time.
+
+- [ ] T070 [Found] [M] Fake viewer: commands endpoint, list and colour part.
+  - Files: `packages/loop_link/src/loop_link/testing/fake_viewer.py`
+  - Needs: T069, T045
+  - Wave: 8
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fake_viewer.py -k "fake_command or fake_colour"` passes and `ruff check packages/loop_link` passes.
+  - Context: Add the constructor arguments `filter_delay` and `busy_wait` (defaults and meaning in T069; add them to the class docstring), the properties `.filters` and `.colouring` (copies, read under `self._state_lock`), and the commands endpoint inside `_tool_reply` (the types `command.run` and `commands.list`; only when `protocol_minor >= 11`, else the existing `unknown_message` reply). Use `_request_error(request, code, message, field_name)` for errors. Build the replies as `Frame(header={"type": "command.result", "request": request, "result": {...}}, buffers={})` and `Frame({"type": "commands", "request": request, "viewer": self.kind, "commands": [...]}, {})`. Implement here: `commands.list`; the validation of the input of all 7 commands (unknown command, unknown or missing field, wrong type, unknown object); the `needs_window` rule; the 5 colour commands with their `refused` rules and their effects in `.colouring`; the keep rule for `scene.upsert` (store the colouring and the filters apart from `self.objects`; in `_upsert` drop only the filters whose array is not in the new header `data`). For `filter.edit`, call a method `_filter_edit(object_id, edit) -> dict` that returns `{"status": "done"}` and does nothing yet (T071 fills it). Put the busy rule of T069 in one helper `_wait_if_busy(command) -> bool` that T071 also uses (it returns False when the reply must be `request.error` `busy`). Data entries have `id`, `name`, `data_type`, `association`. Docstrings and type hints.
+
+- [ ] T071 [Found] [M] Fake viewer: commands endpoint, filter part.
+  - Files: `packages/loop_link/src/loop_link/testing/fake_viewer.py`
+  - Needs: T070
+  - Wave: 9
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fake_viewer.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Fill `_filter_edit` of T070 with the rules of T069 for the edits `add`, `set_range`, `set_values`, `set_on`, `set_exclude`, `remove` and `cancel`, and their effects in `.filters` (a filter is a dict with keys `kind`, `on`, `minimum`, `maximum`, `keep_nan`, `values`, `exclude`; `add` makes `{"kind": None, "on": False, ...}`; the first `set_range` or `set_values` sets the kind; `minimum` and `maximum` are stored as floats made from the texts `min` and `max`). The property rules (refusals with a text that names the array) are in T069. Start the busy time (`time.monotonic() + filter_delay`) after each edit that changes a filter; `cancel` clears it. Use `_wait_if_busy` of T070 at the start of each command. All old tests of the file must still pass.
+
+### Stage S4b: filter and colour members of `Viewer`
+
+- [ ] T072 [P] [US1] [M] Test: filter calls in `test_filter.py` (story 6).
+  - Files: `packages/loop_link/tests/test_filter.py`
+  - Needs: T071
+  - Wave: 10
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py` fails with AttributeError on `filter_range`, then passes after T074.
+  - Context: Use `fake_viewer` and `viewer_factory` (`fake_viewer.viewer` is the `FakeViewer`; use its `.filters`, `.objects`, `.tool_requests`). First send a `BlockModel` (cells 4x4x4, id `grid`) with `cell_properties={"grade": float array, "unit": Categorical(...)}` and `properties={"t": np.array(["a"] * 125)}`. API on `Viewer`: `filter_range(object_id, array, minimum, maximum, *, keep_nan=False, wait=True, cancel=None, timeout=60.0)`, `filter_values(object_id, array, values, *, exclude=False, wait=True, cancel=None, timeout=60.0)`, `filter_enable(object_id, array, on=True)`, `filter_remove(object_id, array)`, `cancel_filter(object_id)`. In this task `wait` has no effect (S4d). Tests: story 6 scenario 1 (`filter_range("grid", "grade", 0.2, 0.8, keep_nan=True)` gives in `fake.filters["grid"]["grade"]` kind `range`, `on` True, minimum 0.2, maximum 0.8, `keep_nan` True; the edits arrive in the order `add`, `set_range`, `set_on` in `fake.tool_requests`; `min` and `max` are the texts `"0.2"` and `"0.8"`); scenario 2 (`filter_values("grid", "unit", [0, 2], exclude=True)` gives kind `values`, `values` [0, 2], `exclude` True, `on` True; edits `add`, `set_values`, `set_exclude`, `set_on`); scenario 3 (`filter_enable(..., False)` gives `on` False; `filter_remove` deletes the filter; the buffers of `fake.objects["grid"]` equal the sent buffers before and after: the data does not change); scenario 4 (an array that does not exist, and `"t"` (text), each give `InvalidInputError` whose text has the array name; `filter_range` on `unit` and `filter_values` on `grade` give `InvalidInputError`; `minimum > maximum` gives `InvalidInputError` and `fake.tool_requests` has no `command.run`; values with a float, a bool, a negative number or 2**32 give `InvalidInputError`); scenario 6 (send `grid` again as revision 2: `fake.filters` is unchanged); an `add` that is refused for an existing filter: monkeypatch `FakeViewer._filter_edit` so that kind `add` returns `{"status": "refused", "text": "exists"}`, then `filter_range` still succeeds; `cancel_filter("grid")` sends one `filter.edit` with edit `{"kind": "cancel"}`; `FakeViewer(kind="headless")` still filters; `FakeViewer(protocol_minor=10)` gives `MissingFeatureError`; FR-014 tool part: program A (`viewer_factory()`) sends, program B (`viewer_factory()`) gets `BusyError` from `send`, but B can call `filter_range` and `filter_remove`; none of these opens the data connection (`B.connected` is false).
+
+- [ ] T073 [P] [US1] [M] Test: colour calls in `test_colour.py` (story 7).
+  - Files: `packages/loop_link/tests/test_colour.py`
+  - Needs: T071
+  - Wave: 10
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py` fails with AttributeError on `set_colour_property`, then passes after T075.
+  - Context: Use `fake_viewer` and `viewer_factory`. First send a `BlockModel` (cells 4x4x4, id `grid`) with `cell_properties={"grade": float array, "unit": Categorical(...), "flag": bool array}`. API on `Viewer` (and `loop_link.commands.ColourSettings` for `apply_colour`): `colour_map_names() -> tuple[str, ...]`, `set_colour_property(object_id, array: Optional[str])`, `set_colour_map(object_id, name)`, `set_colour_range(object_id, minimum, maximum)`, `clear_colour_range(object_id)`, `set_colour_scale(object_id, scale)`, `set_object_colour(object_id, colour: Optional[tuple[int, int, int]])`, `apply_colour(object_id, settings)`. Check the state in `fake.colouring["grid"]` (keys `array`, `colour_map`, `range`, `scale`, `plain`). Tests: scenario 1 (`set_colour_property("grid", "grade")` gives array `"grade"`; `array=None` leaves the key `array` out of the input of `colour.set_active` (read `fake.tool_requests`) and the fake shows no array); scenario 2 (`set_colour_map("grid", "coolwarm")`; `colour_map_names()` is `("viridis", "grey", "coolwarm")`); scenario 3 (`set_colour_range("grid", 0.1, 0.9)` sends `min` `"0.1"` and `max` `"0.9"`; `clear_colour_range` clears it; `minimum >= maximum` gives `InvalidInputError` and no frame goes out); scenario 4 (`set_colour_scale("grid", "log")`; `"sqrt"` gives `InvalidInputError` and no frame; the input key is `object`, not `id`); `set_object_colour("grid", (255, 0, 0))` sends `[255, 0, 0]` and `None` sends null; `(256, 0, 0)` gives `InvalidInputError`; scenario 5 (after `set_colour_property("grid", "unit")`, each of `set_colour_map`, `set_colour_range` and `set_colour_scale` gives `InvalidInputError` that has the viewer text; the same for `flag`); scenario 6 (`set_colour_map("grid", "nope")` gives `InvalidInputError` whose text lists `viridis`, `grey` and `coolwarm`, and the fake received no `colour.set_map` (`fake.tool_requests`); a fake with `protocol_minor=17` (no names) gets the name and decides: it accepts `"nope"`; `colour_map_names()` with `protocol_minor=17` gives `MissingFeatureError`); `apply_colour(id, ColourSettings(array="grade", colour_map="viridis", range=(0.0, 1.0), scale="linear", plain=(1, 2, 3)))` sets all fields, and the 5 commands arrive in this order: `colour.set_active`, `colour.set_map`, `colour.set_range`, `colour.set_scale`, `object.set_colour`; a `ColourSettings` with only `scale` sends 1 command; a bad field of `ColourSettings` gives `InvalidInputError` before any frame; `FakeViewer(kind="headless")`: `set_colour_scale` gives `MissingFeatureError` and the other colour calls work; an unknown object gives `InvalidInputError`.
+
+- [ ] T074 [US1] [M] Add the filter members to `Viewer`.
+  - Files: `packages/loop_link/src/loop_link/viewer.py`
+  - Needs: T072, T068, T055
+  - Wave: 16
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_selection.py packages/loop_link/tests/test_viewer.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Add the 5 methods with the signatures of T072 (numpy-style docstrings with Parameters and Raises). They use `self._tool()` (as `select` does) and `commands.run_command(tool, "filter.edit", {"object": object_id, "edit": {...}}, object_id=object_id)`; they never open the data connection. Check the arguments before any frame: `object_id` and `array` are non-empty `str` (`check_text`); `minimum` and `maximum` by `check_number`, and `minimum <= maximum` else `InvalidInputError`; `values` by `check_codes`; `exclude`, `keep_nan` and `on` are `bool`. `filter_range` sends `{"kind": "add", "array": a}` (if `run_command` raises `InvalidInputError` for `add`, go on: the filter can exist), then `{"kind": "set_range", "array": a, "min": format_number(minimum), "max": format_number(maximum), "keep_nan": keep_nan}`, then `{"kind": "set_on", "array": a, "on": True}`. `filter_values` sends `add` (same rule), `{"kind": "set_values", "array": a, "values": codes}`, `{"kind": "set_exclude", "array": a, "exclude": exclude}`, then `set_on` true. `filter_enable`: one `set_on`. `filter_remove`: one `{"kind": "remove", "array": a}`. `cancel_filter`: one `{"kind": "cancel"}`. The first failure stops the call and goes up. `wait`, `cancel` and `timeout` are accepted and checked (`timeout > 0`) but not used yet (T081). `commands.py` does not import `viewer.py`, so a module-level import has no cycle.
+
+- [ ] T075 [US1] [M] Add the colour members and `apply_colour` to `Viewer`.
+  - Files: `packages/loop_link/src/loop_link/viewer.py`
+  - Needs: T073, T074
+  - Wave: 17
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py -k "not send"` passes and `ruff check packages/loop_link` passes.
+  - Context: Add the methods of T073 (`colour_map_names`, `set_colour_property`, `set_colour_map`, `set_colour_range`, `clear_colour_range`, `set_colour_scale`, `set_object_colour`, `apply_colour`). Commands and inputs: `colour.set_active` `{"id", "array"}` (leave `array` out for `None`); `colour.set_map` `{"id", "name"}`; `colour.set_range` `{"id", "min": format_number(minimum), "max": format_number(maximum)}` with `minimum < maximum` else `InvalidInputError`; `colour.clear_range` `{"id"}`; `colour.set_scale` `{"object": id, "scale"}` with `scale` in `("linear", "log")`; `object.set_colour` `{"id", "colour": [r, g, b] or None}` (`check_rgb`). `colour_map_names()` calls `commands.list_colour_map_names(tool)` and keeps the tuple in `self._colour_map_names` for the life of the tool connection (reset it in `close`); a `None` result gives `MissingFeatureError("colour map names (geoviewer protocol 1.18)")`. `set_colour_map`: `name` by `check_text`; read the names with a private helper that returns `None` instead of raising when the viewer has none; when names exist and `name` is not one of them, raise `InvalidInputError(f"The viewer has no colour map '{name}'. The names are: {', '.join(names)}.")` before any `colour.set_map`. `apply_colour(object_id, settings)` sends, in this order and only for the fields that are not None: `colour.set_active`, `colour.set_map` (with the name check), `colour.set_range`, `colour.set_scale`, `object.set_colour`. A `settings` that is not a `ColourSettings` gives `InvalidInputError`. All use `self._tool()` and `run_command`; none opens the data connection.
+
+- [ ] T076 [US1] [M] Test: `send(..., colour=...)` in `test_colour.py` (FR-021).
+  - Files: `packages/loop_link/tests/test_colour.py`
+  - Needs: T075
+  - Wave: 18
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py -k send` fails (the `colour` argument is passed to the adapter hints and refused), then passes after T077.
+  - Context: Add tests named `test_send_colour_*` to the file of T073. New keyword-only argument `colour: Optional[ColourSettings] = None` of `Viewer.send(obj, *, id, name=None, parent=None, colour=None, **hints)`. Tests: `send(BlockModel(...with "grade"), id="grid", colour=ColourSettings(array="grade", colour_map="coolwarm", range=(0.0, 1.0), scale="log", plain=(9, 8, 7)))` returns revision 1, the object is in `fake.objects`, and `fake.colouring["grid"]` has all five settings; the object is in the fake before the first colour command (monkeypatch `FakeViewer._tool_reply` to record `"grid" in fake.objects` at the first `colour.set_active`); the commands arrive in the order of `apply_colour`; a failed command (`ColourSettings(array="missing")`) raises `InvalidInputError`, and the object stays in the viewer (`"grid" in fake.objects`, `viewer.revisions["grid"] == 1`); a refused object (`FakeViewer(reply_errors={"grid": "bad"})`) raises `ViewerRefusedError` and no colour command is sent (`flush` raises first); `colour=None` sends no tool frame (`fake.tool_requests` is empty and `viewer.tool_connected` is false); a `colour` that is not a `ColourSettings` gives `InvalidInputError` before the object goes out (`fake.objects` stays empty).
+
+- [ ] T077 [US1] [M] Add the `colour` argument to `Viewer.send`.
+  - Files: `packages/loop_link/src/loop_link/viewer.py`
+  - Needs: T076
+  - Wave: 19
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py packages/loop_link/tests/test_viewer.py packages/loop_link/tests/test_push.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Change the signature to `send(self, obj, *, id, name=None, parent=None, colour: Optional[ColourSettings] = None, **hints)`; the argument is before `**hints`, so it does not go to the adapter. First check `colour` (`None` or a `ColourSettings`, else `InvalidInputError("colour must be a ColourSettings object.")`) before `convert` and before any frame. Send the object as before. Then, when `colour is not None`: call `self.flush()` (this waits up to 0.5 s for a late refusal of the object and raises `ViewerRefusedError`), then `self.apply_colour(id, colour)`. If a colour command fails, the object stays in the viewer and the error goes up. The method returns the revision as before. Add the argument to the docstring (Parameters, Raises). Import `ColourSettings` from `loop_link.commands`. Do not change `push_objects`.
+
+- [ ] T078 [P] [Found] [S] Export `ColourSettings`.
+  - Files: `packages/loop_link/src/loop_link/__init__.py`
+  - Needs: T068
+  - Wave: 7
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -c "import loop_link as l; [getattr(l, n) for n in l.__all__]; assert 'ColourSettings' in l.__all__"` passes and `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_import.py` passes.
+  - Context: Add `from .commands import ColourSettings` before the `from .errors import (...)` block (the module imports are in alphabetical order, `.commands` is before `.errors`) and add `"ColourSettings"` to `__all__` after `"Categorical"` (the list is sorted). Keep all other lines. Do not import pyvista, pandas, Qt or LoopStructural (SC-005, `test_import.py`).
+
+- [ ] T079 [US1] [M] Test: SC-007 speed of filter and colour commands in `test_colour.py`.
+  - Files: `packages/loop_link/tests/test_colour.py`
+  - Needs: T077
+  - Wave: 20
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py -k speed` passes (the test checks finished code, so it has no failing first run).
+  - Context: Mark `@pytest.mark.slow`. Name `test_sc007_speed_*`. Use `fake_viewer` and `viewer_factory`. Send `BlockModel(origin=(0, 0, 0), cell_sizes=(1, 1, 1), cells=(100, 100, 100), cell_properties={"grade": np.random.default_rng(0).random(1_000_000, dtype=np.float32)})` with id `grid`; call `viewer.flush()`. Warm up the tool connection with one `set_colour_property("grid", "grade")` (not timed). Then time each call with `time.perf_counter()` and assert that each is below 0.250 s: `set_colour_property`, `set_colour_map("grid", "viridis")`, `set_colour_range(0.0, 1.0)`, `clear_colour_range`, `set_colour_scale("linear")`, `set_object_colour((1, 2, 3))`, `filter_range("grid", "grade", 0.5, 1.0)` (3 commands: the whole call is below 0.250 s), `filter_enable("grid", "grade", False)`, `filter_remove("grid", "grade")`. The fake has `filter_delay=0.0`. The time of a filter build is not counted (spec SC-007).
+
+### Stage S4d: wait for a filter build (FR-019; blocked by OP15)
+
+- [ ] T080 [US1] [M] Test: the wait of `filter_range` and `filter_values` in `test_filter.py`.
+  - Files: `packages/loop_link/tests/test_filter.py`
+  - Needs: T074
+  - Wave: 17
+  - Blocked by: OP15
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py -k wait` fails (the call returns before the build ends), then passes after T081.
+  - Context: Read OP15 in `plan.md` and the result of step 7 of M4 first. If the real viewer does not behave as OP15 assumes, stop and report. Use `FakeViewer(filter_delay=0.5, busy_wait=5.0)`. Tests named `test_filter_wait_*`: with `wait=True` (the default) `filter_range` returns after about `filter_delay` (elapsed at least 0.4 s and below 3 s) and a repeated `set_on` edit is in `fake.tool_requests` after the `set_on` of the call; with `wait=False` the call returns in less than 0.2 s; `wait=True` with `timeout=0.1` raises the error that the decision for OP15 in `plan.md` ("Answers") names; `cancel` (a `threading.Event` set by a timer after 0.1 s) ends the wait, sends one `filter.edit` with edit `{"kind": "cancel"}`, and raises `CancelledError`; `filter_values` waits the same way. The old tests of `test_filter.py` must still pass.
+
+- [ ] T081 [US1] [M] Implement the wait of the filter calls in `viewer.py`.
+  - Files: `packages/loop_link/src/loop_link/viewer.py`
+  - Needs: T080, T077
+  - Wave: 20
+  - Blocked by: OP15
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_colour.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Follow the decision for OP15 in `plan.md` ("Answers"). Default of the plan: with `wait=True`, after the last `set_on` edit, send the same `set_on` edit again with `run_command` until the viewer takes it without `BusyError` (a command that waits when busy waits for the end of the build), at most until `timeout` seconds have passed (`time.monotonic()`). A `BusyError` before the end of `timeout` means "still building": go on. At the end of `timeout` raise as the decision says. Check `cancel` between the tries; when it is set, call `cancel_filter` once and raise `CancelledError` (from `loop_link.errors`). `wait=False` returns after the first `set_on`. If OP15 chose another method (for example a long `filter.edit` with progress), use that method and change the tests of T080 first. Docstrings: describe `wait`, `cancel` and `timeout`.
+
+### Stage S4e: real codec, fixtures, manual check M4, docs
+
+- [ ] T082 [P] [Finish] [M] Test: command frames against the real geoviewer codec.
+  - Files: `packages/loop_link/tests/test_codec_real.py`
+  - Needs: T066, T058
+  - Wave: 5
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_codec_real.py -rs` passes or skips with the reason that the variable is not set; with `LOOP_LINK_GEOVIEWER_REPO=C:\Users\lachl\dev\geoviewer` and `cargo` on the PATH it passes with no skip.
+  - Context: In `_cases()` add these frames (the key is the case name): `commands_list` = `encode.commands_list_frame(1)`; `command_filter_add`, `command_filter_set_range`, `command_filter_set_values`, `command_filter_set_on`, `command_filter_set_exclude`, `command_filter_remove`, `command_filter_cancel` = `encode.command_frame(2, "filter.edit", {"object": "grid", "edit": {...}})` with the edits `{"kind": "add", "array": "grade"}`, `{"kind": "set_range", "array": "grade", "min": "0.5", "max": "1.0", "keep_nan": False}`, `{"kind": "set_values", "array": "unit", "values": [0, 2]}`, `{"kind": "set_on", "array": "grade", "on": True}`, `{"kind": "set_exclude", "array": "unit", "exclude": True}`, `{"kind": "remove", "array": "grade"}`, `{"kind": "cancel"}`; `command_colour_set_active` (`colour.set_active`, `{"id": "grid", "array": "grade"}`), `command_colour_set_map` (`colour.set_map`, `{"id": "grid", "name": "coolwarm"}`), `command_colour_set_range` (`colour.set_range`, `{"id": "grid", "min": "0.0", "max": "1.0"}`), `command_colour_clear_range` (`colour.clear_range`, `{"id": "grid"}`), `command_colour_set_scale` (`colour.set_scale`, `{"object": "grid", "scale": "log"}`), `command_object_set_colour` (`object.set_colour`, `{"id": "grid", "colour": [1, 2, 3]}`), `command_object_set_colour_none` (`object.set_colour`, `{"id": "grid", "colour": None}`). The helper, the validator program and the negative control stay. Do not change `codec_validator/`. If the validator reports FAIL for a case, make the task fail with the validator output; do not drop the case.
+
+- [ ] T083 [P] [Finish] [S] Test: command fixtures of the geoviewer repository.
+  - Files: `packages/loop_link/tests/test_fixtures.py`
+  - Needs: T066, T059
+  - Wave: 5
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fixtures.py -rs` passes or skips with a reason; with `LOOP_LINK_GEOVIEWER_FIXTURES=C:\Users\lachl\dev\geoviewer\fixtures\protocol\python` it passes with no skip for the new tests.
+  - Context: Use the helpers `_tool_header(name)` and `_check_header(made, fixture)` that the file already has (they skip when the folder `<variable>/../tool` is missing). Add two tests. `test_commands_list_matches_fixture`: `fixture = _tool_header("commands.list.json")`; `assert "request" in fixture`; build `commands_list_frame(fixture["request"])`; call `_check_header`. `test_command_run_matches_fixture`: `fixture = _tool_header("command.run.json")`; build `command_frame(fixture["request"], fixture["command"], fixture["input"])`; call `_check_header`. Add `commands_list_frame` and `command_frame` to the import from `loop_link.encode` (keep the list sorted). The fixtures are `{"type":"commands.list","version":{"major":1,"minor":11},"request":1,"buffers":[]}` and `{"type":"command.run","version":{"major":1,"minor":11},"request":2,"command":"object.set_visible","input":{"id":"p1","visible":false},"buffers":[]}`. Use assert messages in the style of the other tests of the file.
+
+- [ ] T084 [P] [Finish] [S] Manual check M4 in `manual_checks.md`.
+  - Files: `packages/loop_link/tests/manual_checks.md`
+  - Needs: T060
+  - Wave: 2
+  - Done when: `git grep -n -c "^## M4" packages/loop_link/tests/manual_checks.md` gives 1.
+  - Context: Add a section `## M4: filter and colour with the real window viewer (stories 6 and 7)` before `## Record`, in ASD-STE100 English, in the style of M3. Intro: use a viewer of protocol 1.18, start with `Viewer.clear()`, and place the test objects near the origin of the scene. Steps: (1) send a `BlockModel` with a number property `grade`, call `filter_range("grid", "grade", 0.5, 1.0)`, check that only the cells in the range show; (2) send an object with a category property, call `filter_values` with two codes, then with `exclude=True`, check the picture each time; (3) call `filter_enable(False)`, then `filter_remove`, check that all cells show again; (4) call `filter_range` for a text property and for a property that does not exist, check the `InvalidInputError` and its text; (5) call `set_colour_property`, `set_colour_map("coolwarm")`, `set_colour_range`, `set_colour_scale("log")` and `set_object_colour`, check the picture after each call; (6) call the map, range and scale methods for a category property and check the error, then call `colour_map_names()` and check that it gives the names of the viewer; (7) send the same id again (a new revision) and check that the filter and colours stay; then send an object of 1,000,000 cells, call `filter_range` with `wait=False`, check what a second command does while the viewer builds (OP15), and call `cancel_filter` during the build; (8) send an object of 1,000,000 cells with `colour=ColourSettings(...)` and check that the settings apply (OP19: the 0.5 s of `flush` can be too short); (9) check the assumptions: `add` for an existing filter (OP16), and that a new filter is on after `add` and `set_range`. Closing paragraph: M4 checks OP15, OP16, OP18 and OP19, and records the time of one `set_range` on the object of 1,000,000 cells. Pass line: all 9 steps give the expected result.
+
+- [ ] T085 [P] [Finish] [S] README section "Filter and colour".
+  - Files: `packages/loop_link/README.md`
+  - Needs: T077, T078
+  - Wave: 20
+  - Done when: `git grep -n -c "^## Filter and colour" packages/loop_link/README.md` gives 1.
+  - Context: Add `## Filter and colour` after `## Select and fetch` and before `## Test against the real codec`, with an example of about 10 lines: `from loop_link import ColourSettings, Viewer`; `viewer = Viewer()`; `viewer.send(grid, id="grid", colour=ColourSettings(array="grade", colour_map="viridis", range=(0.0, 1.0), scale="linear"))`; `viewer.filter_range("grid", "grade", 0.5, 1.0)`; `viewer.filter_values("grid", "unit", [0, 2], exclude=True)`; `viewer.filter_remove("grid", "grade")`; `viewer.set_colour_map("grid", "coolwarm")`; `viewer.colour_map_names()`. Add 3 short sentences: filter and colour use the tool connection, so they work while another program holds the data connection; the colour map names come from the viewer (protocol 1.18), and an older viewer gives `MissingFeatureError` for `colour_map_names()`; a value filter takes the integer ids of the categories (the codes of `Categorical`). Do not write about `wait` (it is not built yet). ASD-STE100 English.
+
+## Phase 11: Finish S4
+
+- [ ] T086 [Finish] [S] Update `ROADMAP.md`: stage S4 done.
+  - Files: `ROADMAP.md`
+  - Needs: T081, T082, T083, T084, T085, T079
+  - Wave: 21
+  - Blocked by: OP15
+  - Done when: `git grep -n "stage S4" ROADMAP.md` shows 1 or more lines and `git grep -n -c "loop_link" ROADMAP.md` gives 3 or more.
+  - Context: In the entry `- [ ] **Stage 7 — `loop_link`: Python link to geoviewer.**` replace the sentence "Filter and colour (stage S4) are not planned yet." with "Stage S4 (filter and colour) is done." (read the entry first; the sentence can differ a little). Add one status log entry at the end of "Status log", in the style of the neighbours, dated with the date of the run (YYYY-MM-DD): "Stage 7 stage S4 implemented: filter and colour calls, colour in `send` and the fake commands endpoint in `packages/loop_link`." Tick the Stage 7 box only if no other stage of the entry is open. If you are not sure, leave the box and say so in the result.
+
+- [ ] T087 [Finish] [M] Run the merge gates for S4 and fix the findings.
+  - Files: `packages/loop_link/`
+  - Needs: T086, T062, T038, T063
+  - Wave: 22
+  - Blocked by: OP15
+  - Done when: `ruff check LoopStructural packages && pytest` passes, `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests` passes, and `black --check packages/loop_link` passes.
+  - Context: Constitution merge gate: `pytest` and `ruff check LoopStructural packages` must both pass. The root `pytest` does not run the package tests, so run the package command too. The root `pytest` was too slow on this machine for S5 (T063): run it, and if it cannot finish, say so in the result. Run `black packages/loop_link` to fix the format (line length 100, quotes kept). Fix only problems in `packages/loop_link/`. Do not change a gate or add a Ruff ignore for `packages/loop_link/src`. Also run `packages/loop_link/tests/test_import.py` alone (SC-005). If `LOOP_LINK_GEOVIEWER_REPO` and `LOOP_LINK_GEOVIEWER_FIXTURES` are set, run `test_codec_real.py` and `test_fixtures.py` with them. Report the result of each command in the commit message.
+
 ## Wave table
 
 | Wave | Tasks | Tier [S] | Tier [M] |
 |---|---|---|---|
 | 1 | T001, T002, T004, T005, T039, T040, T060 | 5 | 2 |
-| 2 | T003, T006, T041, T051 | 1 | 3 |
-| 3 | T007, T009, T011, T016, T042, T052 | 0 | 6 |
-| 4 | T008, T010, T017, T043, T058, T059 | 0 | 6 |
-| 5 | T012, T015, T019 | 0 | 3 |
-| 6 | T013, T018, T044 | 0 | 3 |
-| 7 | T014, T020, T045 | 0 | 3 |
-| 8 | T021, T046 | 0 | 2 |
-| 9 | T023, T024, T025, T027, T034, T037, T047 | 3 | 4 |
-| 10 | T028, T030, T032, T035, T048 | 0 | 5 |
+| 2 | T003, T006, T041, T051, T064, T084 | 3 | 3 |
+| 3 | T007, T009, T011, T016, T042, T052, T065 | 1 | 6 |
+| 4 | T008, T010, T017, T043, T058, T059, T066 | 1 | 6 |
+| 5 | T012, T015, T019, T067, T069, T082, T083 | 1 | 6 |
+| 6 | T013, T018, T044, T068 | 0 | 4 |
+| 7 | T014, T020, T045, T078 | 1 | 3 |
+| 8 | T021, T046, T070 | 0 | 3 |
+| 9 | T023, T024, T025, T027, T034, T037, T047, T071 | 3 | 5 |
+| 10 | T028, T030, T032, T035, T048, T072, T073 | 0 | 7 |
 | 11 | T029, T031, T033, T036, T049 | 1 | 4 |
 | 12 | T022, T050 | 1 | 1 |
 | 13 | T038, T053 | 0 | 2 |
 | 14 | T054 | 0 | 1 |
 | 15 | T055 | 0 | 1 |
-| 16 | T056, T057 | 1 | 1 |
-| 17 | T061 | 1 | 0 |
-| 18 | T062 | 1 | 0 |
-| 19 | T063 | 0 | 1 |
+| 16 | T056, T057, T074 | 1 | 2 |
+| 17 | T061, T075, T080 | 1 | 2 |
+| 18 | T062, T076 | 1 | 1 |
+| 19 | T063, T077 | 0 | 2 |
+| 20 | T079, T081, T085 | 1 | 2 |
+| 21 | T086 | 1 | 0 |
+| 22 | T087 | 0 | 1 |
 
 ## Critical path
 
-T001 -> T006 -> T007 -> T008 -> T019 -> T044 -> T045 -> T046 -> T047 -> T048 -> T049 -> T050 -> T053 -> T054 -> T055 -> T057 -> T061 -> T062 -> T063
+T001 -> T006 -> T007 -> T008 -> T019 -> T044 -> T045 -> T046 -> T047 -> T048 -> T049 -> T050 -> T053 -> T054 -> T055 -> T074 -> T075 -> T076 -> T077 -> T079 -> T086 -> T087
 
 ## Dependencies
 
-T001 to T038 (stages S1 to S3) are done. Stage S5 adds T039 to T063.
+T001 to T038 (stages S1 to S3) and T039 to T063 (stage S5) are built, except the root `pytest` result of T063.
+Stage S4 adds T064 to T087.
 
-- S5a: errors (T039) and tool versions (T040) start at once. Frame builders follow (T041, T042). The fake
-  viewer tool endpoint is tested (T043) and built in two steps, selection then fetch (T044, T045; both
-  change `fake_viewer.py`, so they run in a chain after T019). `ToolConnection` is tested and built
-  (T046, T047). Then selection tests, `selection.py` and the `Viewer` members (T048, T049, T050).
-- S5b: the pure `decode_object` runs early and apart (T051, T052). The assembler tests, `fetch_object`
-  and `Viewer.fetch` need the tool connection (T053, T054, T055). The round trip test closes it (T056).
-- S5c: real codec cases (T058) and fixture checks (T059) need only the frame builders (T042), so they
-  run in wave 4. The manual check M3 (T060) has no dependency. Exports (T057), README (T061),
-  ROADMAP (T062) and the gate (T063) close the work.
-- Open points: none blocks a task. OP1 and OP6 block S4, which has no tasks yet.
+- S4a: `COMMAND_PROTOCOL_VERSION` (T064), then the frame builders as test and code (T065, T066), the
+  commands module as test and code (T067, T068), and the fake commands endpoint as one test task and two
+  code tasks that share `fake_viewer.py` (T069, T070 colour part, T071 filter part).
+- S4b: the filter and colour tests run apart (T072, T073). The `Viewer` members follow in a chain,
+  because they share `viewer.py` (T074 filter, T075 colour). The export (T078) needs only T068.
+- S4c: tests and code for `send(..., colour=...)` (T076, T077), then the speed test of SC-007 (T079).
+- S4d: the wait for a filter build (T080, T081) is blocked by OP15. It needs the result of step 7 of M4.
+  T086 and T087 need T081, so they are blocked too.
+- S4e: real codec cases (T082), fixture checks (T083), manual check M4 (T084), README (T085), ROADMAP (T086)
+  and the gate (T087). T087 also needs T063, the S5 gate, which failed on the root `pytest` only.
+- Open points: OP15 blocks T080, T081, T086 and T087. OP16, OP18 and OP19 are checked by M4 and block no task.
