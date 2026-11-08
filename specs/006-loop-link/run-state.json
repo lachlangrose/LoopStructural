@@ -688,6 +688,12 @@
         "base": "88ca4475",
         "commit": "pending",
         "review": "orchestrator check (2 tiny tasks, diff read)"
+      },
+      {
+        "wave": 3,
+        "base": "a1d16349",
+        "commit": "pending",
+        "review": "orchestrator check (test file read; one test task)"
       }
     ],
     "runs": {
@@ -698,6 +704,12 @@
         }
       ],
       "T084": [
+        {
+          "model": "haiku",
+          "result": "pass"
+        }
+      ],
+      "T065": [
         {
           "model": "haiku",
           "result": "pass"

@@ -492,7 +492,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -c "from loop_link import protocol; assert protocol.COMMAND_PROTOCOL_VERSION == {'major': 1, 'minor': 11}"` passes and `ruff check packages/loop_link` passes.
   - Context: In `protocol.py`, after the line `CANCEL_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}`, add the line `COMMAND_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}` and a one-line comment above it: the version of the `commands.list` and `command.run` frames (the fixtures of the geoviewer repository use 1.11, so a viewer of 1.11 to 1.17 accepts them). Change nothing else.
 
-- [ ] T065 [Found] [S] Test: the frames `commands_list_frame` and `command_frame` in `test_commands.py`.
+- [x] T065 [Found] [S] Test: the frames `commands_list_frame` and `command_frame` in `test_commands.py`.
   - Files: `packages/loop_link/tests/test_commands.py`
   - Needs: T064
   - Wave: 3
