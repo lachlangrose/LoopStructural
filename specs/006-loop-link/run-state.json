@@ -735,7 +735,13 @@
         "wave": 10,
         "base": "a39aa8ea",
         "commit": "pending",
-        "review": "pending"
+        "review": "pass (3 minor)"
+      },
+      {
+        "wave": 16,
+        "base": "b959c483",
+        "commit": "pending",
+        "review": "pending (with wave 17)"
       }
     ],
     "runs": {
@@ -822,6 +828,12 @@
           "model": "sonnet",
           "result": "pass"
         }
+      ],
+      "T074": [
+        {
+          "model": "sonnet",
+          "result": "pass"
+        }
       ]
     },
     "open_minor": [
@@ -831,10 +843,13 @@
       "S4 W5 T067: np.bool_ and a non-list commands value are not tested",
       "S4 W6 T068: check_number(10**400) raises OverflowError instead of InvalidInputError",
       "S4 W9 T071: the fake add sets kind by array type (range or values) not None as the T071 Context says; the T069 test needs it; the refusal by kind is a fake assumption (M4 checks)",
-      "S4 W9 T071: a second add replaces the filter; set_values does not check ids against value_map; set_range accepts nan/inf texts"
+      "S4 W9 T071: a second add replaces the filter; set_values does not check ids against value_map; set_range accepts nan/inf texts",
+      "S4 W10 T073: no test for apply_colour with a non-ColourSettings value or its colour map name check",
+      "S4 W10 T072: data-unchanged test does not compare with the sent buffers",
+      "S4 W10 T072: argument checks (timeout <= 0, non-bool flags, empty ids) are untested"
     ],
     "findings": {
-      "found": 7,
+      "found": 10,
       "fixed": 0
     }
   }

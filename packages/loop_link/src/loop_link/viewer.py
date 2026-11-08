@@ -16,6 +16,7 @@ import numpy as np
 from loop_link import discovery, encode, protocol
 from loop_link._websocket import WebSocketClient, WebSocketClosed, WebSocketError
 from loop_link.adapters import convert
+from loop_link.commands import check_codes, check_number, check_text, format_number, run_command
 from loop_link.errors import (
     BusyError,
     InvalidInputError,
@@ -540,6 +541,202 @@ class Viewer:
         watcher.start()
         return watcher
 
+    # -- filters --------------------------------------------------------------
+
+    def filter_range(
+        self,
+        object_id: str,
+        array: str,
+        minimum: float,
+        maximum: float,
+        *,
+        keep_nan: bool = False,
+        wait: bool = True,
+        cancel: threading.Event | None = None,
+        timeout: float = 60.0,
+    ) -> None:
+        """Keep the cells or vertices with an array value in a range.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        array : str
+            The name of a number array of the object.
+        minimum : float
+            The low limit of the range.
+        maximum : float
+            The high limit of the range. It is not less than ``minimum``.
+        keep_nan : bool
+            If true, keep the items that have no value (NaN).
+        wait : bool
+            Not used yet.
+        cancel : threading.Event, optional
+            Not used yet.
+        timeout : float
+            The time in seconds to wait. It must be more than zero. Not used yet.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the filter.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the filter commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        array = check_text(array, "array")
+        low = check_number(minimum, "minimum")
+        high = check_number(maximum, "maximum")
+        if low > high:
+            raise InvalidInputError("'minimum' must not be more than 'maximum'.")
+        keep_nan = _check_bool(keep_nan, "keep_nan")
+        _check_wait(wait, timeout)
+        tool = self._tool()
+        self._filter_add(tool, object_id, array)
+        for edit in (
+            {
+                "kind": "set_range",
+                "array": array,
+                "min": format_number(low),
+                "max": format_number(high),
+                "keep_nan": keep_nan,
+            },
+            {"kind": "set_on", "array": array, "on": True},
+        ):
+            _filter_edit(tool, object_id, edit)
+
+    def filter_values(
+        self,
+        object_id: str,
+        array: str,
+        values: Sequence[int] | np.ndarray,
+        *,
+        exclude: bool = False,
+        wait: bool = True,
+        cancel: threading.Event | None = None,
+        timeout: float = 60.0,
+    ) -> None:
+        """Keep the cells or vertices with an array value in a list of codes.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        array : str
+            The name of a category array of the object.
+        values : sequence of int
+            The category codes. Each code is from 0 to 2**32-1.
+        exclude : bool
+            If true, remove the items with these codes and keep the others.
+        wait : bool
+            Not used yet.
+        cancel : threading.Event, optional
+            Not used yet.
+        timeout : float
+            The time in seconds to wait. It must be more than zero. Not used yet.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the filter.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the filter commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        array = check_text(array, "array")
+        codes = check_codes(values, "values")
+        exclude = _check_bool(exclude, "exclude")
+        _check_wait(wait, timeout)
+        tool = self._tool()
+        self._filter_add(tool, object_id, array)
+        for edit in (
+            {"kind": "set_values", "array": array, "values": codes},
+            {"kind": "set_exclude", "array": array, "exclude": exclude},
+            {"kind": "set_on", "array": array, "on": True},
+        ):
+            _filter_edit(tool, object_id, edit)
+
+    def filter_enable(self, object_id: str, array: str, on: bool = True) -> None:
+        """Turn the filter of one array on or off.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        array : str
+            The name of the array of the filter.
+        on : bool
+            True to turn the filter on, false to turn it off.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the filter commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        array = check_text(array, "array")
+        on = _check_bool(on, "on")
+        _filter_edit(self._tool(), object_id, {"kind": "set_on", "array": array, "on": on})
+
+    def filter_remove(self, object_id: str, array: str) -> None:
+        """Remove the filter of one array.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+        array : str
+            The name of the array of the filter.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            An argument is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the filter commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        array = check_text(array, "array")
+        _filter_edit(self._tool(), object_id, {"kind": "remove", "array": array})
+
+    def cancel_filter(self, object_id: str) -> None:
+        """Cancel the filter build that runs for one object.
+
+        Parameters
+        ----------
+        object_id : str
+            The identifier of the object.
+
+        Raises
+        ------
+        loop_link.errors.InvalidInputError
+            The id is not valid, or the viewer refused the command.
+        loop_link.errors.MissingFeatureError
+            The viewer does not support the filter commands.
+        loop_link.errors.ViewerClosedError
+            The connection is closed.
+        """
+        object_id = check_text(object_id, "object_id")
+        _filter_edit(self._tool(), object_id, {"kind": "cancel"})
+
+    @staticmethod
+    def _filter_add(tool: ToolConnection, object_id: str, array: str) -> None:
+        """Add a filter. A refusal is not an error: the filter can exist already."""
+        try:
+            _filter_edit(tool, object_id, {"kind": "add", "array": array})
+        except InvalidInputError:
+            pass
+
     # -- fetching -------------------------------------------------------------
 
     def fetch(
@@ -754,6 +951,25 @@ def _indices(values: Any, name: str) -> np.ndarray:  # noqa: ANN401
     if array.min() < 0 or array.max() > _INDEX_MAX:
         raise InvalidInputError(f"The {name} must be from 0 to {_INDEX_MAX}.")
     return array.astype(np.uint32)
+
+
+def _check_bool(value: object, name: str) -> bool:
+    """Return a value that must be a ``bool``. Raise InvalidInputError if it is not."""
+    if not isinstance(value, bool):
+        raise InvalidInputError(f"'{name}' must be True or False. Got {value!r}.")
+    return value
+
+
+def _check_wait(wait: object, timeout: object) -> None:
+    """Check the ``wait`` and ``timeout`` arguments of a filter call."""
+    _check_bool(wait, "wait")
+    if check_number(timeout, "timeout") <= 0:
+        raise InvalidInputError("'timeout' must be more than zero.")
+
+
+def _filter_edit(tool: ToolConnection, object_id: str, edit: dict[str, Any]) -> None:
+    """Send one ``filter.edit`` command and wait for its result."""
+    run_command(tool, "filter.edit", {"object": object_id, "edit": edit}, object_id=object_id)
 
 
 def _close_client(client: WebSocketClient) -> None:
