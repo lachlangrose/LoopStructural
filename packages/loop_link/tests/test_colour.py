@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from loop_link.commands import ColourSettings
-from loop_link.errors import InvalidInputError, MissingFeatureError
+from loop_link.errors import InvalidInputError, MissingFeatureError, ViewerRefusedError
 from loop_link.objects import BlockModel, Categorical
 from loop_link.testing import FakeViewer
 
@@ -253,3 +253,111 @@ def test_unknown_object_is_refused(viewer: Any) -> None:
     """A colour call for an object that is not in the scene gives ``InvalidInputError``."""
     with pytest.raises(InvalidInputError):
         viewer.set_colour_property("missing", "grade")
+
+
+def _fresh_viewer(viewer_factory: Callable[..., Any], **options: Any) -> Any:
+    """Return a viewer that has not sent anything. ``options`` go to the viewer."""
+    return viewer_factory(timeout=WAIT, **options)
+
+
+def test_send_colour_applies_all_settings(
+    fake_viewer: Any, viewer_factory: Callable[..., Any]
+) -> None:
+    """``send`` with ``colour`` sends the object and then applies all five settings."""
+    viewer = _fresh_viewer(viewer_factory)
+    settings = ColourSettings(
+        array="grade", colour_map="coolwarm", range=(0.0, 1.0), scale="log", plain=(9, 8, 7)
+    )
+    revision = viewer.send(_grid(), id="grid", colour=settings)
+    assert revision == 1
+    assert "grid" in fake_viewer.viewer.objects
+    state = fake_viewer.viewer.colouring["grid"]
+    assert state["array"] == "grade"
+    assert state["colour_map"] == "coolwarm"
+    assert state["range"] == (0.0, 1.0)
+    assert state["scale"] == "log"
+    assert state["plain"] == [9, 8, 7]
+
+
+def test_send_colour_commands_follow_apply_colour_order(
+    fake_viewer: Any, viewer_factory: Callable[..., Any]
+) -> None:
+    """The colour commands of ``send`` arrive in the order of ``apply_colour``."""
+    viewer = _fresh_viewer(viewer_factory)
+    settings = ColourSettings(
+        array="grade", colour_map="viridis", range=(0.0, 1.0), scale="linear", plain=(1, 2, 3)
+    )
+    viewer.send(_grid(), id="grid", colour=settings)
+    sent = _commands(fake_viewer.viewer, *COLOUR_COMMANDS)
+    assert tuple(header["command"] for header in sent) == COLOUR_COMMANDS
+
+
+def test_send_colour_object_is_in_viewer_before_first_colour_command(
+    fake_viewer: Any, viewer_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The viewer holds the object when the first colour command arrives."""
+    fake = fake_viewer.viewer
+    seen: list[bool] = []
+    original = FakeViewer._tool_reply
+
+    def record(self: FakeViewer, frame: Any) -> list[Any]:
+        if (
+            frame.header.get("type") == "command.run"
+            and frame.header.get("command") == "colour.set_active"
+        ):
+            seen.append("grid" in self.objects)
+        return original(self, frame)
+
+    monkeypatch.setattr(FakeViewer, "_tool_reply", record)
+    viewer = _fresh_viewer(viewer_factory)
+    viewer.send(_grid(), id="grid", colour=ColourSettings(array="grade"))
+    assert seen == [True]
+    assert fake.colouring["grid"]["array"] == "grade"
+
+
+def test_send_colour_failed_command_keeps_object(
+    fake_viewer: Any, viewer_factory: Callable[..., Any]
+) -> None:
+    """A colour command that fails raises an error. The object stays in the viewer."""
+    viewer = _fresh_viewer(viewer_factory)
+    with pytest.raises(InvalidInputError):
+        viewer.send(_grid(), id="grid", colour=ColourSettings(array="missing"))
+    assert "grid" in fake_viewer.viewer.objects
+    assert viewer.revisions["grid"] == 1
+
+
+def test_send_colour_refused_object_sends_no_colour_command(
+    tmp_path: Path, viewer_factory: Callable[..., Any]
+) -> None:
+    """A refused object raises ``ViewerRefusedError`` and no colour command goes out."""
+    fake = FakeViewer(reply_errors={"grid": "bad"})
+    fake.write_instance_file(tmp_path / "other")
+    viewer = viewer_factory(settings_dir=tmp_path / "other", timeout=WAIT)
+    try:
+        with pytest.raises(ViewerRefusedError):
+            viewer.send(_grid(), id="grid", colour=ColourSettings(array="grade"))
+        assert not _commands(fake, *COLOUR_COMMANDS)
+    finally:
+        fake.close()
+
+
+def test_send_without_colour_sends_no_tool_frame(
+    fake_viewer: Any, viewer_factory: Callable[..., Any]
+) -> None:
+    """``colour=None`` sends no tool frame and opens no tool connection."""
+    viewer = _fresh_viewer(viewer_factory)
+    viewer.send(_grid(), id="grid", colour=None)
+    viewer.flush()
+    assert fake_viewer.viewer.tool_requests == []
+    assert not viewer.tool_connected
+
+
+def test_send_colour_wrong_type_is_refused_before_send(
+    fake_viewer: Any, viewer_factory: Callable[..., Any]
+) -> None:
+    """A ``colour`` that is not a ``ColourSettings`` gives an error. No object goes out."""
+    viewer = _fresh_viewer(viewer_factory)
+    with pytest.raises(InvalidInputError):
+        viewer.send(_grid(), id="grid", colour={"array": "grade"})
+    viewer.flush()
+    assert not fake_viewer.viewer.objects
