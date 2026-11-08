@@ -677,5 +677,37 @@
       "fix": "null offsets/value_map/colour_map accepted in fetch.py, fake header writes the null fields, 4 regression tests",
       "round2": "pass: no findings; 10 real viewer fixtures fed through _Assembler, 90 tests passed in the review worktree"
     }
+  },
+  "s4": {
+    "start_commit": "88ca4475236f4686ba510472b5fbca6a3be38603",
+    "review_mode": "wave",
+    "note": "S4 waves use the wave numbers of tasks.md. ruff and black run with uvx.",
+    "waves": [
+      {
+        "wave": 2,
+        "base": "88ca4475",
+        "commit": "pending",
+        "review": "orchestrator check (2 tiny tasks, diff read)"
+      }
+    ],
+    "runs": {
+      "T064": [
+        {
+          "model": "haiku",
+          "result": "pass"
+        }
+      ],
+      "T084": [
+        {
+          "model": "haiku",
+          "result": "pass"
+        }
+      ]
+    },
+    "open_minor": [],
+    "findings": {
+      "found": 0,
+      "fixed": 0
+    }
   }
 }

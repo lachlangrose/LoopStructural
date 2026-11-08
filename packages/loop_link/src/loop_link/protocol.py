@@ -24,6 +24,8 @@ from .errors import LoopLinkError
 PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 14}
 TOOL_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 18}
 CANCEL_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}
+# The version of the commands.list and command.run frames.
+COMMAND_PROTOCOL_VERSION: dict[str, int] = {"major": 1, "minor": 11}
 
 # The largest frame that is allowed, in bytes.
 MAX_FRAME_BYTES: int = 256 * 1024 * 1024

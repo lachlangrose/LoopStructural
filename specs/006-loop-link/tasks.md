@@ -485,7 +485,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 
 ### Stage S4a: frames, commands module, fake commands endpoint
 
-- [ ] T064 [Found] [S] Add `COMMAND_PROTOCOL_VERSION` to `protocol.py`.
+- [x] T064 [Found] [S] Add `COMMAND_PROTOCOL_VERSION` to `protocol.py`.
   - Files: `packages/loop_link/src/loop_link/protocol.py`
   - Needs: T040
   - Wave: 2
@@ -633,7 +633,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fixtures.py -rs` passes or skips with a reason; with `LOOP_LINK_GEOVIEWER_FIXTURES=C:\Users\lachl\dev\geoviewer\fixtures\protocol\python` it passes with no skip for the new tests.
   - Context: Use the helpers `_tool_header(name)` and `_check_header(made, fixture)` that the file already has (they skip when the folder `<variable>/../tool` is missing). Add two tests. `test_commands_list_matches_fixture`: `fixture = _tool_header("commands.list.json")`; `assert "request" in fixture`; build `commands_list_frame(fixture["request"])`; call `_check_header`. `test_command_run_matches_fixture`: `fixture = _tool_header("command.run.json")`; build `command_frame(fixture["request"], fixture["command"], fixture["input"])`; call `_check_header`. Add `commands_list_frame` and `command_frame` to the import from `loop_link.encode` (keep the list sorted). The fixtures are `{"type":"commands.list","version":{"major":1,"minor":11},"request":1,"buffers":[]}` and `{"type":"command.run","version":{"major":1,"minor":11},"request":2,"command":"object.set_visible","input":{"id":"p1","visible":false},"buffers":[]}`. Use assert messages in the style of the other tests of the file.
 
-- [ ] T084 [P] [Finish] [S] Manual check M4 in `manual_checks.md`.
+- [x] T084 [P] [Finish] [S] Manual check M4 in `manual_checks.md`.
   - Files: `packages/loop_link/tests/manual_checks.md`
   - Needs: T060
   - Wave: 2
