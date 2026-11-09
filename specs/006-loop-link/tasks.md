@@ -603,7 +603,7 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 
 Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. The viewer sends `command.progress` while it builds and `command.result` when the build ends. The result can have `passing`, `total` and `state` (`building` or `unbuilt`). See "Answers" of `plan.md` (OP15 and OP20). The wait is the wait for that result. A viewer of protocol 1.19 or less answers at once with no counts.
 
-- [ ] T088 [US1] [M] Test: the fake viewer gives a long `filter.edit` (protocol 1.20).
+- [x] T088 [US1] [M] Test: the fake viewer gives a long `filter.edit` (protocol 1.20).
   - Files: `packages/loop_link/tests/test_fake_viewer.py`
   - Needs: T069, T071
   - Wave: 10

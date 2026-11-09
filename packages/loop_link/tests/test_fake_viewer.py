@@ -882,3 +882,155 @@ def test_fake_colour_and_filters_stay_after_a_new_revision() -> None:
         _upsert(viewer, points, "obj", 2)
         assert list(viewer.filters["obj"]) == ["val"]
         assert viewer.colouring["obj"]["array"] == "val"
+
+
+# -- the long filter.edit (protocol 1.20) ---------------------------------------------------
+
+
+@contextlib.contextmanager
+def filter_long_session(**options: Any) -> Iterator[tuple[FakeViewer, WebSocketClient]]:
+    """Start a fake viewer with the object ``blk`` and open a client on its tool endpoint.
+
+    ``blk`` is a block model of 1,000 cells. The cell property ``grade`` holds the
+    values 0 to 999. The viewer uses protocol 1.20 and ``filter_delay`` 0.4 s, unless
+    the options say otherwise.
+    """
+    options = {"protocol_minor": 20, "filter_delay": 0.4, **options}
+    viewer = FakeViewer(**options)
+    client = None
+    try:
+        viewer.accept_frame(hello_frame("EPSG:28350", (0.0, 0.0, 0.0), "test"))
+        grade = np.arange(1000, dtype=np.float32)
+        model = BlockModel(
+            [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [10, 10, 10], cell_properties={"grade": grade}
+        )
+        _upsert(viewer, model, "blk", 1)
+        client = WebSocketClient.connect("127.0.0.1", viewer.port, token="secret", path="/tool")
+        yield viewer, client
+    finally:
+        if client is not None:
+            client.close()
+        viewer.close()
+
+
+def send_filter_edit(client: WebSocketClient, request: int, kind: str, **fields: Any) -> None:
+    """Send a ``filter.edit`` request for ``blk`` on the tool endpoint."""
+    edit_fields = {"kind": kind, "array": "grade", **fields}
+    client.send_binary(
+        command_frame(request, "filter.edit", {"object": "blk", "edit": edit_fields})
+    )
+
+
+def frames_until_end(client: WebSocketClient) -> list[Frame]:
+    """Return the frames up to and including a ``command.result`` or an error."""
+    frames: list[Frame] = []
+    while True:
+        frame = reply(client)
+        frames.append(frame)
+        if frame.header["type"] in ("command.result", "request.error", "error"):
+            return frames
+
+
+def filter_edit_frames(
+    client: WebSocketClient, request: int, kind: str, **fields: Any
+) -> list[Frame]:
+    """Send one ``filter.edit`` request and return all frames of its reply."""
+    send_filter_edit(client, request, kind, **fields)
+    return frames_until_end(client)
+
+
+def prepare_filter(client: WebSocketClient) -> None:
+    """Add a filter for ``grade`` and set its range 0 to 99. The filter stays off."""
+    assert filter_edit_frames(client, 1, "add")[-1].header["result"] == {"status": "done"}
+    frames = filter_edit_frames(client, 2, "set_range", min="0.0", max="99.0", keep_nan=False)
+    assert frames[-1].header["result"] == {"status": "done"}
+
+
+def test_filter_long_set_on_sends_progress_and_the_count() -> None:
+    """set_on sends command.progress frames, then a result with passing and total."""
+    with filter_long_session() as (_, client):
+        prepare_filter(client)
+        frames = filter_edit_frames(client, 3, "set_on", on=True)
+        progress = [f for f in frames if f.header["type"] == "command.progress"]
+        assert progress
+        for frame in progress:
+            assert frame.header["request"] == 3
+            assert 0.0 <= frame.header["fraction"] <= 1.0
+            assert frame.header["text"] == "filter.edit"
+        assert progress[0].header["fraction"] == 0.0
+        assert progress[-1].header["fraction"] == 1.0
+        last = frames[-1]
+        assert last.header["type"] == "command.result"
+        assert last.header["request"] == 3
+        assert last.header["result"] == {"status": "done", "passing": 100, "total": 1000}
+
+
+def test_filter_long_set_on_false_passes_all_cells() -> None:
+    """set_on with on false gives passing 1000 and total 1000."""
+    with filter_long_session() as (_, client):
+        prepare_filter(client)
+        filter_edit_frames(client, 3, "set_on", on=True)
+        frames = filter_edit_frames(client, 4, "set_on", on=False)
+        assert frames[-1].header["type"] == "command.result"
+        assert frames[-1].header["result"] == {"status": "done", "passing": 1000, "total": 1000}
+
+
+def test_filter_long_remove_and_add_send_no_progress_and_no_count() -> None:
+    """remove and add give only a result with status done."""
+    with filter_long_session() as (_, client):
+        prepare_filter(client)
+        for request, kind in ((3, "remove"), (4, "add")):
+            frames = filter_edit_frames(client, request, kind)
+            assert [f.header["type"] for f in frames] == ["command.result"], kind
+            assert frames[0].header["result"] == {"status": "done"}, kind
+
+
+def test_filter_long_cancel_gives_cancelled_and_keeps_the_old_filter() -> None:
+    """command.cancel of a running set_on gives cancelled. The filter stays off."""
+    with filter_long_session() as (viewer, client):
+        prepare_filter(client)
+        send_filter_edit(client, 3, "set_on", on=True)
+        client.send_binary(cancel_frame(3))
+        frames = frames_until_end(client)
+        last = frames[-1]
+        assert last.header["request"] == 3
+        assert error_of(last)["code"] == "cancelled"
+        assert "command.result" not in [f.header["type"] for f in frames]
+        assert viewer.filters["blk"]["grade"]["on"] is False
+
+
+def test_filter_long_stop_after_gives_state_building() -> None:
+    """With filter_stop_after the set_on result is state building after about 0.1 s."""
+    with filter_long_session(filter_stop_after=0.1) as (_, client):
+        prepare_filter(client)
+        started = time.monotonic()
+        frames = filter_edit_frames(client, 3, "set_on", on=True)
+        elapsed = time.monotonic() - started
+        assert frames[-1].header["type"] == "command.result"
+        assert frames[-1].header["result"] == {"status": "done", "state": "building"}
+        assert 0.05 <= elapsed < 0.35
+
+
+def test_filter_long_commands_list_marks_only_filter_edit_long() -> None:
+    """With minor 20, the commands frame has long true for filter.edit and no other long key."""
+    with filter_long_session() as (_, client):
+        client.send_binary(commands_list_frame(5))
+        answer = reply(client)
+        assert answer.header["type"] == "commands"
+        for item in answer.header["commands"]:
+            if item["name"] == "filter.edit":
+                assert item["long"] is True
+            else:
+                assert "long" not in item, item["name"]
+
+
+def test_filter_long_below_minor_20_has_no_progress_and_no_long_key() -> None:
+    """With minor 18, set_on gives only status done, and the commands have no long key."""
+    with filter_long_session(protocol_minor=18) as (_, client):
+        prepare_filter(client)
+        frames = filter_edit_frames(client, 3, "set_on", on=True)
+        assert [f.header["type"] for f in frames] == ["command.result"]
+        assert frames[0].header["result"] == {"status": "done"}
+        client.send_binary(commands_list_frame(6))
+        answer = reply(client)
+        assert all("long" not in item for item in answer.header["commands"])
