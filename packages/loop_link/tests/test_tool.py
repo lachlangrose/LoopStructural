@@ -641,22 +641,44 @@ def _filter_viewer() -> FakeViewer:
     return viewer
 
 
+def _filter_edit(number: int, edit: dict[str, Any]) -> bytes:
+    """Return a ``filter.edit`` request for object ``blk`` with one edit."""
+    return encode.command_frame(number, "filter.edit", {"object": "blk", "edit": edit})
+
+
 def _filter_build(number: int) -> bytes:
     """Return a ``filter.edit`` request that adds a filter on ``grade``."""
-    return encode.command_frame(
-        number, "filter.edit", {"object": "blk", "edit": {"kind": "add", "array": "grade"}}
-    )
+    return _filter_edit(number, {"kind": "add", "array": "grade"})
+
+
+def _filter_switch_on(number: int) -> bytes:
+    """Return a ``filter.edit`` request that switches the ``grade`` filter on (a slow build)."""
+    return _filter_edit(number, {"kind": "set_on", "array": "grade", "on": True})
+
+
+def _prepare_filter(tool: ToolConnection) -> None:
+    """Add a range filter on ``grade``, still off, so that ``set_on`` builds for 0.5 s."""
+    for edit in (
+        {"kind": "add", "array": "grade"},
+        {"kind": "set_range", "array": "grade", "min": "0", "max": "99", "keep_nan": False},
+    ):
+        tool.request(
+            lambda number, edit=edit: _filter_edit(number, edit),
+            until=("command.result",),
+            feature="commands",
+        )
 
 
 def test_tool_post_returns_request_number_at_once(direct: Callable[..., ToolConnection]) -> None:
     viewer = _filter_viewer()
     try:
         tool = direct(viewer)
+        _prepare_filter(tool)
         start = time.monotonic()
-        number = tool.post(_filter_build)
+        number = tool.post(_filter_switch_on)
+        # The viewer builds for 0.5 s. A post that waited would take longer than this.
         assert time.monotonic() - start < 0.2
         assert isinstance(number, int)
-        assert number == 1
     finally:
         viewer.close()
 
@@ -678,25 +700,28 @@ def test_tool_post_late_frames_are_skipped_by_next_request(
     viewer = _filter_viewer()
     try:
         tool = direct(viewer)
-        posted = tool.post(_filter_build)
+        _prepare_filter(tool)
+        posted = tool.post(_filter_switch_on)
         seen: list[Frame] = []
+        # The viewer builds for 0.5 s, so this reply comes after the build.
         frame = tool.request(
             lambda number: encode.commands_list_frame(number),
             until=("commands",),
             feature="commands",
             on_frame=seen.append,
+            timeout=5.0,
         )
         assert frame.header["type"] == "commands"
         assert frame.header["request"] == posted + 1
         # The frames of the posted request never reach the later request.
         assert all(item.header["request"] != posted for item in seen)
-        # The late frames of the posted request arrive in the next 0.5 s. The next
-        # request on the same connection must still get its own reply.
-        time.sleep(0.7)
+        # The next request on the same connection must still get its own reply.
+        time.sleep(0.2)
         again = tool.request(
             lambda number: encode.commands_list_frame(number),
             until=("commands",),
             feature="commands",
+            timeout=5.0,
         )
         assert again.header["request"] == posted + 2
     finally:
