@@ -260,7 +260,7 @@ class ToolConnection:
         if client is not None:
             try:
                 client.close()
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
 
     def _read_locked(

@@ -31,7 +31,7 @@ __all__ = [
     "Vectors",
 ]
 
-ArrayLike = Union[np.ndarray, Sequence]  # noqa: UP007
+ArrayLike = Union[np.ndarray, Sequence]
 
 #: The ten tab10 colours as RGBA, with alpha 255.
 DEFAULT_CATEGORY_COLOURS: tuple[tuple[int, int, int, int], ...] = (
@@ -165,7 +165,7 @@ class Categorical:
         object.__setattr__(self, "colours", colours)
 
 
-Property = Union[np.ndarray, Sequence, Categorical]  # noqa: UP007
+Property = Union[np.ndarray, Sequence, Categorical]
 
 
 def _properties(properties: dict[str, Any] | None, length: int, field_name: str) -> dict[str, Any]:
@@ -578,6 +578,4 @@ class Drillhole:
         )
 
 
-SceneObject = Union[  # noqa: UP007
-    Points, Vectors, Lines, Surface, BlockModel, TetraMesh, Drillhole
-]
+SceneObject = Union[Points, Vectors, Lines, Surface, BlockModel, TetraMesh, Drillhole]

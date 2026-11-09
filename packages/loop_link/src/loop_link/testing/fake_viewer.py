@@ -546,7 +546,7 @@ class FakeViewer:
         self._thread = threading.Thread(target=self._serve, daemon=True)
         self._thread.start()
 
-    def __enter__(self) -> FakeViewer:  # noqa: PYI034
+    def __enter__(self) -> FakeViewer:
         """Return the viewer."""
         return self
 

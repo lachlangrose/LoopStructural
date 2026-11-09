@@ -161,7 +161,7 @@ class Viewer:
 
     # -- context manager ------------------------------------------------------
 
-    def __enter__(self) -> Viewer:  # noqa: PYI034
+    def __enter__(self) -> Viewer:
         """Connect and return the viewer."""
         self.connect()
         return self
@@ -1391,7 +1391,7 @@ def _close_client(client: WebSocketClient) -> None:
     """Close a client. An error on close does not matter."""
     try:
         client.close()
-    except Exception:  # noqa: BLE001, S110
+    except Exception:
         pass
 
 

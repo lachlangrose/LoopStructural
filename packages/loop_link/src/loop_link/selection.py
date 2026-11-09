@@ -178,7 +178,7 @@ class SelectionWatcher:
         if self._thread.is_alive() and self._thread is not threading.current_thread():
             self._thread.join(2 * self._interval + 1)
 
-    def __enter__(self) -> SelectionWatcher:  # noqa: PYI034
+    def __enter__(self) -> SelectionWatcher:
         """Return the watcher."""
         return self
 
@@ -199,7 +199,7 @@ class SelectionWatcher:
                 return
             try:
                 selection = viewer.selection()
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 self._error = error
                 return
             finally:
@@ -209,6 +209,6 @@ class SelectionWatcher:
             self._last = selection
             try:
                 self._callback(selection)
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 self._error = error
                 return

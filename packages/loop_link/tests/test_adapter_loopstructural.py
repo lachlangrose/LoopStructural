@@ -11,7 +11,7 @@ import pytest
 
 geometry = pytest.importorskip("loop_common.geometry")
 
-from loop_link.adapters.loopstructural import from_loopstructural  # noqa: I001
+from loop_link.adapters.loopstructural import from_loopstructural
 from loop_link.errors import InvalidInputError
 from loop_link.objects import BlockModel
 from loop_link.objects import Surface as LinkSurface
