@@ -113,7 +113,7 @@ Pass: all 8 steps give the expected result.
 
 Purpose: check that the window viewer filters cells, sets colours and reports errors.
 
-Before you start, start the geoviewer window application. Use a viewer of protocol 1.18. Turn on the link in the viewer settings. Save the token `secret` in the viewer settings. Save your test scripts as files outside the repository. Run them with `packages/loop_link/.venv/Scripts/python.exe <script path>`. Start each script with `Viewer.clear()`. Place the test objects near the origin of the scene. An object far from the origin can give rendering artefacts (see M3).
+Before you start, start the geoviewer window application. Step 7 needs a viewer of protocol 1.20 (geoviewer spec 072). The other steps work with a viewer of protocol 1.18. Turn on the link in the viewer settings. Save the token `secret` in the viewer settings. Save your test scripts as files outside the repository. Run them with `packages/loop_link/.venv/Scripts/python.exe <script path>`. Start each script with `Viewer.clear()`. Place the test objects near the origin of the scene. An object far from the origin can give rendering artefacts (see M3).
 
 1. Send a `BlockModel` with a number property `grade`. Call `filter_range("grid", "grade", 0.5, 1.0)`. Check that only the cells with a `grade` from 0.5 to 1.0 show.
 2. Send an object with a category property. Call `filter_values` with two codes. Check that only the cells with these codes show. Call `filter_values` with the same two codes and `exclude=True`. Check that only the other cells show.
@@ -121,11 +121,16 @@ Before you start, start the geoviewer window application. Use a viewer of protoc
 4. Call `filter_range` for a text property. Then call `filter_range` for a property that does not exist. Check that the script raises `InvalidInputError` each time. Check the text of each error.
 5. Call `set_colour_property`, `set_colour_map("coolwarm")`, `set_colour_range`, `set_colour_scale("log")` and `set_object_colour`. Check the picture after each call.
 6. Call the colour map, colour range and colour scale methods for a category property. Check that each call raises an error. Call `colour_map_names()`. Check that it gives the names of the colour maps of the viewer.
-7. Send the same id again (a new revision). Check that the filter and the colours stay. Then send an object of 1,000,000 cells. Call `filter_range` with `wait=False`. Call a second command while the viewer builds the filter. Check what the second command does (OP15). Call `cancel_filter` during the build. Check the result.
+7. Send the same id again (a new revision). Check that the filter and the colours stay. Then do these checks for the filter wait:
+   - Send an object of 1,000,000 cells.
+   - Call `filter_range("grid", "grade", 0.5, 1.0)` with the default `wait=True`. Check that the call returns after the build. Check that `FilterResult.passing` and `total` are numbers, and that `passing` fits the picture.
+   - Call it again with `wait=False`. Check that it returns at once.
+   - Set a `threading.Event` during a build. Check that the call raises `CancelledError` and that the filter is as before.
+   - Record the time of the build.
 8. Send an object of 1,000,000 cells with `colour=ColourSettings(...)`. Check that the settings apply. The 0.5 s of `flush` can be too short (OP19). If the settings do not apply, write the result in your test record.
 9. Call `add` for a filter that already exists (OP16). Check the result. Then call `add` and `set_range` for a new filter. Check that the new filter is on.
 
-M4 checks OP15, OP16, OP18 and OP19. Record the time of one `set_range` on the object of 1,000,000 cells.
+M4 checks OP16, OP18 and OP19. Record the time of one `set_range` on the object of 1,000,000 cells.
 
 Pass: all 9 steps give the expected result.
 
