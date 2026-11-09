@@ -18,6 +18,7 @@ from loop_link._websocket import WebSocketClient, WebSocketClosed, WebSocketErro
 from loop_link.adapters import convert
 from loop_link.commands import (
     ColourSettings,
+    FilterResult,
     check_codes,
     check_number,
     check_rgb,
@@ -589,7 +590,8 @@ class Viewer:
         wait: bool = True,
         cancel: threading.Event | None = None,
         timeout: float = 60.0,
-    ) -> None:
+        progress: Callable[[float], None] | None = None,
+    ) -> FilterResult:
         """Keep the cells or vertices with an array value in a range.
 
         Parameters
@@ -605,14 +607,25 @@ class Viewer:
         keep_nan : bool
             If true, keep the items that have no value (NaN).
         wait : bool
-            Not used yet.
+            If true, wait for the end of the filter build. If false, send the last edit and
+            return an empty result at once. A refusal of that edit is not seen.
         cancel : threading.Event, optional
-            Not used yet.
+            When it is set, the viewer cancels the build and the call raises ``CancelledError``.
         timeout : float
-            The time in seconds to wait. It must be more than zero. Not used yet.
+            The time in seconds to wait for the next frame of the viewer. It must be more
+            than zero.
+        progress : callable, optional
+            Called with the fraction of each progress frame of the build.
+
+        Returns
+        -------
+        FilterResult
+            The counts of the build. A field is ``None`` when the viewer gives no value.
 
         Raises
         ------
+        loop_link.errors.CancelledError
+            The ``cancel`` event was set.
         loop_link.errors.InvalidInputError
             An argument is not valid, or the viewer refused the filter.
         loop_link.errors.MissingFeatureError
@@ -629,18 +642,25 @@ class Viewer:
         keep_nan = _check_bool(keep_nan, "keep_nan")
         _check_wait(wait, timeout)
         tool = self._tool()
-        self._filter_add(tool, object_id, array)
-        for edit in (
-            {
-                "kind": "set_range",
-                "array": array,
-                "min": format_number(low),
-                "max": format_number(high),
-                "keep_nan": keep_nan,
-            },
-            {"kind": "set_on", "array": array, "on": True},
-        ):
-            _filter_edit(tool, object_id, edit)
+        self._filter_add(tool, object_id, array, cancel, timeout)
+        return _filter_edits(
+            tool,
+            object_id,
+            (
+                {
+                    "kind": "set_range",
+                    "array": array,
+                    "min": format_number(low),
+                    "max": format_number(high),
+                    "keep_nan": keep_nan,
+                },
+                {"kind": "set_on", "array": array, "on": True},
+            ),
+            wait=wait,
+            cancel=cancel,
+            timeout=timeout,
+            progress=progress,
+        )
 
     def filter_values(
         self,
@@ -652,7 +672,8 @@ class Viewer:
         wait: bool = True,
         cancel: threading.Event | None = None,
         timeout: float = 60.0,
-    ) -> None:
+        progress: Callable[[float], None] | None = None,
+    ) -> FilterResult:
         """Keep the cells or vertices with an array value in a list of codes.
 
         Parameters
@@ -666,14 +687,25 @@ class Viewer:
         exclude : bool
             If true, remove the items with these codes and keep the others.
         wait : bool
-            Not used yet.
+            If true, wait for the end of the filter build. If false, send the last edit and
+            return an empty result at once. A refusal of that edit is not seen.
         cancel : threading.Event, optional
-            Not used yet.
+            When it is set, the viewer cancels the build and the call raises ``CancelledError``.
         timeout : float
-            The time in seconds to wait. It must be more than zero. Not used yet.
+            The time in seconds to wait for the next frame of the viewer. It must be more
+            than zero.
+        progress : callable, optional
+            Called with the fraction of each progress frame of the build.
+
+        Returns
+        -------
+        FilterResult
+            The counts of the build. A field is ``None`` when the viewer gives no value.
 
         Raises
         ------
+        loop_link.errors.CancelledError
+            The ``cancel`` event was set.
         loop_link.errors.InvalidInputError
             An argument is not valid, or the viewer refused the filter.
         loop_link.errors.MissingFeatureError
@@ -687,15 +719,32 @@ class Viewer:
         exclude = _check_bool(exclude, "exclude")
         _check_wait(wait, timeout)
         tool = self._tool()
-        self._filter_add(tool, object_id, array)
-        for edit in (
-            {"kind": "set_values", "array": array, "values": codes},
-            {"kind": "set_exclude", "array": array, "exclude": exclude},
-            {"kind": "set_on", "array": array, "on": True},
-        ):
-            _filter_edit(tool, object_id, edit)
+        self._filter_add(tool, object_id, array, cancel, timeout)
+        return _filter_edits(
+            tool,
+            object_id,
+            (
+                {"kind": "set_values", "array": array, "values": codes},
+                {"kind": "set_exclude", "array": array, "exclude": exclude},
+                {"kind": "set_on", "array": array, "on": True},
+            ),
+            wait=wait,
+            cancel=cancel,
+            timeout=timeout,
+            progress=progress,
+        )
 
-    def filter_enable(self, object_id: str, array: str, on: bool = True) -> None:
+    def filter_enable(
+        self,
+        object_id: str,
+        array: str,
+        on: bool = True,
+        *,
+        wait: bool = True,
+        cancel: threading.Event | None = None,
+        timeout: float = 60.0,
+        progress: Callable[[float], None] | None = None,
+    ) -> FilterResult:
         """Turn the filter of one array on or off.
 
         Parameters
@@ -706,9 +755,26 @@ class Viewer:
             The name of the array of the filter.
         on : bool
             True to turn the filter on, false to turn it off.
+        wait : bool
+            If true, wait for the end of the filter build. If false, send the edit and
+            return an empty result at once.
+        cancel : threading.Event, optional
+            When it is set, the viewer cancels the build and the call raises ``CancelledError``.
+        timeout : float
+            The time in seconds to wait for the next frame of the viewer. It must be more
+            than zero.
+        progress : callable, optional
+            Called with the fraction of each progress frame of the build.
+
+        Returns
+        -------
+        FilterResult
+            The counts of the build. A field is ``None`` when the viewer gives no value.
 
         Raises
         ------
+        loop_link.errors.CancelledError
+            The ``cancel`` event was set.
         loop_link.errors.InvalidInputError
             An argument is not valid, or the viewer refused the command.
         loop_link.errors.MissingFeatureError
@@ -719,9 +785,27 @@ class Viewer:
         object_id = check_text(object_id, "object_id")
         array = check_text(array, "array")
         on = _check_bool(on, "on")
-        _filter_edit(self._tool(), object_id, {"kind": "set_on", "array": array, "on": on})
+        _check_wait(wait, timeout)
+        return _filter_edits(
+            self._tool(),
+            object_id,
+            ({"kind": "set_on", "array": array, "on": on},),
+            wait=wait,
+            cancel=cancel,
+            timeout=timeout,
+            progress=progress,
+        )
 
-    def filter_remove(self, object_id: str, array: str) -> None:
+    def filter_remove(
+        self,
+        object_id: str,
+        array: str,
+        *,
+        wait: bool = True,
+        cancel: threading.Event | None = None,
+        timeout: float = 60.0,
+        progress: Callable[[float], None] | None = None,
+    ) -> FilterResult:
         """Remove the filter of one array.
 
         Parameters
@@ -730,9 +814,26 @@ class Viewer:
             The identifier of the object.
         array : str
             The name of the array of the filter.
+        wait : bool
+            If true, wait for the end of the filter build. If false, send the edit and
+            return an empty result at once.
+        cancel : threading.Event, optional
+            When it is set, the viewer cancels the build and the call raises ``CancelledError``.
+        timeout : float
+            The time in seconds to wait for the next frame of the viewer. It must be more
+            than zero.
+        progress : callable, optional
+            Called with the fraction of each progress frame of the build.
+
+        Returns
+        -------
+        FilterResult
+            The counts of the build. A field is ``None`` when the viewer gives no value.
 
         Raises
         ------
+        loop_link.errors.CancelledError
+            The ``cancel`` event was set.
         loop_link.errors.InvalidInputError
             An argument is not valid, or the viewer refused the command.
         loop_link.errors.MissingFeatureError
@@ -742,7 +843,16 @@ class Viewer:
         """
         object_id = check_text(object_id, "object_id")
         array = check_text(array, "array")
-        _filter_edit(self._tool(), object_id, {"kind": "remove", "array": array})
+        _check_wait(wait, timeout)
+        return _filter_edits(
+            self._tool(),
+            object_id,
+            ({"kind": "remove", "array": array},),
+            wait=wait,
+            cancel=cancel,
+            timeout=timeout,
+            progress=progress,
+        )
 
     def cancel_filter(self, object_id: str) -> None:
         """Cancel the filter build that runs for one object.
@@ -765,10 +875,16 @@ class Viewer:
         _filter_edit(self._tool(), object_id, {"kind": "cancel"})
 
     @staticmethod
-    def _filter_add(tool: ToolConnection, object_id: str, array: str) -> None:
+    def _filter_add(
+        tool: ToolConnection,
+        object_id: str,
+        array: str,
+        cancel: threading.Event | None,
+        timeout: float,
+    ) -> None:
         """Add a filter. A refusal is not an error: the filter can exist already."""
         try:
-            _filter_edit(tool, object_id, {"kind": "add", "array": array})
+            _filter_edit(tool, object_id, {"kind": "add", "array": array}, cancel, timeout)
         except InvalidInputError:
             pass
 
@@ -1226,9 +1342,49 @@ def _check_wait(wait: object, timeout: object) -> None:
         raise InvalidInputError("'timeout' must be more than zero.")
 
 
-def _filter_edit(tool: ToolConnection, object_id: str, edit: dict[str, Any]) -> None:
+def _filter_edit(
+    tool: ToolConnection,
+    object_id: str,
+    edit: dict[str, Any],
+    cancel: threading.Event | None = None,
+    timeout: float | None = None,
+    progress: Callable[[float], None] | None = None,
+) -> Mapping[str, Any]:
     """Send one ``filter.edit`` command and wait for its result."""
-    run_command(tool, "filter.edit", {"object": object_id, "edit": edit}, object_id=object_id)
+    return run_command(
+        tool,
+        "filter.edit",
+        {"object": object_id, "edit": edit},
+        object_id=object_id,
+        cancel=cancel,
+        timeout=timeout,
+        progress=progress,
+    )
+
+
+def _filter_edits(
+    tool: ToolConnection,
+    object_id: str,
+    edits: Sequence[dict[str, Any]],
+    *,
+    wait: bool,
+    cancel: threading.Event | None,
+    timeout: float,
+    progress: Callable[[float], None] | None,
+) -> FilterResult:
+    """Send the edits of a filter call and return the result of the last one.
+
+    With ``wait`` false, the last edit goes with ``post`` and the result is empty.
+    """
+    result: Mapping[str, Any] = {}
+    last = len(edits) - 1
+    for index, edit in enumerate(edits):
+        if index == last and not wait:
+            body = {"object": object_id, "edit": edit}
+            tool.post(lambda number: encode.command_frame(number, "filter.edit", body))
+            return FilterResult()
+        result = _filter_edit(tool, object_id, edit, cancel, timeout, progress)
+    return FilterResult.from_result(result)
 
 
 def _close_client(client: WebSocketClient) -> None:

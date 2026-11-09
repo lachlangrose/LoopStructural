@@ -258,11 +258,19 @@ def _send(conn: socket.socket, payload: bytes) -> None:
 
 
 class _Reader:
-    """Read masked client frames from a socket."""
+    """Read masked client frames from a socket.
+
+    Attributes
+    ----------
+    deferred : list of bytes
+        Messages that a read-ahead took from the socket but that the viewer must
+        still handle, in arrival order.
+    """
 
     def __init__(self, conn: socket.socket, buffer: bytes = b"") -> None:
         self._conn = conn
         self._buffer = buffer
+        self.deferred: list[bytes] = []
 
     def _take(self, count: int) -> bytes:
         while len(self._buffer) < count:
@@ -1414,7 +1422,12 @@ class FakeViewer:
 
     @staticmethod
     def _cancelled(conn: socket.socket, reader: _Reader, request: object) -> bool:
-        """Return whether a ``command.cancel`` for ``request`` arrives within 0.001 s."""
+        """Return whether a ``command.cancel`` for ``request`` arrives within 0.001 s.
+
+        A message that is not a ``command.cancel`` is kept in ``reader.deferred``.
+        The viewer handles it after the current work, as a real viewer does. A
+        ``command.cancel`` for another request is dropped.
+        """
         previous = conn.gettimeout()
         conn.settimeout(0.001)
         try:
@@ -1428,8 +1441,12 @@ class FakeViewer:
         try:
             header = protocol.decode_frame(data).header
         except ProtocolError:
+            reader.deferred.append(data)
             return False
-        return header.get("type") == "command.cancel" and header.get("request") == request
+        if header.get("type") != "command.cancel":
+            reader.deferred.append(data)
+            return False
+        return header.get("request") == request
 
     # -- server -------------------------------------------------------------
 
@@ -1544,9 +1561,12 @@ class FakeViewer:
         return frame
 
     def _run(self, conn: socket.socket, reader: _Reader, tool: bool) -> None:
-        """Read messages and send the replies."""
+        """Read messages and send the replies.
+
+        The method handles the messages in ``reader.deferred`` first, in order.
+        """
         while True:
-            data = reader.message()
+            data = reader.deferred.pop(0) if reader.deferred else reader.message()
             if data is None:
                 return
             if tool:

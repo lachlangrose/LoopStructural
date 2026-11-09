@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import numbers
 import threading
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ColourSettings",
+    "FilterResult",
     "check_codes",
     "check_number",
     "check_rgb",
@@ -221,6 +222,60 @@ class ColourSettings:
             object.__setattr__(self, "plain", check_rgb(self.plain, "plain"))
 
 
+def _count(result: Mapping[str, Any], key: str) -> int | None:
+    """Return a count of a result, or ``None`` when it is absent."""
+    value = result.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ProtocolError(f"The viewer sent a filter result '{key}' that is not valid.")
+    return value
+
+
+@dataclass(frozen=True)
+class FilterResult:
+    """The result of a filter call. A field is ``None`` when the viewer gives no value.
+
+    Parameters
+    ----------
+    passing : int, optional
+        The number of elements that pass the filters.
+    total : int, optional
+        The number of elements of the object.
+    state : str, optional
+        ``"unbuilt"`` when the viewer did not build the filters, or ``"building"`` when
+        the viewer stopped to wait and the build goes on.
+    """
+
+    passing: int | None = None
+    total: int | None = None
+    state: str | None = None
+
+    @classmethod
+    def from_result(cls, result: Mapping[str, Any]) -> FilterResult:
+        """Read a ``command.result`` body of ``filter.edit``.
+
+        Parameters
+        ----------
+        result : mapping
+            The ``result`` body, with the status ``done``.
+
+        Returns
+        -------
+        FilterResult
+            The counts and the state of the body.
+
+        Raises
+        ------
+        loop_link.protocol.ProtocolError
+            A count is not a whole number of 0 or more, or the state is not a text.
+        """
+        state = result.get("state")
+        if state is not None and not isinstance(state, str):
+            raise ProtocolError("The viewer sent a filter result 'state' that is not a text.")
+        return cls(_count(result, "passing"), _count(result, "total"), state)
+
+
 def raise_for_command_result(result: Mapping[str, Any], *, command: str) -> None:
     """Raise an error when a ``command.result`` body is not ``done``.
 
@@ -293,6 +348,7 @@ def run_command(
     object_id: str | None = None,
     cancel: threading.Event | None = None,
     timeout: float | None = None,
+    progress: Callable[[float], None] | None = None,
 ) -> Mapping[str, Any]:
     """Send one command and return its result.
 
@@ -310,6 +366,8 @@ def run_command(
         When it is set, the request is cancelled.
     timeout : float, optional
         The time in seconds to wait for the next frame.
+    progress : callable, optional
+        Called with the fraction of each ``command.progress`` frame.
 
     Returns
     -------
@@ -328,6 +386,7 @@ def run_command(
         until=("command.result",),
         feature=_FEATURE,
         object_id=object_id,
+        progress=progress,
         cancel=cancel,
         timeout=timeout,
     )

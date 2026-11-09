@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
-from .commands import ColourSettings
+from .commands import ColourSettings, FilterResult
 from .errors import (
     BusyError,
     CancelledError,
@@ -35,6 +35,7 @@ __all__ = [
     "ColourSettings",
     "Drillhole",
     "FetchResult",
+    "FilterResult",
     "InvalidInputError",
     "InventoryEntry",
     "Lines",

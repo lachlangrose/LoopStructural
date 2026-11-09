@@ -1707,3 +1707,4 @@ None. Every applicable constitution check passes. The py310 target of the packag
 is a decision that FR-017 asks of this plan, and it does not break a project rule
 (the repository target py39 stays for all other code).
 - 2026-11-09 (orchestrator, T089): the fake gives `passing` and `total` for `set_on` always, and for `set_range`, `set_values` and `set_exclude` only when the filter is on after the edit (else plain `{"status": "done"}`). This is a fake assumption; the real viewer rule is checked in M4.
+- 2026-11-09 (orchestrator, T081): the fake viewer keeps a non-cancel frame that arrives during a long build and handles it after the build (as a viewer that does one command at a time). This changed `testing/fake_viewer.py` in the T081 round (a file of T089).
