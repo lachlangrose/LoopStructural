@@ -612,8 +612,7 @@ give the 1-D result. The notice is in `COMPAT.md`.
 - [ ] **Stage 7 — `loop_link`: Python link to geoviewer.** New package
   `packages/loop_link` (spec `specs/006-loop-link`). It gives Python a way to
   send data to geoviewer: send, adapters and the plugin push API. Stage S5 (select, read the selection
-  and fetch; geoviewer spec 067) is done. Filter and colour (stage S4) are
-  not planned yet.
+  and fetch; geoviewer spec 067) is done. Stage S4 (filter and colour) is done.
 
 ## Status log
 
@@ -904,3 +903,4 @@ give the 1-D result. The notice is in `COMPAT.md`.
 - **2026-11-06:** Stage 7 started. The spec and the plan for
   `packages/loop_link` exist (`specs/006-loop-link`). The package is new.
 - **2026-11-07:** Stage 7 stage S5 implemented: tool connection, select, read selection, fetch and round trip in `packages/loop_link`.
+- **2026-11-09:** Stage 7 stage S4 implemented: filter and colour calls, colour in `send` and the fake commands endpoint in `packages/loop_link`.

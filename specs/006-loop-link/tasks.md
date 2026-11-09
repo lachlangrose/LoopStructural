@@ -683,7 +683,7 @@ Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. Th
 
 ## Phase 11: Finish S4
 
-- [ ] T086 [Finish] [S] Update `ROADMAP.md`: stage S4 done.
+- [x] T086 [Finish] [S] Update `ROADMAP.md`: stage S4 done.
   - Files: `ROADMAP.md`
   - Needs: T081, T082, T083, T084, T085, T079, T092
   - Wave: 22
