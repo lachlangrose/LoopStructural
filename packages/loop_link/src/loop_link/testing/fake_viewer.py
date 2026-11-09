@@ -470,9 +470,14 @@ class FakeViewer:
         The seconds to wait between the parts of an ``object.fetch`` reply.
     filter_delay : float
         The seconds that the scene stays busy after a ``filter.edit`` that changes a filter.
+        For ``protocol_minor`` 20 or more, the seconds that a filter build takes.
     busy_wait : float
         The seconds that a waiting command waits for the busy time to end. After that,
         the viewer answers ``busy``.
+    filter_stop_after : float, optional
+        For ``protocol_minor`` 20 or more, the seconds after which a filter build gives
+        the result ``{"status": "done", "state": "building"}``. The edit stays applied.
+        It has no effect if it is not shorter than the build.
 
     Attributes
     ----------
@@ -500,6 +505,7 @@ class FakeViewer:
         fetch_delay: float = 0.0,
         filter_delay: float = 0.0,
         busy_wait: float = 5.0,
+        filter_stop_after: float | None = None,
     ) -> None:
         self.token = token
         self.crs = crs
@@ -513,6 +519,7 @@ class FakeViewer:
         self.fetch_delay = fetch_delay
         self.filter_delay = filter_delay
         self.busy_wait = busy_wait
+        self.filter_stop_after = filter_stop_after
         self._filters: dict[str, dict[str, dict[str, Any]]] = {}
         self._colouring: dict[str, dict[str, Any]] = {}
         self._busy_until = 0.0
@@ -895,29 +902,30 @@ class FakeViewer:
                     if self.protocol_minor >= 18
                     else {"type": "string"}
                 )
-            entries.append(
-                {
-                    "name": name,
-                    "description": description,
-                    "needs_window": needs_window,
-                    "tool_available": True,
-                    "unavailable_reason": None,
-                    "input_schema": {
-                        "type": "object",
-                        "properties": properties,
-                        "required": [key for key, (_, required) in fields.items() if required],
-                        "additionalProperties": False,
+            entry: dict[str, Any] = {
+                "name": name,
+                "description": description,
+                "needs_window": needs_window,
+                "tool_available": True,
+                "unavailable_reason": None,
+                "input_schema": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": [key for key, (_, required) in fields.items() if required],
+                    "additionalProperties": False,
+                },
+                "result_schema": {
+                    "type": "object",
+                    "properties": {
+                        "status": {"enum": ["done", "refused"]},
+                        "text": {"type": "string"},
                     },
-                    "result_schema": {
-                        "type": "object",
-                        "properties": {
-                            "status": {"enum": ["done", "refused"]},
-                            "text": {"type": "string"},
-                        },
-                        "required": ["status"],
-                    },
-                }
-            )
+                    "required": ["status"],
+                },
+            }
+            if name == "filter.edit" and self.protocol_minor >= 20:
+                entry["long"] = True
+            entries.append(entry)
         header = {"type": "commands", "request": request, "viewer": self.kind, "commands": entries}
         return Frame(header=header, buffers={})
 
@@ -936,8 +944,8 @@ class FakeViewer:
         time.sleep(min(remaining, self.busy_wait))
         return remaining <= self.busy_wait
 
-    def _command_run(self, frame: Frame) -> Frame:
-        """Check and run one command. Return the ``command.result`` or ``request.error`` frame."""
+    def _command_problem(self, frame: Frame) -> Frame | None:
+        """Check the input and the object of a command. Return a ``request.error`` or ``None``."""
         request = frame.header.get("request")
         command = frame.header.get("command")
         spec = _COMMANDS.get(command) if isinstance(command, str) else None
@@ -966,6 +974,16 @@ class FakeViewer:
             )
         if needs_window and self.kind == "headless":
             return _request_error(request, "needs_window", "The viewer has no window.")
+        return None
+
+    def _command_run(self, frame: Frame) -> Frame:
+        """Check and run one command. Return the ``command.result`` or ``request.error`` frame."""
+        problem = self._command_problem(frame)
+        if problem is not None:
+            return problem
+        request = frame.header.get("request")
+        command = frame.header.get("command")
+        given = frame.header["input"]
         cancel = command == "filter.edit" and given["edit"]["kind"] == "cancel"
         if not cancel and not self._wait_if_busy(command):
             return _request_error(request, "busy", "The scene is busy with a filter change.")
@@ -1046,8 +1064,149 @@ class FakeViewer:
                     state["on"] = edit["on"]
                 else:
                     state["exclude"] = edit["exclude"]
-            self._busy_until = time.monotonic() + self.filter_delay
+            if self.protocol_minor < 20:
+                self._busy_until = time.monotonic() + self.filter_delay
         return {"status": "done"}
+
+    def _filter_counts(self, object_id: str, array: str) -> tuple[int, int]:
+        """Return ``(passing, total)`` for the array ``array`` of an object.
+
+        The count uses the filters that are on and that have the association of the
+        array. A range filter keeps ``minimum <= v <= maximum``, and NaN only if
+        ``keep_nan`` is set. A values filter keeps the listed codes, or all other
+        codes if ``exclude`` is set.
+        """
+        with self._state_lock:
+            stored = self.objects[object_id]
+            entries = {
+                e.get("name"): e for e in stored.header.get("data") or [] if isinstance(e, dict)
+            }
+            filters = copy.deepcopy(self._filters.get(object_id, {}))
+            buffers = stored.buffers
+        entry = entries[array]
+        total = int(buffers[entry["buffer"]].shape[0])
+        keep = np.ones(total, dtype=bool)
+        for name, state in filters.items():
+            other = entries.get(name)
+            if not state["on"] or other is None:
+                continue
+            if other.get("association") != entry.get("association"):
+                continue
+            values = buffers[other["buffer"]]
+            if state["kind"] == "range":
+                passed = (values >= state["minimum"]) & (values <= state["maximum"])
+                if state["keep_nan"]:
+                    passed = passed | np.isnan(values)
+            else:
+                passed = np.isin(values, state["values"])
+                if state["exclude"]:
+                    passed = ~passed
+            keep &= passed
+        return int(keep.sum()), total
+
+    def _build(self, conn: socket.socket, reader: _Reader, request: object) -> str:
+        """Send ``command.progress`` frames for one filter build.
+
+        The method sends a frame about every 0.1 s and reads a possible
+        ``command.cancel`` between them. It returns ``"cancelled"`` on cancel,
+        ``"stopped"`` when ``filter_stop_after`` ends the wait, and ``"done"`` at
+        the end of the build.
+        """
+        version = protocol.TOOL_PROTOCOL_VERSION
+        stop = self.filter_stop_after
+        if stop is not None and stop >= self.filter_delay:
+            stop = None
+        started = time.monotonic()
+        fraction = 0.0
+        while True:
+            progress = {
+                "type": "command.progress",
+                "request": request,
+                "fraction": fraction,
+                "text": "filter.edit",
+            }
+            _send(conn, _encode(Frame(header=progress, buffers={}), version))
+            if fraction >= 1.0:
+                return "done"
+            end = self.filter_delay if stop is None else stop
+            wait = min(0.1, end - (time.monotonic() - started))
+            if wait > 0:
+                time.sleep(wait)
+            if self._cancelled(conn, reader, request):
+                return "cancelled"
+            elapsed = time.monotonic() - started
+            if stop is not None and elapsed >= stop:
+                return "stopped"
+            fraction = min(1.0, elapsed / self.filter_delay)
+
+    def _filter_request(self, data: bytes) -> Frame | None:
+        """Return the frame if ``data`` is a ``filter.edit`` that this viewer builds in steps.
+
+        The method also keeps the frame in ``tool_requests``. It returns ``None`` below
+        protocol 1.20 and for other messages.
+        """
+        if self.protocol_minor < 20:
+            return None
+        try:
+            frame = protocol.decode_frame(data)
+        except ProtocolError:
+            return None
+        if frame.header.get("type") != "command.run":
+            return None
+        if frame.header.get("command") != "filter.edit":
+            return None
+        with self._state_lock:
+            self.tool_requests.append(frame)
+        return frame
+
+    def _stream_filter(self, conn: socket.socket, reader: _Reader, frame: Frame) -> None:
+        """Run one ``filter.edit`` and send ``command.progress`` frames during a build.
+
+        A build runs when the edit is ``set_range``, ``set_values``, ``set_exclude`` or
+        ``set_on``, the filter is on after the edit and ``filter_delay`` is above 0. On
+        ``command.cancel``, the method restores the filters of the object and sends
+        ``cancelled``. If ``filter_stop_after`` is shorter than the build, the result is
+        ``{"status": "done", "state": "building"}`` at that time. At the end of a build,
+        and for an edit with no build, the result has ``passing`` and ``total``.
+        """
+        version = protocol.TOOL_PROTOCOL_VERSION
+        request = frame.header.get("request")
+        problem = self._command_problem(frame)
+        if problem is not None:
+            _send(conn, _encode(problem, version))
+            return
+        given = frame.header["input"]
+        object_id = given["object"]
+        edit = given["edit"]
+        with self._state_lock:
+            before = copy.deepcopy(self._filters.get(object_id))
+        result = self._filter_edit(object_id, edit)
+        on = False
+        if result["status"] == "done" and edit["kind"].startswith("set_"):
+            with self._state_lock:
+                on = self._filters[object_id][edit["array"]]["on"]
+        # ``set_on`` always gives the count. Other edits give it only if the filter is on.
+        if result["status"] == "done" and (on or edit["kind"] == "set_on"):
+            array = edit["array"]
+            outcome = "done"
+            if on and self.filter_delay > 0:
+                outcome = self._build(conn, reader, request)
+            if outcome == "cancelled":
+                with self._state_lock:
+                    if before is None:
+                        self._filters.pop(object_id, None)
+                    else:
+                        self._filters[object_id] = before
+                error = _request_error(request, "cancelled", "The client cancelled the request.")
+                _send(conn, _encode(error, version))
+                return
+            if outcome == "stopped":
+                result = {"status": "done", "state": "building"}
+            else:
+                passing, total = self._filter_counts(object_id, array)
+                result = {"status": "done", "passing": passing, "total": total}
+        header = {"type": "command.result", "request": request, "result": result}
+        _send(conn, _encode(Frame(header=header, buffers={}), version))
 
     def _colour_command(self, command: str, given: dict[str, Any]) -> dict[str, Any]:
         """Run one colour command and return its result dict."""
@@ -1394,6 +1553,10 @@ class FakeViewer:
                 fetch = self._fetch_request(data)
                 if fetch is not None:
                     self._stream_fetch(conn, reader, fetch)
+                    continue
+                edit = self._filter_request(data)
+                if edit is not None:
+                    self._stream_filter(conn, reader, edit)
                     continue
                 for reply in self.tool_frame(data):
                     _send(conn, _encode(reply, protocol.TOOL_PROTOCOL_VERSION))

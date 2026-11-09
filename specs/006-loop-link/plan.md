@@ -1706,3 +1706,4 @@ Other specs and repositories use these contracts.
 None. Every applicable constitution check passes. The py310 target of the package
 is a decision that FR-017 asks of this plan, and it does not break a project rule
 (the repository target py39 stays for all other code).
+- 2026-11-09 (orchestrator, T089): the fake gives `passing` and `total` for `set_on` always, and for `set_range`, `set_values` and `set_exclude` only when the filter is on after the edit (else plain `{"status": "done"}`). This is a fake assumption; the real viewer rule is checked in M4.
