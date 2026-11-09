@@ -624,7 +624,7 @@ Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. Th
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_tool.py -k post` fails (no `post`), then passes after T091.
   - Context: Read the file for the fixtures that start a `FakeViewer` and a `ToolConnection`. Tests are named `test_tool_post_*`. Use `FakeViewer(protocol_minor=20, filter_delay=0.5)` with a `BlockModel` of 1,000 cells and the array `grade` (as in `test_fake_viewer.py`). `post(build)` takes the same `build` argument as `request`, returns the request number (an `int`) and returns in less than 0.2 s while the fake builds. A later `request` on the same connection (for example `commands.list`) gets its own reply and skips the late frames of the posted request. A `post` with no viewer raises `NoViewerError`; a closed connection raises `ViewerClosedError`.
 
-- [ ] T091 [US1] [M] Add `ToolConnection.post` to `tool.py`.
+- [x] T091 [US1] [M] Add `ToolConnection.post` to `tool.py`.
   - Files: `packages/loop_link/src/loop_link/tool.py`
   - Needs: T090, T047
   - Wave: 13

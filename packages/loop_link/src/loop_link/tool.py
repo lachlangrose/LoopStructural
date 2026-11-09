@@ -201,6 +201,42 @@ class ToolConnection:
                 self._drop_locked()
                 raise ViewerClosedError from error
 
+    def post(self, build: Callable[[int], bytes]) -> int:
+        """Send one request and do not wait for a reply.
+
+        The reply frames of the request stay in the socket. A later request skips them,
+        because their request number is not its own.
+
+        Parameters
+        ----------
+        build : callable
+            Gets the request number and returns the frame to send.
+
+        Returns
+        -------
+        int
+            The request number.
+
+        Raises
+        ------
+        loop_link.errors.NoViewerError
+            No viewer was found.
+        loop_link.errors.TokenError
+            The viewer refused the token.
+        loop_link.errors.ViewerClosedError
+            The connection closed.
+        """
+        with self._lock:
+            client = self._connect_locked()
+            self._number += 1
+            number = self._number
+            try:
+                client.send_binary(build(number))
+            except _LINK_ERRORS as error:
+                self._drop_locked()
+                raise ViewerClosedError from error
+            return number
+
     # -- helpers --------------------------------------------------------------
 
     def _connect_locked(self) -> WebSocketClient:
