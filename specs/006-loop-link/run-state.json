@@ -85,6 +85,12 @@
       "base": "c3b1a73e",
       "commit": "ebbf9854 + final record",
       "review": "end review: round 1 changes needed (1 blocker verified, 5 major), fix commit ebbf9854, round 2 pass"
+    },
+    {
+      "wave": "S4d (10-23)",
+      "base": "4ea89a7d",
+      "commit": "fd6d3ca3",
+      "review": "one batched review of waves 10-20 (code-reviewer-wave, sonnet): 1 major fixed (post tests), 3 minor open; fix verified by orchestrator, no second review round"
     }
   ],
   "runs": {
@@ -316,10 +322,10 @@
     ]
   },
   "findings": {
-    "found": 78,
+    "found": 82,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 58,
+    "fixed": 59,
     "open_minor": [
       "W1 T004: loop-link CI job fails between wave 1 and wave 2 (fixed by T003/T006); do not merge wave 1 alone",
       "W2 T006: errors with formatted message are not picklable",
@@ -339,7 +345,10 @@
       "End review: loopstructural-test job does not wait for loop-link-test in CI",
       "End recheck: push_objects item of length 1 raises IndexError and items of 4 or more parts drop extra parts silently (item[0], item[1] outside the try)",
       "End recheck: Viewer.connect adds a fixed 50 ms read before hello; weakref.finalize atexit may close sockets without the lock (harmless)",
-      "End recheck: CI job could use ./.venv-loop-link to remove any doubt about path parsing"
+      "End recheck: CI job could use ./.venv-loop-link to remove any doubt about path parsing",
+      "S4d T081: wait=False skips feature/refusal check; cancel and timeout ignored for the posted edit (docstring)",
+      "S4d T081: filter_enable and filter_remove also take wait/cancel/timeout/progress (no task names it)",
+      "S4d T089: fake _filter_counts raises TypeError for set_on with no range (raw requests only)"
     ]
   },
   "merged_origin_master": "7497982b (ruff baseline fixed upstream by #395)",
@@ -924,5 +933,8 @@
       "T086",
       "T087 (OP15)"
     ]
-  }
+  },
+  "blocked": [
+    "T087: root pytest 7 failed (pre-existing, outside loop_link); 2 RUF100 in loop_common"
+  ]
 }

@@ -690,7 +690,7 @@ Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. Th
   - Done when: `git grep -n "stage S4" ROADMAP.md` shows 1 or more lines and `git grep -n -c "loop_link" ROADMAP.md` gives 3 or more.
   - Context: In the entry `- [ ] **Stage 7 — `loop_link`: Python link to geoviewer.**` replace the sentence "Filter and colour (stage S4) are not planned yet." with "Stage S4 (filter and colour) is done." (read the entry first; the sentence can differ a little). Add one status log entry at the end of "Status log", in the style of the neighbours, dated with the date of the run (YYYY-MM-DD): "Stage 7 stage S4 implemented: filter and colour calls, colour in `send` and the fake commands endpoint in `packages/loop_link`." Tick the Stage 7 box only if no other stage of the entry is open. If you are not sure, leave the box and say so in the result.
 
-- [ ] T087 [Finish] [M] Run the merge gates for S4 and fix the findings.
+- [!] T087 [Finish] [M] Run the merge gates for S4 and fix the findings.  (root pytest finished: 7 failed in tests/unit/interpolator/test_2d_p1_p2_support.py, numpy 2D cross product, outside loop_link; ruff: 2 RUF100 in packages/loop_common)
   - Files: `packages/loop_link/`
   - Needs: T086, T062, T038, T063
   - Wave: 23
