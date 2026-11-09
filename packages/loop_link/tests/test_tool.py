@@ -26,6 +26,7 @@ from loop_link.errors import (
     ViewerClosedError,
     ViewerRefusedError,
 )
+from loop_link.objects import BlockModel
 from loop_link.protocol import Frame
 from loop_link.testing import FakeViewer
 from loop_link.testing.fake_viewer import StoredObject, _send
@@ -620,3 +621,112 @@ def test_error_table_other_code_without_object_id() -> None:
     with pytest.raises(ViewerRefusedError) as info:
         raise_for_request_error(error, object_id=None)
     assert info.value.refusals == [Refusal("", "something_new", "Not allowed.")]
+
+
+# -- post: send a request and do not wait ----------------------------------------------
+
+
+def _filter_viewer() -> FakeViewer:
+    """Start a fake viewer (protocol 1.20, slow filter) with ``blk``, a block model of 1,000 cells."""
+    viewer = FakeViewer(protocol_minor=20, filter_delay=0.5)
+    viewer.accept_frame(encode.hello_frame("EPSG:28350", (0.0, 0.0, 0.0), "test"))
+    grade = np.arange(1000, dtype=np.float32)
+    model = BlockModel(
+        [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [10, 10, 10], cell_properties={"grade": grade}
+    )
+    data = encode.encode_object(
+        model, id="blk", name=None, parent=None, revision=1, origin=(0.0, 0.0, 0.0)
+    )
+    assert viewer.accept_frame(data) == []
+    return viewer
+
+
+def _filter_build(number: int) -> bytes:
+    """Return a ``filter.edit`` request that adds a filter on ``grade``."""
+    return encode.command_frame(
+        number, "filter.edit", {"object": "blk", "edit": {"kind": "add", "array": "grade"}}
+    )
+
+
+def test_tool_post_returns_request_number_at_once(direct: Callable[..., ToolConnection]) -> None:
+    viewer = _filter_viewer()
+    try:
+        tool = direct(viewer)
+        start = time.monotonic()
+        number = tool.post(_filter_build)
+        assert time.monotonic() - start < 0.2
+        assert isinstance(number, int)
+        assert number == 1
+    finally:
+        viewer.close()
+
+
+def test_tool_post_numbers_rise_with_request(direct: Callable[..., ToolConnection]) -> None:
+    viewer = _filter_viewer()
+    try:
+        tool = direct(viewer)
+        first = tool.post(_filter_build)
+        second = tool.post(lambda number: encode.commands_list_frame(number))
+        assert second == first + 1
+    finally:
+        viewer.close()
+
+
+def test_tool_post_late_frames_are_skipped_by_next_request(
+    direct: Callable[..., ToolConnection],
+) -> None:
+    viewer = _filter_viewer()
+    try:
+        tool = direct(viewer)
+        posted = tool.post(_filter_build)
+        seen: list[Frame] = []
+        frame = tool.request(
+            lambda number: encode.commands_list_frame(number),
+            until=("commands",),
+            feature="commands",
+            on_frame=seen.append,
+        )
+        assert frame.header["type"] == "commands"
+        assert frame.header["request"] == posted + 1
+        # The frames of the posted request never reach the later request.
+        assert all(item.header["request"] != posted for item in seen)
+        # The late frames of the posted request arrive in the next 0.5 s. The next
+        # request on the same connection must still get its own reply.
+        time.sleep(0.7)
+        again = tool.request(
+            lambda number: encode.commands_list_frame(number),
+            until=("commands",),
+            feature="commands",
+        )
+        assert again.header["request"] == posted + 2
+    finally:
+        viewer.close()
+
+
+def test_tool_post_without_viewer_gives_no_viewer_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GEOVIEWER_TOKEN", "secret")
+    tool = ToolConnection(settings_dir=tmp_path / "empty", timeout=TIMEOUT)
+    try:
+        with pytest.raises(NoViewerError):
+            tool.post(_filter_build)
+    finally:
+        tool.close()
+
+
+def test_tool_post_after_close_gives_viewer_closed_error(
+    direct: Callable[..., ToolConnection],
+) -> None:
+    viewer = _filter_viewer()
+    try:
+        tool = direct(viewer)
+        tool.connect()
+        viewer.close()
+        with pytest.raises(ViewerClosedError):
+            # The first send after a close can succeed in the socket buffer, so post twice.
+            for _ in range(5):
+                tool.post(_filter_build)
+                time.sleep(0.1)
+    finally:
+        viewer.close()
