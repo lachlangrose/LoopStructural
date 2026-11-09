@@ -4,7 +4,7 @@
 
 <!--
 Scope: stages S1 to S3 of the plan (stories 1 and 5, built, T001 to T038), stage S5
-(stories 2 to 4, T039 to T063) and stage S4 (stories 6 and 7, T064 to T087).
+(stories 2 to 4, T039 to T063) and stage S4 (stories 6 and 7, T064 to T092).
 Package test command: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/<file>`.
 The root `pytest` does not run these tests (testpaths = ["tests"]).
 OP5 RESULT (2026-11-06): the uv workspace fallback was used (`packages/loop_link` is in the
@@ -22,7 +22,7 @@ length 100; keep string quotes as written (Black `skip-string-normalization`).
 
 - Run this file with the spec-orchestrator skill. It has the rules for the
   worktree, the sub agents, the checks and the commits.
-- Waves: 22. Tiers: [S] = simple model, [M] = standard model.
+- Waves: 23. Tiers: [S] = simple model, [M] = standard model.
 - Do not start a task with "Blocked by".
 
 ## Phase 1: Setup
@@ -599,24 +599,58 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_colour.py -k speed` passes (the test checks finished code, so it has no failing first run).
   - Context: Mark `@pytest.mark.slow`. Name `test_sc007_speed_*`. Use `fake_viewer` and `viewer_factory`. Send `BlockModel(origin=(0, 0, 0), cell_sizes=(1, 1, 1), cells=(100, 100, 100), cell_properties={"grade": np.random.default_rng(0).random(1_000_000, dtype=np.float32)})` with id `grid`; call `viewer.flush()`. Warm up the tool connection with one `set_colour_property("grid", "grade")` (not timed). Then time each call with `time.perf_counter()` and assert that each is below 0.250 s: `set_colour_property`, `set_colour_map("grid", "viridis")`, `set_colour_range(0.0, 1.0)`, `clear_colour_range`, `set_colour_scale("linear")`, `set_object_colour((1, 2, 3))`, `filter_range("grid", "grade", 0.5, 1.0)` (3 commands: the whole call is below 0.250 s), `filter_enable("grid", "grade", False)`, `filter_remove("grid", "grade")`. The fake has `filter_delay=0.0`. The time of a filter build is not counted (spec SC-007).
 
-### Stage S4d: wait for a filter build (FR-019; blocked by OP15)
+### Stage S4d: wait for a filter build (FR-019; answered by geoviewer spec 072, protocol 1.20)
 
-- [ ] T080 [US1] [M] Test: the wait of `filter_range` and `filter_values` in `test_filter.py`.
-  - Files: `packages/loop_link/tests/test_filter.py`
-  - Needs: T074
+Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. The viewer sends `command.progress` while it builds and `command.result` when the build ends. The result can have `passing`, `total` and `state` (`building` or `unbuilt`). See "Answers" of `plan.md` (OP15 and OP20). The wait is the wait for that result. A viewer of protocol 1.19 or less answers at once with no counts.
+
+- [ ] T088 [US1] [M] Test: the fake viewer gives a long `filter.edit` (protocol 1.20).
+  - Files: `packages/loop_link/tests/test_fake_viewer.py`
+  - Needs: T069, T071
+  - Wave: 10
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fake_viewer.py -k filter_long` fails (the fake has no long `filter.edit`), then passes after T089.
+  - Context: Read the helpers of the file first (how a test sends a `command.run` frame and reads frames). Tests are named `test_filter_long_*`. Use `FakeViewer(protocol_minor=20, filter_delay=0.4)`. Send a `BlockModel` of 1,000 cells with a float32 cell property `grade` = `np.arange(1000, dtype=np.float32)`, then these `filter.edit` requests on the tool connection path: `add` for `grade`, `set_range` min `"0.0"` max `"99.0"` keep_nan false, `set_on` true. Checks: (1) the `set_on` request gets at least one `command.progress` frame with the same `request` number, `fraction` from 0.0 to 1.0 and `text` `"filter.edit"`, before its `command.result`, and the result is `{"status": "done", "passing": 100, "total": 1000}`. (2) `set_on` false gives `passing` 1000 and `total` 1000. (3) `remove` and `add` give `{"status": "done"}` with no progress frame and no `passing`. (4) A `command.cancel` with the request number of a running `set_on` gives a `request.error` with code `cancelled`, and `fake.filters` shows the filter as it was before that edit (`on` false). (5) With `FakeViewer(protocol_minor=20, filter_delay=0.4, filter_stop_after=0.1)` the `set_on` result is `{"status": "done", "state": "building"}` after about 0.1 s. (6) The `commands` frame has `"long": true` for `filter.edit` and no `long` key for the other commands. (7) With `protocol_minor=18` the result of `set_on` is `{"status": "done"}` with no progress frame and no `long` key. The old tests must still pass.
+
+- [ ] T089 [US1] [M] Implement the long `filter.edit` in the fake viewer.
+  - Files: `packages/loop_link/src/loop_link/testing/fake_viewer.py`
+  - Needs: T088, T071
+  - Wave: 11
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_fake_viewer.py packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_colour.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Change only the code for `protocol_minor >= 20`; the behaviour for a lower number stays as it is (busy time, result `{"status": "done"}`). Add the argument `filter_stop_after: float | None = None` (seconds; document it). In the `commands` frame add `"long": True` to the entry of `filter.edit` when `protocol_minor >= 20`. Route a `filter.edit` request to a new method `_stream_filter(conn, reader, frame)`, in the way `_stream_fetch` is routed (see the call of `_stream_fetch` in `_serve`; reuse `_cancelled`). Checks of input and of the object stay as in `_command_run`. A build runs when the edit is `set_range`, `set_values`, `set_exclude` or `set_on` and the filter is on after the edit and `filter_delay > 0`. During a build send `command.progress` frames (`{"type": "command.progress", "request": n, "fraction": f, "text": "filter.edit"}`) about every 0.1 s (at least one), poll `_cancelled` between them, and use the tool protocol version of `protocol.TOOL_PROTOCOL_VERSION`. On cancel: restore the filters of the object to the state before the edit, send `_request_error(request, "cancelled", ...)` and stop. If `filter_stop_after` is set and shorter than the build, send `{"status": "done", "state": "building"}` at that time (the edit stays applied). At the end of a build, send the result with `passing` and `total`: take the array of the edit from `StoredObject.buffers`, use its `association` from the `data` entry of the header, and count the elements that pass all filters of that association that are on (a range filter keeps `minimum <= v <= maximum`, and NaN only if `keep_nan`; a values filter keeps the listed codes, or all others if `exclude`); `total` is the size of the array. An edit that starts no build gives the same counts when the filter is on or off (a filter that is off passes all), `{"status": "done"}` for `add`, `remove` and `cancel`, and `{"status": "refused", ...}` as before. Do not set the busy time for `protocol_minor >= 20`. Docstrings in numpydoc style.
+
+- [ ] T090 [US1] [M] Test: `ToolConnection.post` sends a request and does not wait.
+  - Files: `packages/loop_link/tests/test_tool.py`
+  - Needs: T046, T089
+  - Wave: 12
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_tool.py -k post` fails (no `post`), then passes after T091.
+  - Context: Read the file for the fixtures that start a `FakeViewer` and a `ToolConnection`. Tests are named `test_tool_post_*`. Use `FakeViewer(protocol_minor=20, filter_delay=0.5)` with a `BlockModel` of 1,000 cells and the array `grade` (as in `test_fake_viewer.py`). `post(build)` takes the same `build` argument as `request`, returns the request number (an `int`) and returns in less than 0.2 s while the fake builds. A later `request` on the same connection (for example `commands.list`) gets its own reply and skips the late frames of the posted request. A `post` with no viewer raises `NoViewerError`; a closed connection raises `ViewerClosedError`.
+
+- [ ] T091 [US1] [M] Add `ToolConnection.post` to `tool.py`.
+  - Files: `packages/loop_link/src/loop_link/tool.py`
+  - Needs: T090, T047
+  - Wave: 13
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_tool.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Add `post(self, build: Callable[[int], bytes]) -> int` next to `request`. It takes the lock, connects like `request` does (`_connect_locked`), adds 1 to the request number, sends `build(number)` with `send_binary`, and returns the number. It reads no frame. A link error (`_LINK_ERRORS`) drops the connection and raises `ViewerClosedError`, as `request` does. The frames of the posted request that come later are skipped by `_read_locked` (`header.get("request") != number`). Docstring in numpydoc style: say that a refusal or an error of the posted request is not seen.
+
+- [ ] T080 [US1] [M] Test: `FilterResult` and the wait of the filter calls.
+  - Files: `packages/loop_link/tests/test_filter.py`, `packages/loop_link/tests/test_commands.py`
+  - Needs: T074, T089, T091, T068
   - Wave: 17
-  - Blocked by: OP15
-  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py -k wait` fails (the call returns before the build ends), then passes after T081.
-  - Context: Read OP15 in `plan.md` and the result of step 7 of M4 first. If the real viewer does not behave as OP15 assumes, stop and report. Use `FakeViewer(filter_delay=0.5, busy_wait=5.0)`. Tests named `test_filter_wait_*`: with `wait=True` (the default) `filter_range` returns after about `filter_delay` (elapsed at least 0.4 s and below 3 s) and a repeated `set_on` edit is in `fake.tool_requests` after the `set_on` of the call; with `wait=False` the call returns in less than 0.2 s; `wait=True` with `timeout=0.1` raises the error that the decision for OP15 in `plan.md` ("Answers") names; `cancel` (a `threading.Event` set by a timer after 0.1 s) ends the wait, sends one `filter.edit` with edit `{"kind": "cancel"}`, and raises `CancelledError`; `filter_values` waits the same way. The old tests of `test_filter.py` must still pass.
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_commands.py -k "wait or filter_result"` fails (no `FilterResult`), then passes after T081.
+  - Context: Read OP15 and OP20 and their "Answers" in `plan.md` first. `loop_link.commands.FilterResult` is a frozen dataclass with `passing: int | None = None`, `total: int | None = None`, `state: str | None = None`, and the class method `from_result(result: Mapping)`. In `test_commands.py` (tests named `test_filter_result_*`): `{"status": "done", "passing": 100, "total": 1000}` gives `FilterResult(100, 1000, None)`; `{"status": "done"}` gives all `None`; `{"status": "done", "state": "unbuilt"}` and `"building"` give that state; `passing` that is a `bool`, a negative number or not an `int` raises `loop_link.protocol.ProtocolError`; `state` that is not a `str` raises `ProtocolError`. In `test_filter.py` (tests named `test_filter_wait_*`) use `FakeViewer(protocol_minor=20, filter_delay=0.4)` with `BlockModel` of 1,000 cells, `grade` = `np.arange(1000, dtype=np.float32)` and `viewer_factory`: `filter_range("grid", "grade", 0.0, 99.0)` returns `FilterResult(100, 1000, None)` after at least 0.3 s; `filter_values` on a category array returns the counts too; `filter_enable` and `filter_remove` return a `FilterResult`; `progress=callback` gets floats from 0.0 to 1.0 (at least one); `wait=False` returns `FilterResult()` in less than 0.2 s and a next call (`filter_enable`) works; a `cancel` event that a timer sets after 0.1 s raises `loop_link.errors.CancelledError` and `fake.filters` shows the filter off; with `filter_stop_after=0.1` the result has `state == "building"`; with `protocol_minor=18` the call returns `FilterResult()` at once. The old tests of both files must still pass (they ignore the return value).
 
-- [ ] T081 [US1] [M] Implement the wait of the filter calls in `viewer.py`.
-  - Files: `packages/loop_link/src/loop_link/viewer.py`
-  - Needs: T080, T077
+- [ ] T081 [US1] [M] Implement `FilterResult` and the wait of the filter calls.
+  - Files: `packages/loop_link/src/loop_link/commands.py`, `packages/loop_link/src/loop_link/viewer.py`, `packages/loop_link/src/loop_link/__init__.py`
+  - Needs: T080, T077, T091
   - Wave: 20
-  - Blocked by: OP15
-  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_colour.py` passes and `ruff check packages/loop_link` passes.
-  - Context: Follow the decision for OP15 in `plan.md` ("Answers"). Default of the plan: with `wait=True`, after the last `set_on` edit, send the same `set_on` edit again with `run_command` until the viewer takes it without `BusyError` (a command that waits when busy waits for the end of the build), at most until `timeout` seconds have passed (`time.monotonic()`). A `BusyError` before the end of `timeout` means "still building": go on. At the end of `timeout` raise as the decision says. Check `cancel` between the tries; when it is set, call `cancel_filter` once and raise `CancelledError` (from `loop_link.errors`). `wait=False` returns after the first `set_on`. If OP15 chose another method (for example a long `filter.edit` with progress), use that method and change the tests of T080 first. Docstrings: describe `wait`, `cancel` and `timeout`.
+  - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_filter.py packages/loop_link/tests/test_commands.py packages/loop_link/tests/test_colour.py packages/loop_link/tests/test_import.py` passes and `ruff check packages/loop_link` passes.
+  - Context: Follow "Answers" of `plan.md` (OP15, 2026-11-09). In `commands.py` add `FilterResult` (add it to `__all__`) and give `run_command` the argument `progress: Callable[[float], None] | None = None` that it passes to `tool.request(progress=...)`. In `viewer.py`: `filter_range` and `filter_values` return `FilterResult` and use the arguments `wait`, `cancel`, `timeout` and the new `progress: Callable[[float], None] | None = None` (keyword only, after `timeout`). With `wait=True` every edit goes with `run_command(..., cancel=cancel, timeout=timeout, progress=progress)` and the call returns `FilterResult.from_result(result of the last set_on)`. With `wait=False` the edits before the last go as before, and the last `set_on` goes with `tool.post(...)` (build the frame with `encode.command_frame`); the call returns `FilterResult()`. `filter_enable` and `filter_remove` return `FilterResult.from_result(...)` of their result. `cancel_filter` stays as it is. `cancel` (a `threading.Event`) is passed to `tool.request`, which sends one `command.cancel`; the error `cancelled` becomes `CancelledError` already. A client `timeout` is the time to wait for the next frame, as in `ToolConnection.request` (a late frame raises `ViewerClosedError`); the viewer itself ends a long wait after 60 s with `state == "building"`. Remove the words "Not used yet" from the docstrings and describe `wait`, `cancel`, `timeout`, `progress` and the return value (`state` `building`: the build goes on; `unbuilt`: the viewer has no counts for the new filters; a viewer of protocol 1.19 or less gives no counts). Export `FilterResult` in `__init__.py` (keep `__all__` sorted).
 
+- [ ] T092 [US1] [M] Update M4 step 7 and the README for the filter wait.
+  - Files: `packages/loop_link/tests/manual_checks.md`, `packages/loop_link/README.md`
+  - Needs: T081, T084, T085
+  - Wave: 21
+  - Done when: `git grep -n -c "OP15" packages/loop_link/tests/manual_checks.md` gives 0 and `git grep -n -c "FilterResult" packages/loop_link/README.md` gives 1 or more.
+  - Context: Read the section `## M4` of `manual_checks.md` and the section `## Filter and colour` of the README first. In M4: say in the intro that step 7 needs a viewer of protocol 1.20 (geoviewer spec 072) and that the other steps work with 1.18. Replace the part of step 7 about OP15 ("check what a second command does while the viewer builds (OP15)") with these checks: send an object of 1,000,000 cells; call `filter_range("grid", "grade", 0.5, 1.0)` with the default `wait=True`; check that the call returns after the build, that `FilterResult.passing` and `total` are numbers, and that `passing` fits the picture; call it again with `wait=False` and check that it returns at once; set a `threading.Event` during a build and check `CancelledError` and that the filter is as before; record the time of the build. In the closing paragraph change the list of open points to OP16, OP18 and OP19. In the README: show the result in the example (`result = viewer.filter_range("grid", "grade", 0.5, 1.0)` and `print(result.passing, result.total)`) and add 3 short sentences: the call waits for the end of the build by default (`wait=False` does not wait, `cancel` is a `threading.Event`, `progress` gets the fraction); the counts need a viewer of protocol 1.20, and an older viewer gives a `FilterResult` with no counts; `state` is `building` when the viewer stopped to wait (the build goes on) and `unbuilt` when the viewer has no counts for the new filters. ASD-STE100 English.
 ### Stage S4e: real codec, fixtures, manual check M4, docs
 
 - [x] T082 [P] [Finish] [M] Test: command frames against the real geoviewer codec.
@@ -651,17 +685,15 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 
 - [ ] T086 [Finish] [S] Update `ROADMAP.md`: stage S4 done.
   - Files: `ROADMAP.md`
-  - Needs: T081, T082, T083, T084, T085, T079
-  - Wave: 21
-  - Blocked by: OP15
+  - Needs: T081, T082, T083, T084, T085, T079, T092
+  - Wave: 22
   - Done when: `git grep -n "stage S4" ROADMAP.md` shows 1 or more lines and `git grep -n -c "loop_link" ROADMAP.md` gives 3 or more.
   - Context: In the entry `- [ ] **Stage 7 — `loop_link`: Python link to geoviewer.**` replace the sentence "Filter and colour (stage S4) are not planned yet." with "Stage S4 (filter and colour) is done." (read the entry first; the sentence can differ a little). Add one status log entry at the end of "Status log", in the style of the neighbours, dated with the date of the run (YYYY-MM-DD): "Stage 7 stage S4 implemented: filter and colour calls, colour in `send` and the fake commands endpoint in `packages/loop_link`." Tick the Stage 7 box only if no other stage of the entry is open. If you are not sure, leave the box and say so in the result.
 
 - [ ] T087 [Finish] [M] Run the merge gates for S4 and fix the findings.
   - Files: `packages/loop_link/`
   - Needs: T086, T062, T038, T063
-  - Wave: 22
-  - Blocked by: OP15
+  - Wave: 23
   - Done when: `ruff check LoopStructural packages && pytest` passes, `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests` passes, and `black --check packages/loop_link` passes.
   - Context: Constitution merge gate: `pytest` and `ruff check LoopStructural packages` must both pass. The root `pytest` does not run the package tests, so run the package command too. The root `pytest` was too slow on this machine for S5 (T063): run it, and if it cannot finish, say so in the result. Run `black packages/loop_link` to fix the format (line length 100, quotes kept). Fix only problems in `packages/loop_link/`. Do not change a gate or add a Ruff ignore for `packages/loop_link/src`. Also run `packages/loop_link/tests/test_import.py` alone (SC-005). If `LOOP_LINK_GEOVIEWER_REPO` and `LOOP_LINK_GEOVIEWER_FIXTURES` are set, run `test_codec_real.py` and `test_fixtures.py` with them. Report the result of each command in the commit message.
 
@@ -678,10 +710,10 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 | 7 | T014, T020, T045, T078 | 1 | 3 |
 | 8 | T021, T046, T070 | 0 | 3 |
 | 9 | T023, T024, T025, T027, T034, T037, T047, T071 | 3 | 5 |
-| 10 | T028, T030, T032, T035, T048, T072, T073 | 0 | 7 |
-| 11 | T029, T031, T033, T036, T049 | 1 | 4 |
-| 12 | T022, T050 | 1 | 1 |
-| 13 | T038, T053 | 0 | 2 |
+| 10 | T028, T030, T032, T035, T048, T072, T073, T088 | 0 | 8 |
+| 11 | T029, T031, T033, T036, T049, T089 | 1 | 5 |
+| 12 | T022, T050, T090 | 1 | 2 |
+| 13 | T038, T053, T091 | 0 | 3 |
 | 14 | T054 | 0 | 1 |
 | 15 | T055 | 0 | 1 |
 | 16 | T056, T057, T074 | 1 | 2 |
@@ -689,17 +721,18 @@ Test command for this phase: `packages/loop_link/.venv/Scripts/python.exe -m pyt
 | 18 | T062, T076 | 1 | 1 |
 | 19 | T063, T077 | 0 | 2 |
 | 20 | T079, T081, T085 | 1 | 2 |
-| 21 | T086 | 1 | 0 |
-| 22 | T087 | 0 | 1 |
+| 21 | T092 | 0 | 1 |
+| 22 | T086 | 1 | 0 |
+| 23 | T087 | 0 | 1 |
 
 ## Critical path
 
-T001 -> T006 -> T007 -> T008 -> T019 -> T044 -> T045 -> T046 -> T047 -> T048 -> T049 -> T050 -> T053 -> T054 -> T055 -> T074 -> T075 -> T076 -> T077 -> T079 -> T086 -> T087
+T001 -> T006 -> T007 -> T008 -> T019 -> T044 -> T045 -> T046 -> T047 -> T048 -> T049 -> T050 -> T053 -> T054 -> T055 -> T074 -> T075 -> T076 -> T077 -> T081 -> T092 -> T086 -> T087
 
 ## Dependencies
 
 T001 to T038 (stages S1 to S3) and T039 to T063 (stage S5) are built, except the root `pytest` result of T063.
-Stage S4 adds T064 to T087.
+Stage S4 adds T064 to T092.
 
 - S4a: `COMMAND_PROTOCOL_VERSION` (T064), then the frame builders as test and code (T065, T066), the
   commands module as test and code (T067, T068), and the fake commands endpoint as one test task and two
@@ -707,8 +740,9 @@ Stage S4 adds T064 to T087.
 - S4b: the filter and colour tests run apart (T072, T073). The `Viewer` members follow in a chain,
   because they share `viewer.py` (T074 filter, T075 colour). The export (T078) needs only T068.
 - S4c: tests and code for `send(..., colour=...)` (T076, T077), then the speed test of SC-007 (T079).
-- S4d: the wait for a filter build (T080, T081) is blocked by OP15. It needs the result of step 7 of M4.
-  T086 and T087 need T081, so they are blocked too.
+- S4d: geoviewer spec 072 (protocol 1.20) answers OP15 and OP20. The fake gets a long `filter.edit` with counts
+  (T088, T089), `ToolConnection.post` is added (T090, T091), `FilterResult` and the wait follow (T080, T081),
+  and the docs and M4 step 7 change (T092).
 - S4e: real codec cases (T082), fixture checks (T083), manual check M4 (T084), README (T085), ROADMAP (T086)
   and the gate (T087). T087 also needs T063, the S5 gate, which failed on the root `pytest` only.
-- Open points: OP15 blocks T080, T081, T086 and T087. OP16, OP18 and OP19 are checked by M4 and block no task.
+- Open points: OP15 and OP20 are answered (spec 072). OP16, OP18 and OP19 are checked by M4 and block no task.

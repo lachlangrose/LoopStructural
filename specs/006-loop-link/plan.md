@@ -81,16 +81,9 @@ Each point has a default. A point that has no owner is for the maintainer.
   otherwise. M3 checks it with the real viewer. If the real viewer sends the parts in
   another order, relax the rule to "each byte is filled one time" (one task).
 
-- **OP15**: FR-019 asks the call to wait for the end of a filter build. The viewer gives
-  no signal for it: `filter.edit` is not a long command, it sends no `command.progress`,
-  and it answers when the edit is accepted. Default (stage S4d): `wait=True` sends the
-  edits, then sends the same `set_on` edit again until the viewer takes it without `busy`.
-  A command that waits when busy waits for the end of the build, so this works only if the
-  scene is busy while the filter builds and a repeated `set_on` does not start a new build.
-  Both are unverified. M4 step 7 checks them. If a point fails, the fallback is to leave
-  `wait` out and to ask the geoviewer maintainer for a long `filter.edit` with progress. The
-  cancel part of FR-019 (`cancel_filter`) does not depend on this. Owner: spec owner.
-  Blocks S4d only.
+- **OP15**: ANSWERED 2026-11-09 (see "Answers"). FR-019 asks the call to wait for the end of a
+  filter build. Geoviewer spec 072 (protocol 1.20) makes `filter.edit` a long command with
+  progress and an end result. The repeat of `set_on` of the first default is not used.
 - **OP16**: The viewer does not say if `add` for an array that has a filter is an error, or
   if a new filter is on after `add` and `set_range`. Default: the library sends `add`,
   goes on if it is refused, and sends `set_on` true at the end. M4 step 9 checks it.
@@ -107,10 +100,8 @@ Each point has a default. A point that has no owner is for the maintainer.
   large object can take longer to enter the scene, and the first colour command then gets
   an error for an unknown object. M4 step 8 checks it. If it fails, replace the fixed wait
   by a retry for a time that the user sets. Owner: maintainer. Blocks no task.
-- **OP20**: Story 6 says "the viewer reports the filter as on, with the count of elements
-  that pass". The viewer result has no count. S4 checks "filter on" with the fake
-  (`FakeViewer.filters`) and gives no count. The spec owner should change the sentence, or
-  ask for a count in the geoviewer result. Blocks no task.
+- **OP20**: ANSWERED 2026-11-09 (see "Answers"). The result of `filter.edit` of protocol 1.20
+  has `passing` and `total`. The filter calls return them in a `FilterResult`.
 
 ## Answers
 
@@ -146,6 +137,27 @@ Each point has a default. A point that has no owner is for the maintainer.
   `colour.set_map`, `colour.set_range`, `colour.set_scale`, `object.set_colour`) on the tool
   connection. The `colour_map` field of the data array is not used. The commands use the
   protocol version 1.11 of the fixtures.
+- 2026-11-09 (spec owner: geoviewer spec 072-filter-result is merged, protocol 1.20): OP15 and OP20
+  are answered. `filter.edit` is a long command: the viewer sends `command.progress` while it builds and
+  one `command.result` when the build ends. The result is `{"status": "done", "passing": n, "total": m}`,
+  or `{"status": "done"}` (no filter, or the `cancel` edit), or `{"status": "done", "state": "unbuilt"}`
+  (no build for the new filters: the object is hidden, the draw data is not ready, the edit repeats a
+  cancelled or failed edit, the object has a new revision, or another build runs), or
+  `{"status": "done", "state": "building"}` (the viewer stops to wait after 60 s; the build goes on).
+  `command.cancel` stops a build: the request gets `request.error` `cancelled` and the filter stays as it was.
+  The `commands` entry of `filter.edit` has `"long": true` in 1.20. Decision for `loop_link` (stage S4d):
+  (1) The tool protocol version of the client stays 1.18; the viewer sends progress to older clients.
+  (2) `loop_link.commands.FilterResult(passing, total, state)` is new (frozen dataclass, each field `None` when
+  the viewer gives none). `filter_range`, `filter_values`, `filter_enable` and `filter_remove` return it.
+  (3) `wait=True` (default) waits for the result of each edit, so the call returns when the build ends. The
+  arguments `cancel` (an event that sends `command.cancel`, error `CancelledError`), `timeout` (the time to wait
+  for the next frame, as in `ToolConnection.request`) and the new `progress` (a callable that gets each
+  fraction) are used. A `state` of `building` is returned, not raised.
+  (4) `wait=False` sends the last `set_on` with the new `ToolConnection.post` (no read) and returns an empty
+  `FilterResult()`. A refusal of that edit is not seen.
+  (5) A viewer of 1.19 or less answers at once with no counts. The call then returns an empty `FilterResult()`.
+  Manual check M4 step 7 needs a viewer of 1.20. The fake viewer gets a long `filter.edit` for
+  `protocol_minor >= 20` (tasks T088 and T089).
 
 ## Summary
 
@@ -1380,7 +1392,7 @@ authority and M4 repeats them):
 | S4a | `protocol.py`, `encode.py`, `commands.py`, fake viewer (commands endpoint), `test_commands.py`, `test_fake_viewer.py` | `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests`; `ruff check LoopStructural packages`; `black --check packages/loop_link` | Revert S4a. Nothing else uses the new names. |
 | S4b | `viewer.py` (filter and colour members, no wait, no `send` argument), `__init__.py`, `test_filter.py`, `test_colour.py` | The same commands; FR-018, FR-020, FR-014 (tool part), SC-007 | Revert S4b. S4a stays. |
 | S4c | `viewer.py` (`colour` argument of `send`, `apply_colour` use), tests in `test_colour.py` | The same commands; FR-021 | Revert S4c. The default `colour=None` keeps the old `send`. |
-| S4d | `viewer.py` (the wait of `filter_range`, `filter_values`), tests in `test_filter.py` | The same commands; FR-019. Blocked by OP15 and by step 7 of M4 | Revert S4d. `wait=True` goes back to "return when accepted". |
+| S4d | `commands.py` (`FilterResult`), `viewer.py` (the wait and the result of the filter calls), `tool.py` (`post`), `testing/fake_viewer.py` (long `filter.edit`), tests, M4 step 7, `README.md` | The same commands; FR-019 | Revert S4d. The filter calls return `None` and do not wait. |
 | S4e | `test_codec_real.py`, `test_fixtures.py`, `manual_checks.md` (M4), `README.md`, `ROADMAP.md` | The same commands with `LOOP_LINK_GEOVIEWER_REPO` and `LOOP_LINK_GEOVIEWER_FIXTURES` set; M4 by hand | Revert S4e. |
 
 ### Test strategy of S4
@@ -1406,8 +1418,9 @@ authority and M4 repeats them):
      Call `colour_map_names()` and check that it gives the names of the viewer.
   7. Send the same id again (a new revision). Check that the filter and the colours stay.
      Start a filter that takes time (an object with 1,000,000 cells), call `filter_range`
-     with `wait=False`, and check what a second command does while the viewer builds
-     (OP15). Call `cancel_filter` during the build.
+     with the default `wait=True`, and check that it returns after the build with
+     `FilterResult.passing` and `total` (viewer 1.20). Call it with `wait=False` and call
+     `cancel_filter` during the build.
   8. Send an object of 1,000,000 cells with `colour=ColourSettings(...)`. Check that the
      colour settings apply (OP19: the 0.5 s of `flush` can be too short).
   9. Check the questions "assumed" in the facts: does `add` for an existing filter get
@@ -1631,7 +1644,7 @@ discovery, object model, `Viewer`, adapters, plugin push API, fake viewer.
 | FR-016 | "Repository registration" | `git grep -n loop_link ROADMAP.md .release-please-config.json` gives 2 entries or more | None |
 | FR-017 | `pyproject.toml` (`>=3.10`), `ruff.toml` (py310) | `ruff check` and CI on 3.10 to 3.12 | OP4 (QGIS Python), OP5 (uv) |
 | FR-018 | `Viewer.filter_range`, `filter_values`, `filter_enable`, `filter_remove`, `commands.run_command` (S4b) | `test_filter.py`, `test_codec_real.py`, `test_fixtures.py`; M4 steps 1 to 4 | OP16, OP17, OP18, OP20 |
-| FR-019 | `Viewer.cancel_filter` (S4b); the `wait` argument (S4d) | `test_filter.py`; M4 step 7 | OP15 (the viewer gives no end signal) |
+| FR-019 | `Viewer.cancel_filter` (S4b); the `wait`, `cancel` and `progress` arguments (S4d) | `test_filter.py`; M4 step 7 | OP15 answered (spec 072) |
 | FR-020 | `Viewer.set_colour_property`, `set_colour_map`, `set_colour_range`, `clear_colour_range`, `set_colour_scale`, `set_object_colour`, `colour_map_names` (S4b) | `test_colour.py`, `test_commands.py`; M4 steps 5 and 6 | OP18 |
 | FR-021 | `ColourSettings`, `Viewer.apply_colour`, the `colour` argument of `Viewer.send` (S4c) | `test_colour.py`; M4 step 8 | OP19 |
 | SC-001 | `test_performance.py`; M1 | assert under 5 s | None |
@@ -1667,8 +1680,8 @@ Other specs and repositories use these contracts.
   `set_object_colour`, `apply_colour`, the `colour` argument of `Viewer.send`,
   `loop_link.commands.ColourSettings`, and the fake viewer members `filters` and
   `colouring`. It uses the tool messages `commands.list`, `command.run`, `command.result`
-  and the commands of "Facts that S4 uses". The viewer result has no count of elements
-  that pass (OP20).
+  and the commands of "Facts that S4 uses". The result of a viewer of 1.20 has the count of
+  elements that pass (OP20, answered).
 - **S5** (select, read selection, fetch) gives: `Viewer.select`, `Viewer.selection`,
   `Viewer.watch_selection`, `Viewer.fetch`, `Selection`, `SelectionWatcher`,
   `FetchResult`, the errors `StaleRevisionError`, `CancelledError` and
