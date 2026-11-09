@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import contextlib
+import threading
+import time
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import numpy as np
 import pytest
 
-from loop_link.errors import BusyError, InvalidInputError, MissingFeatureError
+from loop_link.commands import FilterResult
+from loop_link.errors import BusyError, CancelledError, InvalidInputError, MissingFeatureError
 from loop_link.objects import BlockModel, Categorical
 from loop_link.testing import FakeViewer
+from loop_link.viewer import Viewer
 
 WAIT = 3.0
 CELLS = (4, 4, 4)
@@ -251,3 +256,110 @@ def test_second_program_filters_without_data_connection(
     second.filter_remove("grid", "grade")
     assert "grade" not in fake_viewer.viewer.filters.get("grid", {})
     assert not second.connected
+
+
+# -- the wait of the filter calls (protocol 1.20) -----------------------------------------
+
+BIG = 1000
+
+
+@pytest.fixture
+def slow_viewer(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Callable[..., tuple[FakeViewer, Any]]]:
+    """Return a function that starts a fake viewer and a viewer that has sent 1,000 cells."""
+    opened: list[Any] = []
+
+    def make(**options: Any) -> tuple[FakeViewer, Any]:
+        fake = FakeViewer(**options)
+        settings = tmp_path / f"geoviewer{len(opened)}"
+        fake.write_instance_file(settings)
+        monkeypatch.setenv("GEOVIEWER_TOKEN", "secret")
+        viewer = Viewer(settings_dir=settings, heartbeat_interval=0.1, timeout=WAIT)
+        opened.append((fake, viewer))
+        grade = np.arange(BIG, dtype=np.float32)
+        unit = Categorical(np.arange(BIG) % 3, ["a", "b", "c"])
+        model = BlockModel(
+            (0, 0, 0),
+            (1, 1, 1),
+            (10, 10, 10),
+            cell_properties={"grade": grade, "unit": unit},
+        )
+        viewer.send(model, id="grid")
+        viewer.flush()
+        return fake, viewer
+
+    yield make
+    for fake, viewer in opened:
+        with contextlib.suppress(Exception):  # errors on close do not matter at teardown
+            viewer.close()
+        fake.close()
+
+
+def test_filter_wait_range_returns_counts_after_build(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4)
+    started = time.monotonic()
+    result = viewer.filter_range("grid", "grade", 0.0, 99.0)
+    assert time.monotonic() - started >= 0.3
+    assert result == FilterResult(100, 1000, None)
+
+
+def test_filter_wait_values_returns_counts(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4)
+    result = viewer.filter_values("grid", "unit", [0])
+    assert result.total == 1000
+    assert result.passing == 334
+    assert result.state is None
+
+
+def test_filter_wait_enable_and_remove_return_result(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.1)
+    viewer.filter_range("grid", "grade", 0.0, 99.0)
+    assert isinstance(viewer.filter_enable("grid", "grade", False), FilterResult)
+    assert isinstance(viewer.filter_enable("grid", "grade", True), FilterResult)
+    assert isinstance(viewer.filter_remove("grid", "grade"), FilterResult)
+
+
+def test_filter_wait_progress_gets_fractions(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4)
+    fractions: list[float] = []
+    viewer.filter_range("grid", "grade", 0.0, 99.0, progress=fractions.append)
+    assert fractions
+    assert all(isinstance(value, float) for value in fractions)
+    assert fractions[0] == 0.0
+    assert fractions[-1] == 1.0
+
+
+def test_filter_wait_false_returns_at_once(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4)
+    started = time.monotonic()
+    result = viewer.filter_range("grid", "grade", 0.0, 99.0, wait=False)
+    assert time.monotonic() - started < 0.2
+    assert result == FilterResult()
+    # A next call works while the build goes on.
+    assert isinstance(viewer.filter_enable("grid", "grade", True), FilterResult)
+
+
+def test_filter_wait_cancel_event_raises_cancelled(slow_viewer: Any) -> None:
+    fake, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4)
+    cancel = threading.Event()
+    timer = threading.Timer(0.1, cancel.set)
+    timer.start()
+    try:
+        with pytest.raises(CancelledError):
+            viewer.filter_range("grid", "grade", 0.0, 99.0, cancel=cancel)
+    finally:
+        timer.cancel()
+    state = fake.filters.get("grid", {}).get("grade")
+    assert state is None or state["on"] is False
+
+
+def test_filter_wait_stop_gives_building_state(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=20, filter_delay=0.4, filter_stop_after=0.1)
+    result = viewer.filter_range("grid", "grade", 0.0, 99.0)
+    assert result.state == "building"
+
+
+def test_filter_wait_old_viewer_gives_empty_result(slow_viewer: Any) -> None:
+    _, viewer = slow_viewer(protocol_minor=18)
+    assert viewer.filter_range("grid", "grade", 0.0, 99.0) == FilterResult()

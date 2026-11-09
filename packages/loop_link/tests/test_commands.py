@@ -9,6 +9,7 @@ import pytest
 
 from loop_link.commands import (
     ColourSettings,
+    FilterResult,
     check_codes,
     check_number,
     check_rgb,
@@ -309,3 +310,44 @@ def test_list_colour_map_names_gives_names():
     assert kwargs["until"] == ("commands",)
     assert kwargs["feature"] == FEATURE
     assert decode_frame(build(3)).header["type"] == "commands.list"
+
+
+# -- FilterResult ------------------------------------------------------------------------
+
+
+def test_filter_result_counts():
+    result = FilterResult.from_result({"status": "done", "passing": 100, "total": 1000})
+    assert result == FilterResult(100, 1000, None)
+
+
+def test_filter_result_empty():
+    assert FilterResult.from_result({"status": "done"}) == FilterResult(None, None, None)
+
+
+@pytest.mark.parametrize("state", ["unbuilt", "building"])
+def test_filter_result_state(state):
+    result = FilterResult.from_result({"status": "done", "state": state})
+    assert result == FilterResult(None, None, state)
+
+
+def test_filter_result_is_frozen():
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        FilterResult().passing = 1  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("bad", [True, -1, 1.5, "10"])
+def test_filter_result_bad_passing(bad):
+    with pytest.raises(ProtocolError):
+        FilterResult.from_result({"status": "done", "passing": bad})
+
+
+@pytest.mark.parametrize("bad", [True, -1, 1.5, "10"])
+def test_filter_result_bad_total(bad):
+    with pytest.raises(ProtocolError):
+        FilterResult.from_result({"status": "done", "total": bad})
+
+
+@pytest.mark.parametrize("bad", [1, True, ["building"], b"building"])
+def test_filter_result_bad_state(bad):
+    with pytest.raises(ProtocolError):
+        FilterResult.from_result({"status": "done", "state": bad})

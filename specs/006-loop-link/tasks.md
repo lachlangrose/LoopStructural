@@ -631,7 +631,7 @@ Spec 072 of geoviewer (merged 2026-11-09) makes `filter.edit` a long command. Th
   - Done when: `packages/loop_link/.venv/Scripts/python.exe -m pytest packages/loop_link/tests/test_tool.py` passes and `ruff check packages/loop_link` passes.
   - Context: Add `post(self, build: Callable[[int], bytes]) -> int` next to `request`. It takes the lock, connects like `request` does (`_connect_locked`), adds 1 to the request number, sends `build(number)` with `send_binary`, and returns the number. It reads no frame. A link error (`_LINK_ERRORS`) drops the connection and raises `ViewerClosedError`, as `request` does. The frames of the posted request that come later are skipped by `_read_locked` (`header.get("request") != number`). Docstring in numpydoc style: say that a refusal or an error of the posted request is not seen.
 
-- [ ] T080 [US1] [M] Test: `FilterResult` and the wait of the filter calls.
+- [x] T080 [US1] [M] Test: `FilterResult` and the wait of the filter calls.
   - Files: `packages/loop_link/tests/test_filter.py`, `packages/loop_link/tests/test_commands.py`
   - Needs: T074, T089, T091, T068
   - Wave: 17
