@@ -88,7 +88,7 @@
       "wave": 13,
       "base": "9a43cff5d709dcc474700672b6ae1e947c991281",
       "commit": "59c125ff5016567b4dc23d3f842188263f9e7b4b",
-      "review": "end review: changes needed; 1 blocker + 1 major fixed (+ quoted markers); recheck pending"
+      "review": "end review round 2: 1 major open (BOM before the begin marker; T024 marked [!]); waiting for the maintainer"
     }
   ],
   "runs": {
@@ -288,6 +288,10 @@
       {
         "model": "sonnet",
         "result": "fix (end review blocker): markers are matched as whole lines; render_block rejects a marker line; round-trip tests with the shipped skills"
+      },
+      {
+        "model": "opus (reviewer)",
+        "result": "end review round 2: major regression found (BOM before the begin marker); no third round without the maintainer's answer"
       }
     ],
     "T028": [
@@ -374,7 +378,7 @@
     ]
   },
   "findings": {
-    "found": 50,
+    "found": 53,
     "rejected": 0,
     "dropped": 0,
     "fixed": 18,
@@ -410,7 +414,14 @@
       "end review, uv.lock: the diff adds trame, trame-vtk and trame-vuetify to the docs extra (lock drift that was there before this work; master fails uv lock --check); say so in the commit or PR note",
       "end review, .github/workflows/packages.yml:16-28: the workflow runs only for changes in packages/** and the workflow file; changes to .claude-plugin/**, ROADMAP.md and the release-please files do not start the loop-skills jobs although tests read those files",
       "end review, cli.py/_install.py: --agent all prints the same pin warning once for each skill (up to six times); remove repeated warnings before the summary",
-      "end review: the sdist holds the test files but not conftest.py or the fixtures, so the tests cannot run from the sdist"
+      "end review: the sdist holds the test files but not conftest.py or the fixtures, so the tests cannot run from the sdist",
+      "end review round 2, _copilot.py:50: the render_block guard uses line.strip() but the regex needs the marker at column 0; an indented marker line in a skill body is rejected although it is not a marker (safe; no shipped skill has one); use line.rstrip(' \t')",
+      "end review round 2, _copilot.py:126-140: the helper _marker_stop only returns match.end(); use end_match.end() inline"
     ]
+  },
+  "end_review": {
+    "round1": "1 blocker + 1 major, fixed",
+    "round2": "1 major open (UTF-8 BOM at the start of the Copilot file)",
+    "reviewers": "opus"
   }
 }
