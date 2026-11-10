@@ -62,8 +62,15 @@
     {
       "wave": 9,
       "base": "258bc5b8e485c1a270d0497f35da070b2e5c43b4",
+      "commit": "ddcbb45806a588232617987058e68173d8304dda",
+      "review": "pass"
+    },
+    {
+      "wave": 10,
+      "base": "ddcbb45806a588232617987058e68173d8304dda",
       "commit": null,
-      "review": "pending"
+      "review": "pending",
+      "note": "OP2 answered from the Claude Code docs before this wave"
     }
   ],
   "runs": {
@@ -288,10 +295,22 @@
         "model": "sonnet",
         "result": "pass"
       }
+    ],
+    "T032": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T036": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
-    "found": 31,
+    "found": 32,
     "rejected": 0,
     "dropped": 0,
     "fixed": 8,
@@ -317,7 +336,9 @@
       "wave 8, inspect-model: the BoundingBox validity and is_valid checks can almost never fire (the constructor already rejects maximum < origin); add a note that these checks are weak",
       "wave 8 recheck, map2loop-prepare/build-model: units.csv is youngest first, but build-model lists unit_names oldest first and ends with thickness=np.inf; build-model never mentions units.csv",
       "wave 8 recheck, map2loop-prepare step 5 and 7: the text says the oldest unit has val 0.0 in contacts.csv and groupby('val') shows one row for each unit; the oldest unit has no basal contact, so 0.0 appears only in units.csv",
-      "wave 8 recheck, map2loop-prepare step 5: map2loop sets the thickness of the oldest and youngest units to -1; the code has no guard (assert all thicknesses > 0 for the units that val needs)"
+      "wave 8 recheck, map2loop-prepare step 5: map2loop sets the thickness of the oldest and youngest units to -1; the code has no guard (assert all thicknesses > 0 for the units that val needs)",
+      "wave 9, _install.py:223: the block branch drops the lookup argument; install_block has no lookup parameter, so a test cannot control Copilot pin warnings through version_lookup (same output in production)",
+      "wave 10, install-help/SKILL.md: the example output lists 3 skills for claude and the summary '9 skill(s) done'; with four skills and three agents the summary would be 12 (illustrative, not wrong in form)"
     ]
   }
 }

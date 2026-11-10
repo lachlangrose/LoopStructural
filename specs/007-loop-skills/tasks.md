@@ -225,7 +225,7 @@
   - Wave: 8
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_shipped_skills.py -k map2loop-prepare` passes. The name check for this skill runs in the Ubuntu CI job (`-m names -k map2loop-prepare`) because `map2loop` needs GDAL.
   - Context: Frontmatter: `name: map2loop-prepare`; a `description` (use `map2loop` to turn map data into the contact and orientation tables that the `build-model` skill needs); `requires: map2loop>=3.5,<4`. Body sections: when to use; the map data inputs; the `map2loop` steps that make the contact and orientation tables (same columns as `build-model`); hand-over to `build-model`. Take every API name from `packages/map2loop/src/map2loop/` and its documentation; do not write a name from memory. If GDAL is not installed locally, read the source and check names by reading only; CI runs the name check. Use ```` ```python ```` blocks that parse. Fewer than 500 lines. No other file in the folder. ASD-STE100 prose.
-- [ ] T032 [US1] [M] Write the `install-help` skill.
+- [x] T032 [US1] [M] Write the `install-help` skill.
   - Files: `packages/loop_skills/src/loop_skills/skills/install-help/SKILL.md`
   - Needs: T027, T028, T026
   - Wave: 10
@@ -241,16 +241,15 @@
   - Files: `packages/loop_skills/src/loop_skills/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
   - Needs: T033, T029, T030, T031, T032
   - Wave: 11
-  - Blocked by: OP2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_plugin.py` passes.
-  - Context: First check the current Claude Code documentation for the exact fields of `plugin.json` and `marketplace.json` (OP2). Do not start before OP2 has an answer in `plan.md` ("Answers"). The plan fields: `plugin.json` = `{"name": "loop-skills", "version": "0.1.0", "description": "Agent skills for LoopStructural and map2loop models"}`. `marketplace.json` = `{"name": "loop3d", "owner": {"name": "Loop3D"}, "plugins": [{"name": "loop-skills", "source": "./packages/loop_skills/src/loop_skills", "description": "Agent skills for LoopStructural and map2loop models"}]}`. If the documentation needs other fields, add them and update the plan and `test_plugin.py`. The version in `plugin.json` must equal the package version (release-please updates it, see T007).
+  - Context: OP2 is answered in `plan.md` ("Answers"). Fields: `plugin.json` = `{"name": "loop-skills", "version": "0.1.0", "description": "Agent skills for LoopStructural and map2loop models", "author": {"name": "Loop3D"}}`. After you write the files, run `claude plugin validate packages/loop_skills/src/loop_skills` and `claude plugin validate .` (the repository root) if the `claude` command is on the PATH; both must exit 0 (warnings are allowed). Report the output. `marketplace.json` = `{"name": "loop3d", "owner": {"name": "Loop3D"}, "plugins": [{"name": "loop-skills", "source": "./packages/loop_skills/src/loop_skills", "description": "Agent skills for LoopStructural and map2loop models"}]}`. The version in `plugin.json` must equal the package version (release-please updates it, see T007).
 - [x] T035 [P] [US1] [S] Test: the documentation names the agent targets (spec scenario 10, FR-009).
   - Files: `packages/loop_skills/tests/test_docs.py`
   - Needs: T003
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_docs.py` fails (the README is a stub), then passes after T036.
   - Context: Read `packages/loop_skills/README.md` (path `Path(__file__).resolve().parents[1] / "README.md"`). Assert it contains each of: `.claude/skills`, `.agents/skills`, `.github/copilot-instructions.md`, `loop-skills install`, `loop-skills uninstall`. One test function per string is not needed: use `pytest.mark.parametrize`. Numpy docstring and type hints.
-- [ ] T036 [US1] [M] Write the full `README.md` of the package.
+- [x] T036 [US1] [M] Write the full `README.md` of the package.
   - Files: `packages/loop_skills/README.md`
   - Needs: T035, T026
   - Wave: 10
