@@ -108,7 +108,8 @@ After `run_all`, the project holds these data.
 | `proj.map_data.sampled_contacts` | Points on the basal contacts, with `ID`, `X`, `Y`, `Z` and `featureId` |
 | `proj.contact_extractor.basal_contacts` | The basal contact lines, with `ID` and `basal_unit` |
 | `proj.structure_samples` | Dip points, with `X`, `Y`, `Z`, `layerID`, `DIPDIR`, `DIP` and `OVERTURNED` |
-| `proj.stratigraphic_column.column` | The unit names in stratigraphic order |
+| `proj.stratigraphic_column.column` | The unit names in stratigraphic order, youngest first |
+| `proj.stratigraphic_column.stratigraphicUnits` | The unit table, with `name` and the thickness columns |
 | `proj.fault_samples` | Points on the fault traces |
 | `proj.fault_orientations` | Fault dip and dip direction |
 
@@ -118,52 +119,127 @@ Column names can change between `map2loop` versions.
 ### 5. Make the contact table
 
 The `build-model` skill needs these columns: `X`, `Y`, `Z`, `feature_name` and `val`.
-In the `map2loop` contact points, `ID` is the number of the unit.
-The `basal_unit` column of the basal contact lines gives the unit name for each `ID`.
+One foliation is one stratigraphic group.
+Ask the user for the name of the group.
+The default is `strati`, with all units in one group.
+Use this one name in `feature_name` for all contact points.
+Do not use a unit name in `feature_name`.
+
+The `val` column is the value of the scalar field at the point.
+It is the height of the contact above the base of the group.
+This height is the cumulative thickness of the units below the contact.
+The lowest contact has the smallest `val`.
+All points of one contact surface have the same `val`.
+
+The `proj.stratigraphic_column.column` list runs from the youngest unit to the oldest unit.
+Add the thicknesses from the oldest unit up.
+The `val` of the base of a unit is the sum of the thicknesses of all older units.
+The base of the oldest unit has `val` 0.0.
+
+`run_all` fills the thickness data.
+It adds the columns `<label>_median`, `<label>_mean` and `<label>_stddev` to `proj.stratigraphic_column.stratigraphicUnits`.
+The label is the result of `proj.get_active_thickness()`.
+A value of -1 or an empty value means that `map2loop` found no thickness for that unit.
+Show the thicknesses to the user and ask the user to confirm them.
+Replace each bad value with a value from the user.
 
 ```python
+import numpy as np
 import pandas as pd
+
+column = list(proj.stratigraphic_column.column)  # youngest first
+units = proj.stratigraphic_column.stratigraphicUnits
+label = proj.get_active_thickness()
+thickness = dict(zip(units["name"], units[f"{label}_median"]))
+thickness = {name: thickness.get(name) for name in column}
+print(thickness)
+```
+
+If a value is missing or not above 0, the user gives it.
+Then fill the dictionary by hand, in model units.
+The unit names are examples.
+
+```python
+thickness = {"unit A": 250.0, "unit B": 400.0, "unit C": 120.0}
+```
+
+Make the `val` dictionary from the thicknesses.
+Also make the table of units for the `build-model` skill.
+
+```python
+val = {}
+total = 0.0
+for name in reversed(column):  # oldest first
+    val[name] = total
+    total += float(thickness[name])
+
+unit_table = pd.DataFrame(
+    {
+        "unit": column,
+        "thickness": [float(thickness[name]) for name in column],
+        "val": [val[name] for name in column],
+    }
+)
+print(unit_table)
+unit_table.to_csv("units.csv", index=False)
+```
+
+Now make the contact table.
+The `ID` column of the contact points is the number of the unit.
+The `basal_unit` column of the basal contact lines gives the unit name for each `ID`.
+The type of `ID` can differ between the two tables.
+Convert both to numbers before you map.
+
+```python
+group_name = "strati"
 
 contact_points = proj.map_data.sampled_contacts
 basal_lines = proj.contact_extractor.basal_contacts
-names = dict(zip(basal_lines["ID"], basal_lines["basal_unit"]))
+names = dict(
+    zip(pd.to_numeric(basal_lines["ID"], errors="coerce"), basal_lines["basal_unit"])
+)
+point_ids = pd.to_numeric(contact_points["ID"], errors="coerce")
+unit_of_point = point_ids.map(names)
 
 contacts = pd.DataFrame(
     {
         "X": contact_points["X"],
         "Y": contact_points["Y"],
         "Z": contact_points["Z"],
-        "feature_name": contact_points["ID"].map(names),
-        "val": 0.0,
+        "feature_name": group_name,
+        "unit": unit_of_point,
+        "val": unit_of_point.map(val),
     }
 )
-contacts = contacts.dropna(subset=["X", "Y", "Z", "feature_name"])
-contacts.to_csv("contacts.csv", index=False)
+contacts = contacts.dropna(subset=["X", "Y", "Z", "unit", "val"])
+if contacts.empty:
+    print(contact_points.head())
+    print(basal_lines.head())
+    raise SystemExit("No contact points have a unit name. Check the ID columns.")
+contacts.drop(columns=["unit"]).to_csv("contacts.csv", index=False)
 ```
 
-The value `0.0` means that the point lies on the base of the unit.
-Do not change it unless the user has a reason.
-Each `feature_name` is the name of one stratigraphic unit.
+If the table is empty, stop.
+Show the first rows of both input tables to the user.
+A unit that is not in the stratigraphic column has no `val`.
+`dropna` removes the points of such a unit.
 
 ### 6. Make the orientation table
 
 The `build-model` skill accepts `strike` and `dip`.
 The `map2loop` structure points hold a dip direction in `DIPDIR`.
 The strike for the right-hand rule is the dip direction minus 90 degrees.
-The `layerID` column is the row number of the unit in the geology layer.
-Use it to get the unit name.
+Use the same `group_name` in `feature_name` as in the contact table.
+The orientation points have no `val`.
 
 ```python
-geology = proj.map_data.get_map_data(Datatype.GEOLOGY)
-unit_names = geology["UNITNAME"].reset_index(drop=True)
-
 points = proj.structure_samples
 orientations = pd.DataFrame(
     {
         "X": points["X"],
         "Y": points["Y"],
         "Z": points["Z"],
-        "feature_name": points["layerID"].map(unit_names),
+        "feature_name": group_name,
         "strike": (points["DIPDIR"] - 90.0) % 360.0,
         "dip": points["DIP"],
     }
@@ -174,21 +250,27 @@ orientations.to_csv("orientations.csv", index=False)
 
 Check one measurement by hand.
 A dip direction of 90 degrees must give a strike of 0 degrees.
-If the `layerID` mapping gives no unit names, stop and show the user the first rows of both tables.
 Remove the points where `OVERTURNED` is true, or flip them, if the user has overturned beds.
+If the user wants more than one group, ask for the group of each unit.
+Then make one pair of tables for each group.
 
 ### 7. Check the tables
 
 ```python
 print(contacts.groupby("feature_name").size())
 print(orientations.groupby("feature_name").size())
+print(contacts.groupby("val").size())
+print(contacts.groupby("val")["Z"].agg(["min", "max"]))
 print(contacts[["X", "Y", "Z"]].describe())
 ```
 
 Check these points.
 
+- The group name is the same in `contacts.csv` and `orientations.csv`.
+- Each contact surface has one `val`.
+  The `groupby("val")` output must show one row for each unit base.
+- The `val` of the oldest unit is 0.0 and the `val` values rise toward the younger units.
 - Each unit that you want to model has contact points.
-- Each unit has at least one orientation, or the units share one group.
 - The `X`, `Y` and `Z` ranges are inside the `bounding_box`.
 - The `Z` values are not empty.
   An empty `Z` means that the DEM does not cover the extent.
@@ -199,10 +281,18 @@ Give the `build-model` skill these items.
 
 - `contacts.csv` with `X`, `Y`, `Z`, `feature_name`, `val`.
 - `orientations.csv` with `X`, `Y`, `Z`, `feature_name`, `strike`, `dip`.
+- The group name.
+  It must be the same in both CSV files.
+  It must also be the name in the `create_and_add_foliation` call of `build-model`.
+- `units.csv`, the table of units from the youngest to the oldest.
+  It has the columns `unit`, `thickness` and `val`.
+  The `build-model` skill uses it for its unit list.
+  The thickness of a unit is the `val` of its top contact minus the `val` of its base contact.
+  The oldest unit is the first unit in the model, and the youngest unit has no top contact.
 - The `bounding_box`, converted to an origin and a maximum corner.
   The origin is `(minx, miny, base)`.
   The maximum is `(maxx, maxy, top)`.
-- The stratigraphic order from `proj.stratigraphic_column.column`.
+- The stratigraphic order from `proj.stratigraphic_column.column`, youngest first.
 - The working projection.
 
 Tell the user that the faults are not in these tables.

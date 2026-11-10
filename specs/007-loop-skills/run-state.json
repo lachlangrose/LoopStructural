@@ -56,8 +56,8 @@
     {
       "wave": 8,
       "base": "1e822ad15a003baf64cf27851ef4f122ae7508b6",
-      "commit": null,
-      "review": "pending"
+      "commit": "90606a1ee19c434a3e0320a5bf53eecbc752ec4f",
+      "review": "changes needed; 1 major + 3 minor fixed (skill contract, scale advice, unproven claims, ID dtype); recheck pending"
     }
   ],
   "runs": {
@@ -255,6 +255,10 @@
       {
         "model": "sonnet",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "fix: shared contract for feature_name and val; removed wrong scale advice and unproven claims"
       }
     ],
     "T030": [
@@ -267,14 +271,18 @@
       {
         "model": "sonnet",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "fix: one group name, val from cumulative thickness, ID dtype check"
       }
     ]
   },
   "findings": {
-    "found": 23,
+    "found": 28,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 4,
+    "fixed": 8,
     "open_minor": [
       "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
       "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
@@ -293,7 +301,8 @@
       "wave 7, _copilot.py _write: os.replace replaces a symlinked file with a regular file and does not keep the file mode",
       "wave 7, _copilot.py render_block: body.strip() removes the indent of the first body line; splitlines() also splits on \u000b, \f and \u0085",
       "wave 7, cli.py: EOFError from input() and KeyboardInterrupt give a traceback, not an exit code",
-      "wave 7, cli.py: an InstallError in a later agent of --agent all gives no summary line (accepted plan behaviour)"
+      "wave 7, cli.py: an InstallError in a later agent of --agent all gives no summary line (accepted plan behaviour)",
+      "wave 8, inspect-model: the BoundingBox validity and is_valid checks can almost never fire (the constructor already rejects maximum < origin); add a note that these checks are weak"
     ]
   }
 }
