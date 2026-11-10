@@ -27,5 +27,6 @@ class AgentTarget:
 
 AGENTS: dict[str, AgentTarget] = {
     "claude": AgentTarget("folders", ".claude/skills"),
+    "codex": AgentTarget("folders", ".agents/skills"),
     "copilot": AgentTarget("block", ".github/copilot-instructions.md"),
 }

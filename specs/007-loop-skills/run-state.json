@@ -43,9 +43,15 @@
     {
       "wave": 6,
       "base": "9f482b6339ac4202b0c128e8a5a8f938fa97b009",
-      "commit": null,
-      "review": "pending",
+      "commit": "8e98f3265e5c75394b8d22875eb1322cb994c71b",
+      "review": "pass",
       "note": "T024 moved from wave 6 to wave 7 (it imports from _install.py, which T019 builds in wave 6)"
+    },
+    {
+      "wave": 7,
+      "base": "8e98f3265e5c75394b8d22875eb1322cb994c71b",
+      "commit": null,
+      "review": "pending"
     }
   ],
   "runs": {
@@ -200,10 +206,34 @@
         "model": "sonnet",
         "result": "pass"
       }
+    ],
+    "T020": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T022": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T024": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T028": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
-    "found": 9,
+    "found": 15,
     "rejected": 0,
     "dropped": 0,
     "fixed": 3,
@@ -212,7 +242,13 @@
       "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
       "wave 5, T017: no test for the rollback path of a replace (second os.rename fails; old skill must stay)",
       "wave 5, T017/T021/T023: plan rules without a test: foreign or invalid .loop-skills.json on uninstall, missing target on uninstall, several skills in name order, Copilot END before BEGIN or END alone, Copilot pin warnings, CLI warning and summary lines, CLI answers yes/n/empty",
-      "wave 5, test_cli.py:55: _set_tty patches sys.stdout.isatty on the current object; a later capsys would replace sys.stdout and lose the patch"
+      "wave 5, test_cli.py:55: _set_tty patches sys.stdout.isatty on the current object; a later capsys would replace sys.stdout and lose the patch",
+      "wave 6, _install.py uninstall: is_dir() follows links; a junction or symlink with a valid owner file could be passed to rmtree (data-loss risk on Windows with Python < 3.12); skip links",
+      "wave 6, _install.py: a stale .loop-skills-old-<name> folder from a crash blocks every later replace of that skill",
+      "wave 6, _check.py: 'from X import *' gives a false name problem",
+      "wave 6, _check.py: bindings are removed only by Assign (not by params, for, with, AugAssign, AnnAssign, walrus, def, class); getattr/hasattr on lazy modules can raise non-AttributeError; Store-context attributes are checked",
+      "wave 6, _install.py: report.created misses a base folder that install made; a failure in a later skill drops the report of earlier skills",
+      "wave 6, _install.py: a stale .loop-skills-write-test folder makes the write probe fail with FileExistsError"
     ]
   }
 }
