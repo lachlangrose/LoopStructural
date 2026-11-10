@@ -548,12 +548,13 @@ just at release time.
   mechanical patch. Full detail in `INTRUSIONS.md`'s finding 1 and its
   Phase A-C status notes. Phase D remains the open item for the dedicated
   discussion.
-- [ ] **Stage 7 — Agent skills (`loop-skills`).** Agent skills for
+- [x] **Stage 7 — Agent skills (`loop-skills`).** Agent skills for
   LoopStructural and map2loop live in the separate package
   `packages/loop_skills` (pip name `loop-skills`). The core never imports
   it. Spec: `specs/007-loop-skills/`. There are four stages: S1 (library,
   checks, release files), S2 (Claude Code and Codex installer), S3 (Copilot
-  block), S4 (skills, plugin, docs).
+  block), S4 (skills, plugin, docs). All four stages landed on 2026-11-10
+  (on the branch, not yet merged).
 
 ## Status log
 
@@ -838,3 +839,21 @@ just at release time.
   release-please/PyPI/ruff wiring. `tests/unit`: 695 passed/4 skipped, zero
   regressions.
 - **2026-11-10:** Stage 7 started: spec and plan written for `loop-skills`; S1 landed.
+- **2026-11-10:** Stage 7 done: the four stages landed on the branch
+  `feat/007-loop-skills` (not pushed, not merged). S1: package, checks,
+  release files, CI jobs. S2: Claude Code and Codex installer and the
+  `loop-skills` command. S3: Copilot block. S4: the skills `build-model`,
+  `inspect-model`, `map2loop-prepare` and `install-help`, the Claude Code
+  plugin files, the package README. Tests: `packages/loop_skills/tests` gave
+  115 passed, 1 skipped, 3 not run to success locally (the `names` tests in
+  `test_shipped_names.py` need `LoopStructural` and `map2loop`; they run only
+  in the Ubuntu CI job `loop-skills-names`). The new CI jobs
+  `loop-skills-installer` and `loop-skills-names` have not run yet. Open
+  points: OP2 and OP3 answered (plugin format from the official
+  documentation; Codex folder `.agents/skills` taken from the toolkit of this
+  repository, not checked against the Codex documentation). OP1 (wording of
+  SC-004), OP4 (size limit of the Copilot file) and OP5 (re-install policy)
+  stay open for the maintainer. The name check does not reach attribute
+  reads on instances or calls on objects it cannot follow (counted as
+  unchecked); `map2loop` names are checked only in CI. Spec and review
+  notes: `specs/007-loop-skills/`.

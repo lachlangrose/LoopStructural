@@ -75,6 +75,12 @@
     {
       "wave": 11,
       "base": "c297fc273e4546aeaa8889336ec129d1f38804a1",
+      "commit": "686c7894a714f21f8e2c378c079ab1f348f3c212",
+      "review": "pass"
+    },
+    {
+      "wave": 12,
+      "base": "686c7894a714f21f8e2c378c079ab1f348f3c212",
       "commit": null,
       "review": "pending"
     }
@@ -335,6 +341,12 @@
         "model": "sonnet",
         "result": "pass (claude plugin validate: passed for the plugin folder and for the marketplace root)"
       }
+    ],
+    "T037": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
@@ -367,7 +379,8 @@
       "wave 8 recheck, map2loop-prepare step 5: map2loop sets the thickness of the oldest and youngest units to -1; the code has no guard (assert all thicknesses > 0 for the units that val needs)",
       "wave 9, _install.py:223: the block branch drops the lookup argument; install_block has no lookup parameter, so a test cannot control Copilot pin warnings through version_lookup (same output in production)",
       "wave 10 recheck, install-help/SKILL.md: the example first-install output lists install-help last, but the installer sorts by name (build-model, inspect-model, install-help, map2loop-prepare)",
-      "wave 10 recheck, README and install-help: 'except the blank line next to the block' is not exact; install can add one line end (not a blank line) and uninstall removes one line end after the end marker"
+      "wave 10 recheck, README and install-help: 'except the blank line next to the block' is not exact; install can add one line end (not a blank line) and uninstall removes one line end after the end marker",
+      "wave 11 note, plugin root: the plugin root is the Python package folder src/loop_skills, so a plugin install also copies the .py files and __pycache__ (size only; follows from the plan)"
     ]
   }
 }

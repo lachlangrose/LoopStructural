@@ -258,7 +258,7 @@
 
 ## Phase 5: Finish
 
-- [ ] T037 [Finish] [M] Mark Stage 7 as done in `ROADMAP.md`.
+- [x] T037 [Finish] [M] Mark Stage 7 as done in `ROADMAP.md`.
   - Files: `ROADMAP.md`
   - Needs: T002, T006, T007, T008, T018, T030, T031, T032, T034, T036
   - Wave: 12
