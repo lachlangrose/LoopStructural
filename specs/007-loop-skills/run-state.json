@@ -69,8 +69,14 @@
       "wave": 10,
       "base": "ddcbb45806a588232617987058e68173d8304dda",
       "commit": "9393a0dfd3d3593207bb97488d8de7a6e8c6a035",
-      "review": "changes needed; 1 major + 6 minor fixed; recheck pending",
+      "review": "pass (after 1 fix round)",
       "note": "OP2 answered from the Claude Code docs before this wave"
+    },
+    {
+      "wave": 11,
+      "base": "c297fc273e4546aeaa8889336ec129d1f38804a1",
+      "commit": null,
+      "review": "pending"
     }
   ],
   "runs": {
@@ -323,10 +329,16 @@
         "model": "sonnet",
         "result": "fix: docs made true to the code"
       }
+    ],
+    "T034": [
+      {
+        "model": "sonnet",
+        "result": "pass (claude plugin validate: passed for the plugin folder and for the marketplace root)"
+      }
     ]
   },
   "findings": {
-    "found": 39,
+    "found": 41,
     "rejected": 0,
     "dropped": 0,
     "fixed": 15,
@@ -353,7 +365,9 @@
       "wave 8 recheck, map2loop-prepare/build-model: units.csv is youngest first, but build-model lists unit_names oldest first and ends with thickness=np.inf; build-model never mentions units.csv",
       "wave 8 recheck, map2loop-prepare step 5 and 7: the text says the oldest unit has val 0.0 in contacts.csv and groupby('val') shows one row for each unit; the oldest unit has no basal contact, so 0.0 appears only in units.csv",
       "wave 8 recheck, map2loop-prepare step 5: map2loop sets the thickness of the oldest and youngest units to -1; the code has no guard (assert all thicknesses > 0 for the units that val needs)",
-      "wave 9, _install.py:223: the block branch drops the lookup argument; install_block has no lookup parameter, so a test cannot control Copilot pin warnings through version_lookup (same output in production)"
+      "wave 9, _install.py:223: the block branch drops the lookup argument; install_block has no lookup parameter, so a test cannot control Copilot pin warnings through version_lookup (same output in production)",
+      "wave 10 recheck, install-help/SKILL.md: the example first-install output lists install-help last, but the installer sorts by name (build-model, inspect-model, install-help, map2loop-prepare)",
+      "wave 10 recheck, README and install-help: 'except the blank line next to the block' is not exact; install can add one line end (not a blank line) and uninstall removes one line end after the end marker"
     ]
   }
 }

@@ -237,7 +237,7 @@
   - Wave: 4
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_plugin.py` fails (the files are missing), then passes after T034.
   - Context: Package root `Path(__file__).resolve().parents[1]`; plugin root `<package root>/src/loop_skills`. Repository root `parents[3]`. Cases: (1) `<plugin root>/.claude-plugin/plugin.json` is valid JSON, `name == "loop-skills"`, has a `version` and a `description`; (2) `<plugin root>/skills` is a folder that holds the four skill names; (3) the `version` in `plugin.json` equals the `version` in `packages/loop_skills/pyproject.toml` (regex `^version\s*=\s*"([^"]+)"`) and the value of `packages/loop_skills` in `.release-please-manifest.json` (skip this case if the manifest is not found); (4) `<repo root>/.claude-plugin/marketplace.json` is valid JSON with a `plugins` list that has an entry with `name == "loop-skills"` and `source == "./packages/loop_skills/src/loop_skills"` (skip if the repository root has no `.claude-plugin`). Numpy docstrings and type hints.
-- [ ] T034 [US1] [M] Write the plugin manifest and the marketplace file.
+- [x] T034 [US1] [M] Write the plugin manifest and the marketplace file.
   - Files: `packages/loop_skills/src/loop_skills/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
   - Needs: T033, T029, T030, T031, T032
   - Wave: 11

@@ -1,0 +1,8 @@
+{
+  "name": "loop-skills",
+  "version": "0.1.0",
+  "description": "Agent skills for LoopStructural and map2loop models",
+  "author": {
+    "name": "Loop3D"
+  }
+}

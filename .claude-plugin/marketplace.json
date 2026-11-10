@@ -1,0 +1,14 @@
+{
+  "name": "loop3d",
+  "description": "Agent skills for LoopStructural and map2loop models",
+  "owner": {
+    "name": "Loop3D"
+  },
+  "plugins": [
+    {
+      "name": "loop-skills",
+      "source": "./packages/loop_skills/src/loop_skills",
+      "description": "Agent skills for LoopStructural and map2loop models"
+    }
+  ]
+}
