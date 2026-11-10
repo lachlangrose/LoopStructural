@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -14,6 +15,11 @@ __all__ = ["BEGIN", "END", "install_block", "render_block", "uninstall_block"]
 
 BEGIN = "<!-- loop-skills:begin -->"
 END = "<!-- loop-skills:end -->"
+
+# A marker counts only when it is the whole line. Text that quotes a marker
+# inside a sentence is not a marker.
+_BEGIN_RE = re.compile("^" + re.escape(BEGIN) + r"[ \t]*(?=\r?$)", re.MULTILINE)
+_END_RE = re.compile("^" + re.escape(END) + r"[ \t]*(?=\r?$)", re.MULTILINE)
 
 
 def render_block(skills: Sequence[Skill], version: str, newline: str = "\n") -> str:
@@ -40,6 +46,9 @@ def render_block(skills: Sequence[Skill], version: str, newline: str = "\n") -> 
         "",
     ]
     for skill in skills:
+        for line in [*skill.description.splitlines(), *skill.body.splitlines()]:
+            if line.strip() in (BEGIN, END):
+                raise InstallError(f"skill {skill.name} has a line that equals a marker line")
         lines.append(f"## Skill: {skill.name}")
         lines.append("")
         lines.extend(skill.description.splitlines())
@@ -114,6 +123,23 @@ def _write(path: Path, text: str) -> None:
         raise InstallError(f"cannot write {path}: {exc}. Nothing changed.") from exc
 
 
+def _marker_stop(match: re.Match[str]) -> int:
+    """Return the end of the marker text of a match.
+
+    Parameters
+    ----------
+    match : re.Match[str]
+        A match of the end marker pattern.
+
+    Returns
+    -------
+    int
+        Index after the marker text. Spaces and tabs after the marker are
+        part of the replaced range. The line end is not.
+    """
+    return match.end()
+
+
 def install_block(base: Path, skills: Sequence[Skill], version: str) -> InstallReport:
     """Write or replace the managed block.
 
@@ -145,12 +171,15 @@ def install_block(base: Path, skills: Sequence[Skill], version: str) -> InstallR
     newline = "\r\n" if "\r\n" in text else "\n"
     block = render_block(skills, version, newline)
 
-    begin = text.find(BEGIN)
-    end = text.find(END, begin + len(BEGIN)) if begin >= 0 else text.find(END)
-    if begin >= 0 and end >= 0:
-        new_text = text[:begin] + block + text[end + len(END) :]
+    begin_match = _BEGIN_RE.search(text)
+    if begin_match:
+        end_match = _END_RE.search(text, begin_match.end())
+    else:
+        end_match = _END_RE.search(text)
+    if begin_match and end_match:
+        new_text = text[: begin_match.start()] + block + text[_marker_stop(end_match) :]
         action = "replaced"
-    elif begin >= 0 or end >= 0:
+    elif begin_match or end_match:
         raise InstallError(f"the markers in {path} are damaged. Nothing changed.")
     else:
         new_text = text
@@ -212,12 +241,13 @@ def uninstall_block(base: Path) -> InstallReport:
         text = _read(path)
     except OSError as exc:
         raise InstallError(f"cannot read {path}: {exc}. Nothing changed.") from exc
-    begin = text.find(BEGIN)
-    end = text.find(END, begin + len(BEGIN)) if begin >= 0 else -1
-    if begin < 0 or end < 0:
+    begin_match = _BEGIN_RE.search(text)
+    end_match = _END_RE.search(text, begin_match.end()) if begin_match else None
+    if not begin_match or not end_match:
         return report
+    begin = begin_match.start()
     newline = "\r\n" if "\r\n" in text else "\n"
-    stop = end + len(END)
+    stop = _marker_stop(end_match)
     if text.startswith(newline, stop):
         stop += len(newline)
     start = begin

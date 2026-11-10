@@ -88,7 +88,7 @@
       "wave": 13,
       "base": "9a43cff5d709dcc474700672b6ae1e947c991281",
       "commit": "59c125ff5016567b4dc23d3f842188263f9e7b4b",
-      "review": "covered by the end-of-spec review (no files changed except tasks.md and run-state.json)"
+      "review": "end review: changes needed; 1 blocker + 1 major fixed (+ quoted markers); recheck pending"
     }
   ],
   "runs": {
@@ -226,12 +226,20 @@
       {
         "model": "sonnet",
         "result": "tests added with the T022 fix"
+      },
+      {
+        "model": "sonnet",
+        "result": "fix (end review major): write_text(newline=) needs Python 3.10"
       }
     ],
     "T023": [
       {
         "model": "sonnet",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "tests added with the T024 fix"
       }
     ],
     "T016": [
@@ -276,6 +284,10 @@
       {
         "model": "sonnet",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "fix (end review blocker): markers are matched as whole lines; render_block rejects a marker line; round-trip tests with the shipped skills"
       }
     ],
     "T028": [
@@ -362,10 +374,10 @@
     ]
   },
   "findings": {
-    "found": 41,
+    "found": 50,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 15,
+    "fixed": 18,
     "open_minor": [
       "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
       "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
@@ -392,7 +404,13 @@
       "wave 9, _install.py:223: the block branch drops the lookup argument; install_block has no lookup parameter, so a test cannot control Copilot pin warnings through version_lookup (same output in production)",
       "wave 10 recheck, install-help/SKILL.md: the example first-install output lists install-help last, but the installer sorts by name (build-model, inspect-model, install-help, map2loop-prepare)",
       "wave 10 recheck, README and install-help: 'except the blank line next to the block' is not exact; install can add one line end (not a blank line) and uninstall removes one line end after the end marker",
-      "wave 11 note, plugin root: the plugin root is the Python package folder src/loop_skills, so a plugin install also copies the .py files and __pycache__ (size only; follows from the plan)"
+      "wave 11 note, plugin root: the plugin root is the Python package folder src/loop_skills, so a plugin install also copies the .py files and __pycache__ (size only; follows from the plan)",
+      "end review, test_shipped_names.py:33-37: the test passes when the check reads 0 names; add assert report.checked > 0 for each skill and remove the prints",
+      "end review, test_isolation.py:26-27: the runtime FR-001 test is skipped in every CI job (the installer job has no core; the names job runs -m names only); mark it names. It also fails (does not skip) when LoopStructural/ is importable from the working folder but the distribution is not installed",
+      "end review, uv.lock: the diff adds trame, trame-vtk and trame-vuetify to the docs extra (lock drift that was there before this work; master fails uv lock --check); say so in the commit or PR note",
+      "end review, .github/workflows/packages.yml:16-28: the workflow runs only for changes in packages/** and the workflow file; changes to .claude-plugin/**, ROADMAP.md and the release-please files do not start the loop-skills jobs although tests read those files",
+      "end review, cli.py/_install.py: --agent all prints the same pin warning once for each skill (up to six times); remove repeated warnings before the summary",
+      "end review: the sdist holds the test files but not conftest.py or the fixtures, so the tests cannot run from the sdist"
     ]
   }
 }

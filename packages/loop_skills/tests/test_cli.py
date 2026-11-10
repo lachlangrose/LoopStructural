@@ -262,7 +262,7 @@ def test_damaged_copilot_marker_returns_1(
     copilot = _copilot_file(target)
     copilot.parent.mkdir(parents=True)
     original = f"# Notes\n\n{BEGIN}\n"
-    copilot.write_text(original, encoding="utf-8", newline="")
+    copilot.write_bytes(original.encode("utf-8"))
     code = main(["install", "--agent", "copilot", "--dir", str(target)])
     assert code == 1
     assert copilot.read_text(encoding="utf-8") == original

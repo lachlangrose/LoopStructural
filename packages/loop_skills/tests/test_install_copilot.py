@@ -13,7 +13,7 @@ from loop_skills._copilot import (
     uninstall_block,
 )
 from loop_skills._install import InstallError
-from loop_skills._skill import Skill, load_skill
+from loop_skills._skill import Skill, iter_skills, load_skill
 
 OLD_TEXT = "My rules\n"
 
@@ -172,3 +172,106 @@ def test_uninstall_without_markers_changes_nothing(tmp_path: Path) -> None:
     report = uninstall_block(tmp_path)
     assert report.outcomes == []
     assert target.read_bytes() == OLD_TEXT.encode("utf-8")
+
+
+def _write_user_file(base: Path, data: bytes) -> Path:
+    """Write the user text of the Copilot file.
+
+    Parameters
+    ----------
+    base : Path
+        Base folder.
+    data : bytes
+        The bytes of the user text.
+
+    Returns
+    -------
+    Path
+        Path of the Copilot file.
+    """
+    target = _target(base)
+    target.parent.mkdir(parents=True)
+    target.write_bytes(data)
+    return target
+
+
+def test_shipped_skills_round_trip(tmp_path: Path) -> None:
+    """The shipped skills install, install again and uninstall without damage."""
+    user = b"# My rules\n\nUse tabs.\n"
+    target = _write_user_file(tmp_path, user)
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    once = target.read_bytes()
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == once
+    uninstall_block(tmp_path)
+    assert END not in target.read_bytes().decode("utf-8")
+    assert target.read_bytes() == user
+
+
+def test_quoted_marker_in_user_text_is_ignored(tmp_path: Path) -> None:
+    """A marker that the user quotes inside a sentence is not a marker."""
+    user = (
+        b"Do not remove the line `<!-- loop-skills:end -->` "
+        b"or `<!-- loop-skills:begin -->` by hand.\n"
+    )
+    target = _write_user_file(tmp_path, user)
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    once = target.read_bytes()
+    assert once.startswith(user)
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == once
+    uninstall_block(tmp_path)
+    assert target.read_bytes() == user
+
+
+def test_shipped_skills_round_trip_crlf(tmp_path: Path) -> None:
+    """The round trip keeps CRLF line ends."""
+    user = b"# My rules\r\n\r\nUse tabs.\r\n"
+    target = _write_user_file(tmp_path, user)
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    once = target.read_bytes()
+    assert once.count(b"\n") == once.count(b"\r\n")
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == once
+    uninstall_block(tmp_path)
+    assert target.read_bytes() == user
+
+
+def _skill_with_body(fixture_skills: Path, tmp_path: Path, body: str) -> Skill:
+    """Make a copy of the good fixture skill with a new body.
+
+    Parameters
+    ----------
+    fixture_skills : Path
+        Folder that holds the fixture skills.
+    tmp_path : Path
+        Folder for the copy.
+    body : str
+        The new body text.
+
+    Returns
+    -------
+    Skill
+        The loaded skill.
+    """
+    source = (fixture_skills / "good-skill" / "SKILL.md").read_text(encoding="utf-8")
+    head = source.split("---", 2)
+    folder = tmp_path / "copy" / "good-skill"
+    folder.mkdir(parents=True)
+    path = folder / "SKILL.md"
+    path.write_bytes(f"---{head[1]}---\n\n{body}\n".encode())
+    return load_skill(path)
+
+
+def test_render_block_rejects_marker_line(fixture_skills: Path, tmp_path: Path) -> None:
+    """A body line that equals a marker is refused. A marker in a sentence is fine."""
+    bad = _skill_with_body(fixture_skills, tmp_path, f"Text.\n\n{END}\n\nMore.")
+    with pytest.raises(InstallError, match="marker"):
+        render_block([bad], "0.1.0")
+    other = tmp_path / "other"
+    other.mkdir()
+    fine = _skill_with_body(fixture_skills, other, f"It ends with the line `{END}`.")
+    assert fine.body.strip() in render_block([fine], "0.1.0")
