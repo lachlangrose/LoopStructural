@@ -31,7 +31,7 @@ def _agents_for(choice: str) -> list[str]:
         The agent names, in the order of ``AGENTS``.
     """
     if choice == "all":
-        return [name for name, row in AGENTS.items() if row.kind == "folders"]
+        return list(AGENTS)
     return [choice]
 
 
@@ -48,7 +48,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"loop-skills {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
-    choices = ["claude", "codex", "all"]
+    choices = ["claude", "codex", "copilot", "all"]
     for name, text in (("install", "Install the skills."), ("uninstall", "Remove the skills.")):
         cmd = sub.add_parser(name, help=text, description=text)
         cmd.add_argument("--agent", required=True, choices=choices, help="Target agent.")

@@ -183,7 +183,7 @@
   - Wave: 8
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_cli.py -k copilot` fails (the choice `copilot` is not allowed), then passes after T026.
   - Context: Add to the existing file, with the same patching of `iter_skills` and `version_lookup` as the other tests. Cases with ids that contain `copilot`: (1) `main(["install", "--agent", "copilot", "--dir", str(tmp)])` returns `0` and `.github/copilot-instructions.md` has the markers; (2) `main(["install", "--agent", "all", "--dir", str(tmp)])` returns `0` and creates `.claude/skills/good-skill`, `.agents/skills/good-skill` and the Copilot file (SC-002); (3) `main(["uninstall", "--agent", "all", "--dir", str(tmp)])` removes the two folders and the block; (4) a Copilot file with a damaged marker gives exit code `1`. Numpy docstrings and type hints.
-- [ ] T026 [US1] [M] Connect Copilot to the installer and the command line.
+- [x] T026 [US1] [M] Connect Copilot to the installer and the command line.
   - Files: `packages/loop_skills/src/loop_skills/_install.py`, `packages/loop_skills/src/loop_skills/cli.py`
   - Needs: T020, T024, T025
   - Wave: 9

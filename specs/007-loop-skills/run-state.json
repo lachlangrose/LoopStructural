@@ -57,7 +57,13 @@
       "wave": 8,
       "base": "1e822ad15a003baf64cf27851ef4f122ae7508b6",
       "commit": "90606a1ee19c434a3e0320a5bf53eecbc752ec4f",
-      "review": "changes needed; 1 major + 3 minor fixed (skill contract, scale advice, unproven claims, ID dtype); recheck pending"
+      "review": "pass (after 1 fix round)"
+    },
+    {
+      "wave": 9,
+      "base": "258bc5b8e485c1a270d0497f35da070b2e5c43b4",
+      "commit": null,
+      "review": "pending"
     }
   ],
   "runs": {
@@ -276,10 +282,16 @@
         "model": "sonnet",
         "result": "fix: one group name, val from cumulative thickness, ID dtype check"
       }
+    ],
+    "T026": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
-    "found": 28,
+    "found": 31,
     "rejected": 0,
     "dropped": 0,
     "fixed": 8,
@@ -302,7 +314,10 @@
       "wave 7, _copilot.py render_block: body.strip() removes the indent of the first body line; splitlines() also splits on \u000b, \f and \u0085",
       "wave 7, cli.py: EOFError from input() and KeyboardInterrupt give a traceback, not an exit code",
       "wave 7, cli.py: an InstallError in a later agent of --agent all gives no summary line (accepted plan behaviour)",
-      "wave 8, inspect-model: the BoundingBox validity and is_valid checks can almost never fire (the constructor already rejects maximum < origin); add a note that these checks are weak"
+      "wave 8, inspect-model: the BoundingBox validity and is_valid checks can almost never fire (the constructor already rejects maximum < origin); add a note that these checks are weak",
+      "wave 8 recheck, map2loop-prepare/build-model: units.csv is youngest first, but build-model lists unit_names oldest first and ends with thickness=np.inf; build-model never mentions units.csv",
+      "wave 8 recheck, map2loop-prepare step 5 and 7: the text says the oldest unit has val 0.0 in contacts.csv and groupby('val') shows one row for each unit; the oldest unit has no basal contact, so 0.0 appears only in units.csv",
+      "wave 8 recheck, map2loop-prepare step 5: map2loop sets the thickness of the oldest and youngest units to -1; the code has no guard (assert all thicknesses > 0 for the units that val needs)"
     ]
   }
 }

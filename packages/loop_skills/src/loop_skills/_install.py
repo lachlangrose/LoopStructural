@@ -19,7 +19,6 @@ __all__ = ["InstallError", "InstallReport", "SkillOutcome", "install", "uninstal
 
 _OWNER_FILE = ".loop-skills.json"
 _PACKAGE = "loop-skills"
-_BLOCK_MESSAGE = "Copilot support is added in stage S3"
 
 
 class InstallError(RuntimeError):
@@ -97,15 +96,12 @@ def _target(agent: str) -> AgentTarget:
     Raises
     ------
     InstallError
-        If the agent is not known or its kind is ``block``.
+        If the agent is not known.
     """
     try:
-        row = AGENTS[agent]
+        return AGENTS[agent]
     except KeyError:
         raise InstallError(f"unknown agent: {agent}") from None
-    if row.kind == "block":
-        raise InstallError(_BLOCK_MESSAGE)
-    return row
 
 
 def _remove_created(created: Sequence[Path]) -> None:
@@ -196,7 +192,7 @@ def install(
     confirm: Callable[[str], bool] | None = None,
     lookup: Callable[[str], str | None] | None = None,
 ) -> InstallReport:
-    """Install skills as folders for an agent.
+    """Install skills for an agent, as folders or as a block.
 
     Parameters
     ----------
@@ -224,6 +220,13 @@ def install(
         If the target is not writable or a copy fails.
     """
     row = _target(agent)
+    if row.kind == "block":
+        # Lazy import: _copilot imports InstallReport from this module.
+        from . import _copilot
+
+        return _copilot.install_block(
+            Path(base), sorted(skills, key=lambda item: item.name), __version__
+        )
     base = Path(base)
     target = base / row.relpath
     report = InstallReport(agent=agent, location=target)
@@ -298,6 +301,11 @@ def uninstall(agent: str, base: Path) -> InstallReport:
         If a folder cannot be removed.
     """
     row = _target(agent)
+    if row.kind == "block":
+        # Lazy import: _copilot imports InstallReport from this module.
+        from . import _copilot
+
+        return _copilot.uninstall_block(Path(base))
     base = Path(base)
     target = base / row.relpath
     report = InstallReport(agent=agent, location=target)
