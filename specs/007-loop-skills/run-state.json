@@ -88,7 +88,7 @@
       "wave": 13,
       "base": "9a43cff5d709dcc474700672b6ae1e947c991281",
       "commit": "59c125ff5016567b4dc23d3f842188263f9e7b4b",
-      "review": "end review round 2: 1 major open (BOM before the begin marker; T024 marked [!]); waiting for the maintainer"
+      "review": "end review: pass after 3 rounds"
     }
   ],
   "runs": {
@@ -300,6 +300,10 @@
       {
         "model": "sonnet",
         "result": "fix (end review round 2 major, allowed by the maintainer as a third round): a leading UTF-8 BOM is split off and written back"
+      },
+      {
+        "model": "opus (reviewer)",
+        "result": "end review round 3: pass"
       }
     ],
     "T028": [
@@ -386,10 +390,10 @@
     ]
   },
   "findings": {
-    "found": 54,
+    "found": 55,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 18,
+    "fixed": 19,
     "open_minor": [
       "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
       "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
@@ -425,13 +429,14 @@
       "end review: the sdist holds the test files but not conftest.py or the fixtures, so the tests cannot run from the sdist",
       "end review round 2, _copilot.py:50: the render_block guard uses line.strip() but the regex needs the marker at column 0; an indented marker line in a skill body is rejected although it is not a marker (safe; no shipped skill has one); use line.rstrip(' \t')",
       "end review round 2, _copilot.py:126-140: the helper _marker_stop only returns match.end(); use end_match.end() inline",
-      "end review round 3, _copilot.py _split_bom: the source holds the BOM character itself in a string literal instead of the escape \ufeff (works; ruff accepts it; the escape is safer to read and to edit)"
+      "end review round 3, _copilot.py _split_bom: the source holds the BOM character itself in a string literal instead of the escape \ufeff (works; ruff accepts it; the escape is safer to read and to edit)",
+      "end review round 3, test_install_copilot.py: only the block-at-start BOM test fails against the old code; add a BOM-only file case and a CRLF variant of the block-at-start BOM test (a non-UTF-8 Copilot file that gives a traceback is already in this list, from wave 7; it existed before this work)"
     ]
   },
   "end_review": {
     "round1": "1 blocker + 1 major, fixed",
     "round2": "1 major open (UTF-8 BOM at the start of the Copilot file)",
     "reviewers": "opus",
-    "round3": "BOM fix by the third round that the maintainer allowed; review pending"
+    "round3": "pass"
   }
 }
