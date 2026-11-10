@@ -32,25 +32,25 @@
   - Wave: 1
   - Done when: `python -c "import yaml; d = yaml.safe_load(open('.github/workflows/packages.yml')); j = d['jobs']; assert 'loop-skills-installer' in j and 'loop-skills-names' in j; assert {'loop-skills-installer', 'loop-skills-names'} <= set(j['loopstructural-test']['needs'])"` exits 0.
   - Context: Job `loop-skills-installer`: copy the steps of `packages-test`; matrix `os: ${{ fromJSON(vars.BUILD_OS)}}` and `python-version: ${{ fromJSON(vars.PYTHON_VERSIONS)}}`; install with `uv sync --package loop-skills --extra tests --python ${{ matrix.python-version }}`; test with `uv run --package loop-skills pytest packages/loop_skills/tests -m "not names"`. Job `loop-skills-names`: `runs-on: ubuntu-latest`; matrix `python-version` only; copy the GDAL apt step, the `uv` setup and the `GDAL_VERSION` lines of `map2loop-test`; install with `uv sync --package loop-skills --extra tests --extra checks --python ...`; test with `uv run --package loop-skills --extra checks pytest packages/loop_skills/tests -m names`. Change `needs:` of `loopstructural-test` to `[packages-test, map2loop-test, loop-skills-installer, loop-skills-names]`. Add a comment for each job that says why (the installer runs on all platforms; the name check needs GDAL for `map2loop`, so Ubuntu only).
-- [ ] T003 [Setup] [M] Create the test scaffold: package, fixtures and fixture skills.
+- [x] T003 [Setup] [M] Create the test scaffold: package, fixtures and fixture skills.
   - Files: `packages/loop_skills/tests/__init__.py`, `packages/loop_skills/tests/conftest.py`, `packages/loop_skills/tests/fixtures/skills/good-skill/SKILL.md`, `packages/loop_skills/tests/fixtures/skills/bad-syntax/SKILL.md`, `packages/loop_skills/tests/fixtures/skills/bad-name/SKILL.md`, `packages/loop_skills/tests/fixtures/skills/no-pin/SKILL.md`
   - Needs: T001
   - Wave: 2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests --collect-only -q` exits 0 or 5 (no tests yet) and `python -c "import pathlib; assert len(list(pathlib.Path('packages/loop_skills/tests/fixtures/skills').glob('*/SKILL.md'))) == 4"` exits 0.
   - Context: `tests/__init__.py` is empty. Fixture skills (frontmatter keys `name`, `description`, `requires`): `good-skill`: `requires: json>=0`, body has one valid block ```` ```python ```` with `import json` and `json.dumps({})`. `bad-syntax`: valid frontmatter, one ```` ```python ```` block with the text `def broken(:`. `bad-name`: valid frontmatter, one block `import json` then `json.not_a_function()` and `from json import NotAName`. `no-pin`: frontmatter without the `requires` key. `conftest.py` fixtures: `fixture_skills(tmp_path) -> Path` (copy `tests/fixtures/skills` to `tmp_path/"skills"` and return it); `fake_lookup` (returns a function `lookup(dist) -> Optional[str]` that reads a dict; the dict is set with `fake_lookup.versions = {...}`; use a small class with `__call__`); `no_network(monkeypatch)` (replace `socket.socket` by a function that raises `RuntimeError("network call")`). Every fixture and test function has a numpy docstring and type hints (Ruff `D` and `ANN` apply).
-- [ ] T004 [P] [Setup] [S] Test: the release files list the new package (story 1, scenario 6 of release consistency; plan "test_release_files.py").
+- [x] T004 [P] [Setup] [S] Test: the release files list the new package (story 1, scenario 6 of release consistency; plan "test_release_files.py").
   - Files: `packages/loop_skills/tests/test_release_files.py`
   - Needs: T001
   - Wave: 2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_release_files.py` fails (the keys are missing), then passes after T007.
   - Context: Find the repository root as `Path(__file__).resolve().parents[3]`. Skip the test (`pytest.skip`) if `.release-please-config.json` is not there (sdist case). Cases: (1) `.release-please-config.json` `packages` has the key `packages/loop_skills` with `component == "loop-skills"` and `release-type == "python"`; (2) the list `packages["."]["exclude-paths"]` contains `packages/loop_skills`; (3) `.release-please-manifest.json` has the key `packages/loop_skills` with the value `0.1.0`; (4) the `version` in `packages/loop_skills/pyproject.toml` equals the manifest value (read the file with a regex `^version\s*=\s*"([^"]+)"` because Python 3.9 has no `tomllib`). Numpy docstrings and type hints.
-- [ ] T005 [P] [Setup] [S] Test: `ROADMAP.md` names the package (spec scenario 16, FR-015).
+- [x] T005 [P] [Setup] [S] Test: `ROADMAP.md` names the package (spec scenario 16, FR-015).
   - Files: `packages/loop_skills/tests/test_roadmap.py`
   - Needs: T001
   - Wave: 2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_roadmap.py` fails, then passes after T008.
   - Context: Root = `Path(__file__).resolve().parents[3]`; skip with `pytest.skip` if `ROADMAP.md` is not there. Read the text. Assert it contains `packages/loop_skills` and `loop-skills` and `specs/007-loop-skills`. One test function `test_roadmap_names_package`. Numpy docstring and type hints.
-- [ ] T006 [P] [Setup] [S] Test: the core does not need the skills package (spec scenario 7, FR-001).
+- [x] T006 [P] [Setup] [S] Test: the core does not need the skills package (spec scenario 7, FR-001).
   - Files: `packages/loop_skills/tests/test_isolation.py`
   - Needs: T001
   - Wave: 2
