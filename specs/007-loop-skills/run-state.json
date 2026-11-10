@@ -50,6 +50,12 @@
     {
       "wave": 7,
       "base": "8e98f3265e5c75394b8d22875eb1322cb994c71b",
+      "commit": "1e822ad15a003baf64cf27851ef4f122ae7508b6",
+      "review": "pass"
+    },
+    {
+      "wave": 8,
+      "base": "1e822ad15a003baf64cf27851ef4f122ae7508b6",
       "commit": null,
       "review": "pending"
     }
@@ -145,6 +151,10 @@
       {
         "model": "haiku",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "tests added with the T016 fix"
       }
     ],
     "T013": [
@@ -193,6 +203,10 @@
       {
         "model": "sonnet",
         "result": "pass"
+      },
+      {
+        "model": "sonnet",
+        "result": "fix: name check kept no bindings across blocks and dropped the binding of v for 'v.attr = x'; found by the orchestrator at wave 8 (build-model gave checked: 0)"
       }
     ],
     "T019": [
@@ -230,13 +244,37 @@
         "model": "haiku",
         "result": "pass"
       }
+    ],
+    "T025": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T029": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T030": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T031": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
-    "found": 15,
+    "found": 23,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 3,
+    "fixed": 4,
     "open_minor": [
       "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
       "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
@@ -248,7 +286,14 @@
       "wave 6, _check.py: 'from X import *' gives a false name problem",
       "wave 6, _check.py: bindings are removed only by Assign (not by params, for, with, AugAssign, AnnAssign, walrus, def, class); getattr/hasattr on lazy modules can raise non-AttributeError; Store-context attributes are checked",
       "wave 6, _install.py: report.created misses a base folder that install made; a failure in a later skill drops the report of earlier skills",
-      "wave 6, _install.py: a stale .loop-skills-write-test folder makes the write probe fail with FileExistsError"
+      "wave 6, _install.py: a stale .loop-skills-write-test folder makes the write probe fail with FileExistsError",
+      "wave 7, _copilot.py: UnicodeDecodeError on a non-UTF-8 Copilot file escapes as a traceback (catch it and raise InstallError)",
+      "wave 7, _copilot.py install: for an old text with no final newline the block follows with no blank line; uninstall then differs by one byte",
+      "wave 7, _copilot.py uninstall: damaged markers give an empty report with no message; a block at the file start leaves a blank line at the top",
+      "wave 7, _copilot.py _write: os.replace replaces a symlinked file with a regular file and does not keep the file mode",
+      "wave 7, _copilot.py render_block: body.strip() removes the indent of the first body line; splitlines() also splits on \u000b, \f and \u0085",
+      "wave 7, cli.py: EOFError from input() and KeyboardInterrupt give a traceback, not an exit code",
+      "wave 7, cli.py: an InstallError in a later agent of --agent all gives no summary line (accepted plan behaviour)"
     ]
   }
 }

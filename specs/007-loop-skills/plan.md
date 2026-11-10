@@ -42,6 +42,7 @@
 - The CLI imports the installer as a module and calls `_install.install` and `_install.uninstall` (so that tests can patch them).
 - `uninstall` for folder agents deletes the target folder if it is empty after the removals, then each empty parent up to (not including) the base folder.
 - `render_block` splits the description and the body with `splitlines()` and joins every line of the block with the detected newline, so a CRLF file has no lone LF.
+- The name check keeps its bindings across all Python blocks of one skill, in file order. The blocks of a skill are the steps of one script (for example `model = GeologicalModel(...)` in step 2 and `model.update()` in step 5). A checker that starts again for each block would check no name in the later steps. (Found at wave 8, when the check of `build-model` counted 0 checked names.)
 - Copilot install ends the block with one final newline after `END`. Copilot uninstall removes the line end of `END` and one blank line before `BEGIN`, so that install then uninstall restores the old text exactly.
 
 ## Summary

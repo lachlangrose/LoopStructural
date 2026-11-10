@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from loop_skills._copilot import BEGIN, END
 from loop_skills._skill import Skill, load_skill
 from loop_skills.cli import main
 
@@ -193,3 +194,75 @@ def test_uninstall_claude(cli_env: list[Skill], tmp_path: Path) -> None:
     code = main(["uninstall", "--agent", "claude", "--dir", str(target)])
     assert code == 0
     assert not _skill_dirs(target)
+
+
+def _copilot_file(target: Path) -> Path:
+    """Return the path of the Copilot instructions file.
+
+    Parameters
+    ----------
+    target : Path
+        The target folder of the install.
+
+    Returns
+    -------
+    Path
+        The path of ``.github/copilot-instructions.md`` below the target.
+    """
+    return target / ".github" / "copilot-instructions.md"
+
+
+def test_install_copilot(cli_env: list[Skill], tmp_path: Path) -> None:
+    """Install for Copilot returns 0 and writes the managed block."""
+    target = tmp_path / "target"
+    target.mkdir()
+    code = main(["install", "--agent", "copilot", "--dir", str(target)])
+    assert code == 0
+    text = _copilot_file(target).read_text(encoding="utf-8")
+    assert BEGIN in text
+    assert END in text
+
+
+def test_install_all_agents_includes_copilot(cli_env: list[Skill], tmp_path: Path) -> None:
+    """Install for all agents returns 0 and writes every target."""
+    target = tmp_path / "target"
+    target.mkdir()
+    code = main(["install", "--agent", "all", "--dir", str(target)])
+    assert code == 0
+    assert (target / ".claude" / "skills" / "good-skill").is_dir()
+    assert (target / ".agents" / "skills" / "good-skill").is_dir()
+    text = _copilot_file(target).read_text(encoding="utf-8")
+    assert BEGIN in text
+    assert END in text
+
+
+def test_uninstall_all_agents_removes_copilot_block(
+    cli_env: list[Skill],
+    tmp_path: Path,
+) -> None:
+    """Uninstall for all agents removes the skill folders and the Copilot block."""
+    target = tmp_path / "target"
+    target.mkdir()
+    assert main(["install", "--agent", "all", "--dir", str(target)]) == 0
+    code = main(["uninstall", "--agent", "all", "--dir", str(target)])
+    assert code == 0
+    assert not (target / ".claude" / "skills" / "good-skill").exists()
+    assert not (target / ".agents" / "skills" / "good-skill").exists()
+    copilot = _copilot_file(target)
+    assert copilot.exists()
+    assert BEGIN not in copilot.read_text(encoding="utf-8")
+
+
+def test_damaged_copilot_marker_returns_1(
+    cli_env: list[Skill],
+    tmp_path: Path,
+) -> None:
+    """A Copilot file with a begin marker and no end marker gives exit code 1."""
+    target = tmp_path / "target"
+    copilot = _copilot_file(target)
+    copilot.parent.mkdir(parents=True)
+    original = f"# Notes\n\n{BEGIN}\n"
+    copilot.write_text(original, encoding="utf-8", newline="")
+    code = main(["install", "--agent", "copilot", "--dir", str(target)])
+    assert code == 1
+    assert copilot.read_text(encoding="utf-8") == original

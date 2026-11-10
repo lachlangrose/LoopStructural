@@ -61,6 +61,126 @@ def _make_skill(
     return load_skill(folder / "SKILL.md")
 
 
+def _make_skill_blocks(
+    base: Path,
+    name: str,
+    requires: str,
+    blocks: list[str],
+) -> Skill:
+    """Write a skill folder with several python blocks and load it.
+
+    Parameters
+    ----------
+    base : Path
+        Folder that holds the new skill folder.
+    name : str
+        Skill name. It is also the folder name.
+    requires : str
+        Pin for the ``requires`` frontmatter key.
+    blocks : list[str]
+        Source code for each python block, in file order.
+
+    Returns
+    -------
+    Skill
+        The loaded skill.
+    """
+    folder = base / name
+    folder.mkdir(parents=True)
+    text = (
+        "---\n"
+        f"name: {name}\n"
+        "description: Test skill for check_names.\n"
+        f"requires: {requires}\n"
+        "---\n"
+        "\n"
+    )
+    for code in blocks:
+        text += f"{FENCE}python\n{code}{FENCE}\n\n"
+    (folder / "SKILL.md").write_text(text, encoding="utf-8")
+    return load_skill(folder / "SKILL.md")
+
+
+def test_bindings_persist_across_blocks(tmp_path: Path, fake_lookup: FakeLookup) -> None:
+    """A name bound in block 1 is checked in block 2.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory.
+    fake_lookup : FakeLookup
+        Fake version lookup.
+    """
+    fake_lookup.versions = {"json": "1.0"}
+    blocks = ["import json\nd = json.JSONDecoder()\n", "d.nope()\n"]
+    skill = _make_skill_blocks(tmp_path, "persist", "json>=0", blocks)
+    report: NameReport = check_names(skill, roots=ROOTS, lookup=fake_lookup)
+    assert len(report.problems) == 1
+    assert report.problems[0].kind == "name"
+    assert "nope" in report.problems[0].detail
+    assert "block 2" in report.problems[0].detail
+
+
+def test_method_in_later_block_is_checked(tmp_path: Path, fake_lookup: FakeLookup) -> None:
+    """A good method call in block 2 gives no problem and counts as checked.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory.
+    fake_lookup : FakeLookup
+        Fake version lookup.
+    """
+    fake_lookup.versions = {"json": "1.0"}
+    blocks = ["import json\nd = json.JSONDecoder()\n", "d.decode('1')\n"]
+    skill = _make_skill_blocks(tmp_path, "later-ok", "json>=0", blocks)
+    report: NameReport = check_names(skill, roots=ROOTS, lookup=fake_lookup)
+    assert report.problems == []
+    # One name in block 1 (json.JSONDecoder) and one in block 2 (d.decode).
+    assert report.checked >= 2
+
+
+def test_attribute_assignment_keeps_binding(tmp_path: Path, fake_lookup: FakeLookup) -> None:
+    """An assignment to an attribute of a bound name keeps the binding.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory.
+    fake_lookup : FakeLookup
+        Fake version lookup.
+    """
+    fake_lookup.versions = {"json": "1.0"}
+    blocks = [
+        "import json\nd = json.JSONDecoder()\n",
+        "d.object_hook = None\n",
+        "d.nope()\n",
+    ]
+    skill = _make_skill_blocks(tmp_path, "attr-assign", "json>=0", blocks)
+    report: NameReport = check_names(skill, roots=ROOTS, lookup=fake_lookup)
+    assert len(report.problems) == 1
+    assert report.problems[0].kind == "name"
+    assert "nope" in report.problems[0].detail
+    assert "block 3" in report.problems[0].detail
+
+
+def test_plain_assignment_drops_binding(tmp_path: Path, fake_lookup: FakeLookup) -> None:
+    """An assignment to a plain name removes the binding of that name.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory.
+    fake_lookup : FakeLookup
+        Fake version lookup.
+    """
+    fake_lookup.versions = {"json": "1.0"}
+    blocks = ["import json\nd = json.JSONDecoder()\n", "d = 5\nd.nope()\n"]
+    skill = _make_skill_blocks(tmp_path, "plain-assign", "json>=0", blocks)
+    report: NameReport = check_names(skill, roots=ROOTS, lookup=fake_lookup)
+    assert report.problems == []
+
+
 def test_good_skill_has_no_problem(fixture_skills: Path, fake_lookup: FakeLookup) -> None:
     """A correct skill gives status checked and no problem.
 

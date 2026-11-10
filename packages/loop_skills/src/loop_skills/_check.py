@@ -294,11 +294,13 @@ class _NameChecker:
                 self.bindings.pop(bound_name, None)
 
     def _bind_targets(self, node: ast.Assign) -> None:
-        """Update the bindings after an assignment."""
+        """Update the bindings after an assignment.
+
+        Only a plain name target drops a binding. A target such as
+        ``v.a`` or ``v[0]`` changes the object, not the name, so ``v`` stays.
+        """
         for target in node.targets:
-            for name in ast.walk(target):
-                if isinstance(name, ast.Name):
-                    self.bindings.pop(name.id, None)
+            self._unbind(target)
         value = node.value
         if (
             len(node.targets) == 1
@@ -308,6 +310,16 @@ class _NameChecker:
             bound = self._resolve(value.func)
             if inspect.isclass(bound):
                 self.bindings[node.targets[0].id] = _Instance(bound)
+
+    def _unbind(self, target: ast.expr) -> None:
+        """Drop the binding of each plain name in an assignment target."""
+        if isinstance(target, ast.Name):
+            self.bindings.pop(target.id, None)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                self._unbind(element)
+        elif isinstance(target, ast.Starred):
+            self._unbind(target.value)
 
     def _resolve(self, node: ast.expr) -> object | None:
         """Find the module or class that a name or attribute chain gives."""
@@ -383,7 +395,9 @@ def check_names(
 
     The check imports only modules whose first part is in ``roots``. It runs
     only when the pin of the skill names a root and the installed version
-    meets the pin.
+    meets the pin. The bindings persist across the blocks of a skill, in file
+    order, because the blocks are steps of one script. A block that does not
+    parse is skipped.
 
     Parameters
     ----------
@@ -406,17 +420,13 @@ def check_names(
     if pin.status != "ok":
         return NameReport("skipped", pin.message, [], 0, 0)
 
-    problems: list[Problem] = []
-    checked = 0
-    unchecked = 0
+    # One checker for the whole skill: the blocks are steps of one script.
+    checker = _NameChecker(skill.name, 1, roots)
     for block in python_blocks(skill):
         try:
             tree = ast.parse(block.source)
         except SyntaxError:
             continue
-        checker = _NameChecker(skill.name, block.index, roots)
+        checker.index = block.index
         checker.visit(tree)
-        problems.extend(checker.problems)
-        checked += checker.checked
-        unchecked += checker.unchecked
-    return NameReport("checked", "", problems, checked, unchecked)
+    return NameReport("checked", "", checker.problems, checker.checked, checker.unchecked)

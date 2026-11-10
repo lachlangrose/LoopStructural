@@ -177,7 +177,7 @@
   - Wave: 7
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_install_copilot.py` passes and `ruff check packages/loop_skills` exits 0.
   - Context: Constants `BEGIN`, `END` (exact text in T023). `render_block(skills, version, newline="\n") -> str` (split the description and the body with `splitlines()` and join EVERY line of the block with `newline`, so that a CRLF file has no lone LF): `BEGIN`, the line `<!-- Managed by loop-skills {version}. Change text outside these markers only. -->`, an empty line, then for each skill in the given order: `## Skill: {name}`, empty line, `{description}`, empty line, `{body}` (strip leading and trailing blank lines of the body), empty line; then `END`. Join with `newline`. `install_block(base, skills, version)`: path `base/".github"/"copilot-instructions.md"`; read with `open(path, newline="")` (empty text if the file is missing); newline is `"\r\n"` if the text contains it, else `"\n"`; if `BEGIN` and a later `END` are in the text, replace from the start of `BEGIN` to the end of `END` with the block (outcome `replaced`); if only one marker, or `END` before `BEGIN`, raise `InstallError(f"the markers in {path} are damaged. Nothing changed.")`; else append: the old text, then one blank line if the old text is not empty and does not end with a blank line, then the block and a final newline (outcome `installed`); write to `<path>.loop-skills-tmp` with `newline=""` and `os.replace` onto `path`; make `.github` if needed; record made paths in `created`; add pin warnings with `check_pin(skill.requires)` for each skill when not `ok`; one `SkillOutcome` per skill. `uninstall_block(base)`: remove from `BEGIN` to the end of `END` plus its line end, and one blank line before it if present; same temp-file write; keep the file; no markers or no file gives an empty report. Return `InstallReport("copilot", path, outcomes, warnings, created)`. Import `InstallReport`, `InstallError`, `SkillOutcome` from `._install`. Numpy docstrings and type hints.
-- [ ] T025 [US1] [S] Test: Copilot cases in the command line tests.
+- [x] T025 [US1] [S] Test: Copilot cases in the command line tests.
   - Files: `packages/loop_skills/tests/test_cli.py`
   - Needs: T022, T024
   - Wave: 8
@@ -207,19 +207,19 @@
   - Wave: 7
   - Done when: `uv run --package loop-skills --extra checks pytest packages/loop_skills/tests/test_shipped_names.py -m names -k build-model` fails (the skill is missing), then passes after T029.
   - Context: Mark the module with `pytestmark = pytest.mark.names`. Parametrize by the three names `["build-model", "inspect-model", "map2loop-prepare"]` (so ids are the names). For each: find the skill with `iter_skills()` (fail with a clear message if missing), run `report = check_names(skill)`, assert `report.status == "checked"` (a skipped check fails the test, with `report.reason` in the message) and `report.problems == []`. Print `report.checked` and `report.unchecked` with `print`. Imports: `from loop_skills._check import check_names`, `from loop_skills._skill import iter_skills`. Numpy docstring and type hints.
-- [ ] T029 [P] [US2] [M] Write the `build-model` skill.
+- [x] T029 [P] [US2] [M] Write the `build-model` skill.
   - Files: `packages/loop_skills/src/loop_skills/skills/build-model/SKILL.md`
   - Needs: T027, T028
   - Wave: 8
   - Done when: `uv run --package loop-skills --extra checks pytest packages/loop_skills/tests/test_shipped_skills.py packages/loop_skills/tests/test_shipped_names.py -k build-model` passes.
   - Context: Frontmatter: `name: build-model`; a `description` that says when an agent uses the skill (build a LoopStructural `GeologicalModel` from CSV tables of contacts, orientations and a stratigraphic order, then plot a first section); `requires: LoopStructural>=1.11,<2`. Body sections: when to use; input tables (contacts: `X`, `Y`, `Z`, `feature_name`, `val`; orientations: `X`, `Y`, `Z`, `feature_name` and either `gx`, `gy`, `gz` or `strike` and `dip`); steps (load the CSV files with pandas, make the `GeologicalModel` with a bounding box from the data, give it the data, add foliations in stratigraphic order, plot a first section); common errors. Take every API name from the `LoopStructural` source (`LoopStructural/modelling/core/geological_model.py` and `LoopStructural/datasets/`) and the core documentation in `docs/source`; do not write a name from memory. Use ```` ```python ```` blocks that parse. Fewer than 500 lines. No other file in the folder. Use ASD-STE100 Simplified Technical English in the prose.
-- [ ] T030 [P] [US3] [M] Write the `inspect-model` skill.
+- [x] T030 [P] [US3] [M] Write the `inspect-model` skill.
   - Files: `packages/loop_skills/src/loop_skills/skills/inspect-model/SKILL.md`
   - Needs: T027, T028
   - Wave: 8
   - Done when: `uv run --package loop-skills --extra checks pytest packages/loop_skills/tests/test_shipped_skills.py packages/loop_skills/tests/test_shipped_names.py -k inspect-model` passes.
   - Context: Frontmatter: `name: inspect-model`; a `description` (inspect a saved model or a model script: list the features, show their data, find common problems); `requires: LoopStructural>=1.11,<2`. Body sections: when to use; load a model or run a model script; list the features and their data; checks for common problems (missing data, bad bounds, empty features); how to report the result. Take every API name from the `LoopStructural` source and the core documentation; do not write a name from memory. Use ```` ```python ```` blocks that parse. Fewer than 500 lines. No other file in the folder. ASD-STE100 prose.
-- [ ] T031 [P] [US4] [M] Write the `map2loop-prepare` skill.
+- [x] T031 [P] [US4] [M] Write the `map2loop-prepare` skill.
   - Files: `packages/loop_skills/src/loop_skills/skills/map2loop-prepare/SKILL.md`
   - Needs: T027, T028
   - Wave: 8
