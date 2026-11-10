@@ -20,13 +20,13 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 [Setup] [M] Create the package skeleton of `loop_skills`.
+- [x] T001 [Setup] [M] Create the package skeleton of `loop_skills`.
   - Files: `packages/loop_skills/pyproject.toml`, `packages/loop_skills/LICENSE`, `packages/loop_skills/README.md`, `packages/loop_skills/src/loop_skills/__init__.py`
   - Needs: none
   - Wave: 1
   - Done when: `uv run --package loop-skills python -c "import loop_skills; print(loop_skills.__version__)"` prints `0.1.0`.
   - Context: `pyproject.toml`: build-system `setuptools`; `[project]` `name = "loop-skills"`, `version = "0.1.0"`, `requires-python = ">=3.9"`, `dependencies = ["packaging", "pyyaml"]`, `readme = "README.md"`, `license = { text = "MIT" }`, same `authors` and classifiers style as `packages/loop_common/pyproject.toml`. `[project.optional-dependencies]` `tests = ["pytest"]`, `checks = ["LoopStructural", "map2loop"]`. `[project.scripts]` `loop-skills = "loop_skills.cli:main"`. `[tool.setuptools.packages.find]` `where = ["src"]`, `include = ["loop_skills", "loop_skills.*"]`. `[tool.setuptools.package-data]` `loop_skills = ["skills/*/SKILL.md"]`. `[tool.pytest.ini_options]` `markers = ["names: needs LoopStructural and map2loop"]`. `LICENSE`: copy `packages/loop_common/LICENSE`. `README.md`: a title and one sentence (the full text comes in T036). `__init__.py`: start with `from __future__ import annotations`; `from importlib.metadata import PackageNotFoundError, version`; `try: __version__ = version("loop-skills")` `except PackageNotFoundError: __version__ = "0+unknown"`. Docstring in numpy style. Rule: the workspace uses `members = ["packages/*"]`, so no root change is needed.
-- [ ] T002 [P] [Setup] [M] Add two CI jobs for the package to the packages workflow.
+- [x] T002 [P] [Setup] [M] Add two CI jobs for the package to the packages workflow.
   - Files: `.github/workflows/packages.yml`
   - Needs: none
   - Wave: 1

@@ -113,9 +113,76 @@ jobs:
         run: |
           uv run --package map2loop pytest packages/map2loop/tests
 
+  loop-skills-installer:
+    # The skill installer has no system dependencies, so it runs on all
+    # platforms and all Python versions of the matrix.
+    name: loop-skills installer (${{ matrix.os }}, python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(vars.BUILD_OS)}}
+        python-version: ${{ fromJSON(vars.PYTHON_VERSIONS)}}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install package with test extras
+        run: |
+          uv sync --package loop-skills --extra tests --python ${{ matrix.python-version }}
+
+      - name: pytest
+        run: |
+          uv run --package loop-skills pytest packages/loop_skills/tests -m "not names"
+
+  loop-skills-names:
+    # The name check imports map2loop, and map2loop needs GDAL. GDAL has no
+    # pip wheel on Windows and macOS, so this job runs on Ubuntu only.
+    name: loop-skills names (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(vars.PYTHON_VERSIONS) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GDAL system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          echo "CPLUS_INCLUDE_PATH=/usr/include/gdal" >> "$GITHUB_ENV"
+          echo "C_INCLUDE_PATH=/usr/include/gdal" >> "$GITHUB_ENV"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install package with test and check extras
+        run: |
+          uv sync --package loop-skills --extra tests --extra checks --python ${{ matrix.python-version }}
+          GDAL_VERSION=$(gdal-config --version)
+          uv pip install setuptools
+          uv pip install "gdal==${GDAL_VERSION}" --no-build-isolation-package gdal
+
+      - name: pytest
+        run: |
+          uv run --package loop-skills --extra checks pytest packages/loop_skills/tests -m names
+
   loopstructural-test:
     name: LoopStructural (python ${{ matrix.python-version }})
-    needs: [packages-test, map2loop-test]
+    needs: [packages-test, map2loop-test, loop-skills-installer, loop-skills-names]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
