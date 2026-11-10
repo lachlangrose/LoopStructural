@@ -31,7 +31,7 @@ The value `all` selects the three agents.
 
 The Copilot block starts with the line `<!-- loop-skills:begin -->`.
 It ends with the line `<!-- loop-skills:end -->`.
-The text outside these two lines is not changed by the installer.
+The installer does not change the text outside the two lines, except the blank line next to the block.
 
 ## Step 1: Check what is installed
 
@@ -81,8 +81,13 @@ Use `--dir` to choose the base folder. The default is the current folder.
 For a user-wide install, give the home folder:
 
 ```bash
-loop-skills install --agent all --dir ~
+loop-skills install --agent claude --dir ~
+loop-skills install --agent codex --dir ~
 ```
+
+The installer expands a leading `~` itself, so this works in bash, zsh, PowerShell and cmd.
+The Copilot target is a file of one repository.
+For Copilot, use `--agent copilot` in the project folder.
 
 The installer prints one line for each skill, in this form:
 
@@ -99,22 +104,26 @@ Example of a first install:
 claude: installed build-model
 claude: installed inspect-model
 claude: installed map2loop-prepare
+claude: installed install-help
 ```
 
 The last line is a summary:
 
 ```
-9 skill(s) done, 0 skipped
+4 skill(s) done, 0 skipped
 ```
+
+With `--agent all`, the summary is `12 skill(s) done, 0 skipped`.
+This is 3 agents with 4 skills each. The Copilot block counts one outcome for each skill.
 
 ### An existing skill
 
 - With a terminal, the installer asks `Replace skill '<name>'? [y/N]`. It replaces the skill only after the answer `y` or `yes`. Any other answer keeps the old skill.
-- With no terminal (for example, when an agent runs the command), the installer does not ask. It skips the skill. The line is `<agent>: skipped <name> exists; use --force`.
+- With no terminal (the input or the output is piped, for example when an agent runs the command), the installer does not ask. It skips the skill. The line is `<agent>: skipped <name> exists; use --force`.
 - With `--force`, the installer replaces the skill with no question.
-- The Copilot block is always replaced with no question. The markers own the block.
+- The Copilot block is always replaced with no question. The installer owns the text between the markers.
 
-When a skill is skipped, check that the old skill can go. Then run the command again with `--force`:
+When a skill is skipped, check that you can lose the old skill files. Then run the command again with `--force`:
 
 ```bash
 loop-skills install --agent all --force
@@ -158,12 +167,20 @@ Remove only what the installer made:
 
 ```bash
 loop-skills uninstall --agent claude
-loop-skills uninstall --agent all --dir ~
+loop-skills uninstall --agent codex --dir ~
 ```
 
 The command removes the skill folders that hold the file `.loop-skills.json`.
+It also removes the `skills` folder and the parent folders (for example `.claude`) when they are empty, up to the base folder.
+It never removes a folder that holds any other entry.
 It removes the marked block from the Copilot file.
-It does not remove other folders. It does not remove the Copilot file, even when the file is empty.
+It does not remove the Copilot file, even when the file is empty.
+
+When the Copilot file has no complete block, `uninstall` prints no `removed` line and exits with `0`.
+A damaged block (one marker line only) gives the same result.
+Run the search from Step 1 to check that the block is gone.
+If a stray marker line stays, find it with a search tool.
+Put back the missing line, or delete the stray line.
 
 The output lines use the action `removed`:
 
@@ -182,8 +199,11 @@ copilot: removed copilot-block
 | `3` | Done, but the installer skipped some skill. |
 
 For code `1`, read the message. Check that the base folder exists and that the user can write to it.
+A damaged Copilot block also gives code `1` for `install`. Only one marker line is in the file, or `END` comes before `BEGIN`.
+The message is `error: the markers in <path> are damaged. Nothing changed.`
+Find the stray marker line with a search tool. Put back the missing line, or delete the stray line. Then run the command again.
 For code `2`, read the usage text that the command prints.
-For code `3`, see the section "An existing skill". Run again with `--force` after you check that the old skill can go.
+For code `3`, see the section "An existing skill". Run again with `--force` after you check that you can lose the old skill files.
 
 ## Checks before you finish
 

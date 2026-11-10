@@ -266,3 +266,59 @@ def test_damaged_copilot_marker_returns_1(
     code = main(["install", "--agent", "copilot", "--dir", str(target)])
     assert code == 1
     assert copilot.read_text(encoding="utf-8") == original
+
+
+def _tilde_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> tuple[Path, Path]:
+    """Set a temporary home folder and a different working folder.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture.
+    tmp_path : Path
+        Temporary folder of the test.
+
+    Returns
+    -------
+    tuple[Path, Path]
+        The home folder and the working folder.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    # Path.expanduser reads HOME on POSIX and USERPROFILE on Windows.
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.chdir(work)
+    return home, work
+
+
+def test_dir_tilde_is_expanded(
+    cli_env: list[Skill],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A leading ~ in --dir is the home folder, as PowerShell does not expand it."""
+    home, work = _tilde_env(monkeypatch, tmp_path)
+    code = main(["install", "--agent", "claude", "--dir", "~"])
+    assert code == 0
+    assert (home / ".claude" / "skills" / "good-skill").is_dir()
+    assert not (work / "~").exists()
+
+
+def test_dir_tilde_subfolder_is_expanded(
+    cli_env: list[Skill],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A leading ~/ in --dir is expanded to a subfolder of the home folder."""
+    home, work = _tilde_env(monkeypatch, tmp_path)
+    (home / "proj").mkdir()
+    code = main(["install", "--agent", "claude", "--dir", "~/proj"])
+    assert code == 0
+    assert (home / "proj" / ".claude" / "skills" / "good-skill").is_dir()
+    assert not (work / "~").exists()

@@ -52,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
     for name, text in (("install", "Install the skills."), ("uninstall", "Remove the skills.")):
         cmd = sub.add_parser(name, help=text, description=text)
         cmd.add_argument("--agent", required=True, choices=choices, help="Target agent.")
-        cmd.add_argument("--dir", default=".", help="Base folder of the project.")
+        cmd.add_argument(
+            "--dir", default=".", help="Base folder of the project. A leading ~ is the home folder."
+        )
         if name == "install":
             cmd.add_argument(
                 "--force", action="store_true", help="Replace existing skills without a question."
@@ -106,7 +108,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         A usage error raises ``SystemExit`` with code 2.
     """
     args = _build_parser().parse_args(argv)
-    base = Path(args.dir)
+    base = Path(args.dir).expanduser()
     confirm = _ask if sys.stdin.isatty() and sys.stdout.isatty() else None
     reports: list[InstallReport] = []
     try:

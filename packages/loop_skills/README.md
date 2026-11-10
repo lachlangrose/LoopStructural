@@ -94,7 +94,7 @@ The installer uses this file to know that the folder is its own.
 
 The Copilot block starts with the line `<!-- loop-skills:begin -->`.
 It ends with the line `<!-- loop-skills:end -->`.
-The installer does not change the text outside these two lines.
+The installer does not change the text outside the two lines, except the blank line next to the block.
 
 ## Options
 
@@ -107,28 +107,37 @@ The installer does not change the text outside these two lines.
 For a user-wide install, use the home folder as the base folder:
 
 ```bash
-loop-skills install --agent all --dir ~
+loop-skills install --agent claude --dir ~
+loop-skills install --agent codex --dir ~
 ```
+
+The installer expands a leading `~` itself, so this works in bash, zsh, PowerShell and cmd.
+The Copilot target is a file of one repository.
+For Copilot, use `--agent copilot` in the project folder.
 
 ## Existing skills
 
 - The installer replaces the Copilot block with no question when the block exists.
 - A Claude Code or Codex skill folder needs consent to be replaced.
 - With a terminal, the installer asks `Replace skill '<name>'? [y/N]`.
-- With no terminal, the installer skips the skill and the exit code is `3`.
+- With no terminal (the input or the output is piped), the installer skips the skill and the exit code is `3`.
 - With `--force`, the installer replaces the folder with no question.
 
 ## Uninstall
 
 ```bash
 loop-skills uninstall --agent claude
-loop-skills uninstall --agent all --dir ~
+loop-skills uninstall --agent codex --dir ~
 ```
 
 The command removes only what the installer made.
 It removes the skill folders that hold the file `.loop-skills.json`.
+It also removes the `skills` folder and the parent folders (for example `.claude`) when they are empty, up to the base folder.
+It never removes a folder that holds any other entry.
 It removes the marked block from the Copilot file.
 It keeps the Copilot file, even when the file is empty.
+When the Copilot file has no complete block, the command prints no `removed` line and exits with `0`.
+A damaged block (one marker line only) gives the same result, so search the file to check that the block is gone.
 
 ## Version pins and warnings
 
@@ -154,7 +163,7 @@ Put the range in single quotes.
 | Code | Meaning |
 | --- | --- |
 | `0` | Done. |
-| `1` | Error. The line `error: <message>` is on stderr. |
+| `1` | Error. The line `error: <message>` is on stderr. A damaged Copilot block in `install` also gives this code. |
 | `2` | Usage error. An argument is wrong or missing. |
 | `3` | Done, but the installer skipped some skill. |
 
