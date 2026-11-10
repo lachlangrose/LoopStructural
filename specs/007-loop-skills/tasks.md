@@ -12,6 +12,7 @@
   `uv run --package loop-skills pytest ...` so that the worktree uses its own
   environment. Do not use the `.venv` of the main checkout: it is an editable
   install that points to the main checkout.
+- Annotations: every module starts with `from __future__ import annotations`. Write `X | None`, `list[str]` and `dict[str, int]` (the Ruff `UP` rules of this repository require them; they are safe on Python 3.9 because the annotations are not evaluated). Do not use `Optional`, `List` or `Dict`. Do not use these forms at run time (for example in `isinstance`).
 - A test task must fail first. Run it before the task that makes it pass and
   keep the failure message in the report.
 - Stages: S1 = T001 to T016, S2 = T017 to T022, S3 = T023 to T026,
@@ -95,13 +96,13 @@
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_check_names.py` fails (import error), then passes after T016.
   - Context: Import `from loop_skills._check import NameReport, check_names`. Use `roots=("json",)` and the `fake_lookup` fixture with `{"json": "1.0"}`, so the test needs no heavy package. Fixture skills: `good-skill` (pin `json>=0`) gives `status == "checked"`, `problems == []`, `checked >= 1`; `bad-name` gives two `Problem`s with `kind == "name"`, one that names `not_a_function` and one that names `NotAName`. Extra cases with skills made in `tmp_path` by the test: (a) a block `import json` then `d = json.JSONDecoder()` then `d.decode("1")` gives no problem; (b) `d.nope()` gives a problem that names `nope`; (c) `d.object_hook` (a non-call read of an attribute) counts in `unchecked` and is not a problem; (d) a skill with pin `json>=5` and the lookup version `1.0` gives `status == "skipped"` and a non-empty `reason`; (e) a skill whose pin distribution is not in `roots` gives `status == "skipped"`; (f) a block that does not parse is ignored (no problem from `check_names`). Numpy docstrings and type hints.
-- [ ] T013 [Found] [M] Implement `_skill.py`.
+- [x] T013 [Found] [M] Implement `_skill.py`.
   - Files: `packages/loop_skills/src/loop_skills/_skill.py`
   - Needs: T009
   - Wave: 4
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_skill.py` passes and `ruff check packages/loop_skills` exits 0.
-  - Context: Start with `from __future__ import annotations`. `@dataclass(frozen=True) class Skill: name: str; description: str; requires: str; path: Path; body: str`. `class SkillError(ValueError)`: the message names the file. `skills_root() -> Path`: `Path(__file__).parent / "skills"`. `split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]`: split the text with `splitlines()` so that both `\n` and `\r\n` line endings work; the first line must be `---`; the frontmatter ends at the next line that is exactly `---`; read it with `yaml.safe_load`; it must be a `dict`; raise `SkillError` (a `ValueError` subclass) with the reason for any other case; the second value is the text after the closing line. `load_skill(path: Path) -> Skill`: read UTF-8; require the keys `name`, `description`, `requires`, each a non-empty `str`; `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and equal `path.parent.name`; `requires` must parse with `packaging.requirements.Requirement`; convert any failure to `SkillError(f"{path}: {reason}")`. `iter_skills(root: Optional[Path] = None) -> List[Skill]`: for each `root/<dir>/SKILL.md` (sorted by directory name) call `load_skill`; a missing `root` gives `[]`. Numpy docstrings and type hints (Ruff `D` and `ANN`).
-- [ ] T014 [P] [Found] [M] Implement `_pin.py`.
+  - Context: Start with `from __future__ import annotations`. `@dataclass(frozen=True) class Skill: name: str; description: str; requires: str; path: Path; body: str`. `class SkillError(ValueError)`: the message names the file. `skills_root() -> Path`: `Path(__file__).parent / "skills"`. `split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]`: split the text with `splitlines()` so that both `\n` and `\r\n` line endings work; the first line must be `---`; the frontmatter ends at the next line that is exactly `---`; read it with `yaml.safe_load`; it must be a `dict`; raise `SkillError` (a `ValueError` subclass) with the reason for any other case; the second value is the text after the closing line. `load_skill(path: Path) -> Skill`: read UTF-8; require the keys `name`, `description`, `requires`, each a non-empty `str`; `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and equal `path.parent.name`; `requires` must parse with `packaging.requirements.Requirement`; convert any failure to `SkillError(f"{path}: {reason}")` exactly once (`split_frontmatter` raises `SkillError(reason)` with no path; `load_skill` catches it and adds the path, with no second prefix). `iter_skills(root: Optional[Path] = None) -> List[Skill]`: for each `root/<dir>/SKILL.md` (sorted by directory name) call `load_skill`; a missing `root` gives `[]`. Numpy docstrings and type hints (Ruff `D` and `ANN`).
+- [x] T014 [P] [Found] [M] Implement `_pin.py`.
   - Files: `packages/loop_skills/src/loop_skills/_pin.py`
   - Needs: T010
   - Wave: 4
@@ -230,7 +231,7 @@
   - Wave: 10
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_shipped_skills.py -k install-help` passes.
   - Context: Frontmatter: `name: install-help`; a `description` (check and fix the skill install and the versions); `requires: loop-skills>=0.1,<1`. Body sections: check which skills are installed (folders `.claude/skills`, `.agents/skills`; block in `.github/copilot-instructions.md` between `<!-- loop-skills:begin -->` and `<!-- loop-skills:end -->`); run `loop-skills install --agent claude|codex|copilot|all [--dir DIR] [--force]` and `loop-skills uninstall --agent ... [--dir DIR]`; read the version warnings (a core version outside the pin; a core that is not installed) and fix them with `pip install '<pin>'`; exit codes `0`, `1`, `2`, `3` (3 = some skill was skipped; run again with `--force` after you check that the old skill can go). Use ```` ```bash ```` blocks for commands (not Python blocks). Fewer than 500 lines. No other file in the folder. ASD-STE100 prose.
-- [ ] T033 [P] [US1] [S] Test: the plugin files (spec scenario 1, FR-005).
+- [x] T033 [P] [US1] [S] Test: the plugin files (spec scenario 1, FR-005).
   - Files: `packages/loop_skills/tests/test_plugin.py`
   - Needs: T003, T007
   - Wave: 4

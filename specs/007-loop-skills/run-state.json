@@ -25,6 +25,12 @@
     {
       "wave": 3,
       "base": "6288023a2e38105f764d303590d532d350234875",
+      "commit": "71ca2bf340e8a0a14c5572745b2e98eb64852317",
+      "review": "pass"
+    },
+    {
+      "wave": 4,
+      "base": "71ca2bf340e8a0a14c5572745b2e98eb64852317",
       "commit": null,
       "review": "pending"
     }
@@ -117,6 +123,24 @@
         "model": "haiku",
         "result": "fail: load_skill called with a folder"
       },
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T013": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T014": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T033": [
       {
         "model": "haiku",
         "result": "pass"
