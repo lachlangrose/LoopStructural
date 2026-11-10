@@ -23,6 +23,7 @@ resolution-markers = [
 members = [
     "loop-common",
     "loop-interpolation",
+    "loop-skills",
     "loopstructural",
     "loopstructuralvisualisation",
     "map2loop",
@@ -3253,6 +3254,35 @@ dependencies = [
 requires-dist = [{ name = "numpy" }]
 
 [[package]]
+name = "loop-skills"
+version = "0.1.0"
+source = { editable = "packages/loop_skills" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+checks = [
+    { name = "loopstructural" },
+    { name = "map2loop" },
+]
+tests = [
+    { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pytest", version = "9.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "loopstructural", marker = "extra == 'checks'", editable = "." },
+    { name = "map2loop", marker = "extra == 'checks'", editable = "packages/map2loop" },
+    { name = "packaging" },
+    { name = "pytest", marker = "extra == 'tests'" },
+    { name = "pyyaml" },
+]
+provides-extras = ["tests", "checks"]
+
+[[package]]
 name = "loopprojectfile"
 version = "0.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3355,6 +3385,10 @@ docs = [
     { name = "sphinx-gallery", version = "0.21.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "sphinxcontrib-bibtex", version = "2.6.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "sphinxcontrib-bibtex", version = "2.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "trame", version = "3.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "trame", version = "3.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "trame-vtk" },
+    { name = "trame-vuetify" },
 ]
 export = [
     { name = "dill" },
@@ -3422,6 +3456,9 @@ requires-dist = [
     { name = "sphinx-gallery", marker = "extra == 'docs'" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
     { name = "tqdm", marker = "extra == 'all'" },
+    { name = "trame", marker = "extra == 'docs'" },
+    { name = "trame-vtk", marker = "extra == 'docs'" },
+    { name = "trame-vuetify", marker = "extra == 'docs'" },
 ]
 provides-extras = ["all", "visualisation", "export", "jupyter", "inequalities", "native", "tests", "dev", "docs"]
 

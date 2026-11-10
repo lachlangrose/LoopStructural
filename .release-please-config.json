@@ -10,6 +10,7 @@
         "packages/loop_common",
         "packages/loop_interpolation",
         "packages/loop_interpolation_core",
+        "packages/loop_skills",
         "packages/map2loop",
         "packages/loopstructural_visualisation"
       ]
@@ -40,6 +41,17 @@
     "packages/loopstructural_visualisation": {
       "release-type": "python",
       "component": "loopstructuralvisualisation"
+    },
+    "packages/loop_skills": {
+      "release-type": "python",
+      "component": "loop-skills",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "src/loop_skills/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

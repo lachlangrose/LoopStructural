@@ -56,13 +56,13 @@
   - Wave: 2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_isolation.py` passes. This is a guard test: it passes at once and it must keep passing.
   - Context: Root = `Path(__file__).resolve().parents[3]`. Test 1 `test_core_imports_without_skills`: run `subprocess.run([sys.executable, "-c", "import sys; sys.modules['loop_skills'] = None; import LoopStructural"], capture_output=True)` and assert `returncode == 0`; skip if `LoopStructural` is not importable in the environment (`importlib.util.find_spec`). Test 2 `test_core_does_not_name_skills`: skip if `LoopStructural/` is not in the root; assert that no `.py` file under `LoopStructural/` contains `loop_skills` or `loop-skills`, and that the root `pyproject.toml` does not contain `loop-skills`. Numpy docstrings and type hints.
-- [ ] T007 [Setup] [M] Add the package to the release files and the lock file.
+- [x] T007 [Setup] [M] Add the package to the release files and the lock file.
   - Files: `.release-please-config.json`, `.release-please-manifest.json`, `uv.lock`
   - Needs: T004
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_release_files.py` passes and `uv lock --check` exits 0.
   - Context: In `.release-please-config.json` add `"packages/loop_skills"` to `packages["."]["exclude-paths"]` (keep the sorted order). Add the entry `"packages/loop_skills": {"release-type": "python", "component": "loop-skills", "extra-files": [{"type": "json", "path": "src/loop_skills/.claude-plugin/plugin.json", "jsonpath": "$.version"}]}`. In `.release-please-manifest.json` add `"packages/loop_skills": "0.1.0"`. Then run `uv lock` and check with `git diff --stat uv.lock` that the diff only adds `loop-skills` and its dependencies (`packaging`, `pyyaml` if new). Rule: release-please uses per-package paths (constitution).
-- [ ] T008 [Setup] [M] Add Stage 7 and a status-log entry to `ROADMAP.md`.
+- [x] T008 [Setup] [M] Add Stage 7 and a status-log entry to `ROADMAP.md`.
   - Files: `ROADMAP.md`
   - Needs: T005
   - Wave: 3
@@ -71,25 +71,25 @@
 
 ## Phase 2: Foundation (library: parser, pin, checks)
 
-- [ ] T009 [P] [Found] [S] Test: `load_skill` and `iter_skills` (spec scenario 6, edge case "damaged skill file").
+- [x] T009 [P] [Found] [S] Test: `load_skill` and `iter_skills` (spec scenario 6, edge case "damaged skill file").
   - Files: `packages/loop_skills/tests/test_skill.py`
   - Needs: T003
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_skill.py` fails (import error for `loop_skills._skill`), then passes after T013.
-  - Context: Import `from loop_skills._skill import Skill, SkillError, load_skill, iter_skills, split_frontmatter`. Use the `fixture_skills` fixture (folder with `good-skill`, `bad-syntax`, `bad-name`, `no-pin`). Cases: (1) `load_skill(root/"good-skill"/"SKILL.md")` returns a `Skill` with `name == "good-skill"`, `requires == "json>=0"`, a non-empty `body`; (2) `no-pin` raises `SkillError` and the message contains `SKILL.md`; (3) a file whose `name` differs from its folder raises `SkillError`; (4) a file with no `---` first line raises `SkillError`; (5) a `requires` of `not a range` raises `SkillError`; (6) `iter_skills(root)` returns the skills that load, in name order, and raises `SkillError` for `no-pin` (so for the order test, remove `no-pin` first); (7) `iter_skills()` with no argument returns a list (empty before the skills exist). Numpy docstrings and type hints.
-- [ ] T010 [P] [Found] [S] Test: `check_pin` (spec scenarios 3, 4 and 11).
+  - Context: Import `from loop_skills._skill import Skill, SkillError, load_skill, iter_skills, split_frontmatter`. Use the `fixture_skills` fixture (folder with `good-skill`, `bad-syntax`, `bad-name`, `no-pin`). Cases: (1) `load_skill(root/"good-skill"/"SKILL.md")` returns a `Skill` with `name == "good-skill"`, `requires == "json>=0"`, a non-empty `body`; (2) `no-pin` raises `SkillError` and the message contains `SKILL.md`; (3) a file whose `name` differs from its folder raises `SkillError`; (4) a file with no `---` first line raises `SkillError`; (5) a `requires` of `not a range` raises `SkillError`; (6) `iter_skills(root)` returns the skills that load, in name order, and raises `SkillError` for `no-pin` (so for the order test, remove `no-pin` first); (7) `iter_skills()` with no argument returns a list (empty before the skills exist); (8) a copy of `good-skill/SKILL.md` that is written with CRLF line endings (use `write_bytes` with `\r\n` line ends) loads and gives the same `name` and `requires`, because Git can check out the files with CRLF on Windows. Numpy docstrings and type hints.
+- [x] T010 [P] [Found] [S] Test: `check_pin` (spec scenarios 3, 4 and 11).
   - Files: `packages/loop_skills/tests/test_pin.py`
   - Needs: T003
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_pin.py` fails (import error), then passes after T014.
   - Context: Import `from loop_skills._pin import PinResult, check_pin`. Use the `fake_lookup` fixture. Cases: (1) `check_pin("LoopStructural>=1.11,<2", lookup)` with version `1.11.0` gives `status == "ok"`; (2) version `2.0.0` gives `status == "outside"` and the message contains both `LoopStructural>=1.11,<2` and `2.0.0`; (3) version `None` gives `status == "missing"` and the message contains `pip install 'LoopStructural>=1.11,<2'`; (4) version `1.12.0.dev3` gives `ok` (pre-release allowed); (5) `result.distribution == "LoopStructural"` and `result.installed == "1.11.0"`; (6) `check_pin("loop-skills>=0.1,<1", lookup)` works for the name with a hyphen. Numpy docstrings and type hints.
-- [ ] T011 [P] [Found] [S] Test: `check_syntax` and `check_frontmatter_set` (spec scenario 14, FR-012).
+- [x] T011 [P] [Found] [S] Test: `check_syntax` and `check_frontmatter_set` (spec scenario 14, FR-012).
   - Files: `packages/loop_skills/tests/test_check_syntax.py`
   - Needs: T003
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_check_syntax.py` fails (import error for `loop_skills._check`), then passes after T015.
   - Context: Import `from loop_skills._check import CodeBlock, Problem, check_frontmatter_set, check_syntax, python_blocks` and `from loop_skills._skill import load_skill`. Load fixture skills with `fixture_skills`. Cases: (1) `python_blocks(good)` returns 1 `CodeBlock` with `index == 1` and `line` equal to the 1-based line of the opening fence; (2) `check_syntax(good) == []`; (3) `check_syntax(bad_syntax)` returns one `Problem` with `kind == "syntax"`, `skill == "bad-syntax"`, and a `detail` that contains `block 1`; (4) a body with a fence ```` ```text ```` is not a Python block; (5) `check_frontmatter_set([good, good])` returns one `Problem` with `kind == "unique"` and a detail that names `good-skill`; (6) `check_frontmatter_set([good])` is empty. Numpy docstrings and type hints.
-- [ ] T012 [P] [Found] [S] Test: `check_names` (spec scenario 15, FR-013).
+- [x] T012 [P] [Found] [S] Test: `check_names` (spec scenario 15, FR-013).
   - Files: `packages/loop_skills/tests/test_check_names.py`
   - Needs: T003
   - Wave: 3
@@ -100,7 +100,7 @@
   - Needs: T009
   - Wave: 4
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_skill.py` passes and `ruff check packages/loop_skills` exits 0.
-  - Context: Start with `from __future__ import annotations`. `@dataclass(frozen=True) class Skill: name: str; description: str; requires: str; path: Path; body: str`. `class SkillError(ValueError)`: the message names the file. `skills_root() -> Path`: `Path(__file__).parent / "skills"`. `split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]`: the first line must be `---`; the frontmatter ends at the next line that is exactly `---`; read it with `yaml.safe_load`; it must be a `dict`; raise `ValueError` otherwise; the second value is the text after the closing line. `load_skill(path: Path) -> Skill`: read UTF-8; require the keys `name`, `description`, `requires`, each a non-empty `str`; `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and equal `path.parent.name`; `requires` must parse with `packaging.requirements.Requirement`; convert any failure to `SkillError(f"{path}: {reason}")`. `iter_skills(root: Optional[Path] = None) -> List[Skill]`: for each `root/<dir>/SKILL.md` (sorted by directory name) call `load_skill`; a missing `root` gives `[]`. Numpy docstrings and type hints (Ruff `D` and `ANN`).
+  - Context: Start with `from __future__ import annotations`. `@dataclass(frozen=True) class Skill: name: str; description: str; requires: str; path: Path; body: str`. `class SkillError(ValueError)`: the message names the file. `skills_root() -> Path`: `Path(__file__).parent / "skills"`. `split_frontmatter(text: str) -> Tuple[Dict[str, Any], str]`: split the text with `splitlines()` so that both `\n` and `\r\n` line endings work; the first line must be `---`; the frontmatter ends at the next line that is exactly `---`; read it with `yaml.safe_load`; it must be a `dict`; raise `SkillError` (a `ValueError` subclass) with the reason for any other case; the second value is the text after the closing line. `load_skill(path: Path) -> Skill`: read UTF-8; require the keys `name`, `description`, `requires`, each a non-empty `str`; `name` must match `^[a-z0-9]+(-[a-z0-9]+)*$` and equal `path.parent.name`; `requires` must parse with `packaging.requirements.Requirement`; convert any failure to `SkillError(f"{path}: {reason}")`. `iter_skills(root: Optional[Path] = None) -> List[Skill]`: for each `root/<dir>/SKILL.md` (sorted by directory name) call `load_skill`; a missing `root` gives `[]`. Numpy docstrings and type hints (Ruff `D` and `ANN`).
 - [ ] T014 [P] [Found] [M] Implement `_pin.py`.
   - Files: `packages/loop_skills/src/loop_skills/_pin.py`
   - Needs: T010
@@ -131,7 +131,7 @@
   - Wave: 5
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_install_folders.py` fails (import error for `loop_skills._install`), then `-k claude` passes after T019 and `-k codex` passes after T020.
   - Context: Import `from loop_skills._install import install, uninstall, InstallError` and `from loop_skills._skill import iter_skills`. Use the good fixture skill only (copy it into a skills folder in `tmp_path`, so `iter_skills(root)` loads). Parametrize the agent with `pytest.param("claude", id="claude")` and `pytest.param("codex", id="codex")`; targets: claude `.claude/skills`, codex `.agents/skills`, both under `base=tmp_path/"proj"`. Signature `install(agent, base, skills, *, force=False, confirm=None, lookup=None) -> InstallReport`. Cases: (1) empty base: the folder `<target>/good-skill/SKILL.md` exists, `<target>/good-skill/.loop-skills.json` holds `{"package": "loop-skills", "version": ...}`, the target folder was created and is in `report.created`; (2) pin outside (`lookup` gives a version outside): `report.warnings` has one line with the pin and the version and the skill is still installed; (3) not installed (`lookup` returns `None`): the warning contains `pip install`; (4) existing skill folder, `confirm=None`: outcome `skipped`, file unchanged, `report.any_skipped` true; (5) existing, `confirm=lambda n: True`: outcome `replaced`; (6) existing, `confirm=lambda n: False`: skipped; (7) existing, `force=True`: replaced; (8) uninstall removes only folders that have the owner file and leaves a folder `other-skill/` with no owner file; (9) write failure: `monkeypatch` `os.rename` (the module `loop_skills._install.os.rename`) to raise `OSError` once; expect `InstallError`, no folder with the prefix `.loop-skills-new-` or `.loop-skills-old-` remains, and no half-written `good-skill`; (10) unwritable target: `monkeypatch` `Path.mkdir` to raise `PermissionError` for the target; expect `InstallError` with the text `Nothing changed` and nothing created; (11) install then uninstall leaves the listing of `base` as before the install, except directories that the installer made are removed when empty. Numpy docstrings and type hints.
-- [ ] T018 [P] [US1] [S] Test: no network call in install, uninstall and checks (spec scenario 9, FR-003, SC-003).
+- [x] T018 [P] [US1] [S] Test: no network call in install, uninstall and checks (spec scenario 9, FR-003, SC-003).
   - Files: `packages/loop_skills/tests/test_offline.py`
   - Needs: T003
   - Wave: 3
@@ -243,7 +243,7 @@
   - Blocked by: OP2
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_plugin.py` passes.
   - Context: First check the current Claude Code documentation for the exact fields of `plugin.json` and `marketplace.json` (OP2). Do not start before OP2 has an answer in `plan.md` ("Answers"). The plan fields: `plugin.json` = `{"name": "loop-skills", "version": "0.1.0", "description": "Agent skills for LoopStructural and map2loop models"}`. `marketplace.json` = `{"name": "loop3d", "owner": {"name": "Loop3D"}, "plugins": [{"name": "loop-skills", "source": "./packages/loop_skills/src/loop_skills", "description": "Agent skills for LoopStructural and map2loop models"}]}`. If the documentation needs other fields, add them and update the plan and `test_plugin.py`. The version in `plugin.json` must equal the package version (release-please updates it, see T007).
-- [ ] T035 [P] [US1] [S] Test: the documentation names the agent targets (spec scenario 10, FR-009).
+- [x] T035 [P] [US1] [S] Test: the documentation names the agent targets (spec scenario 10, FR-009).
   - Files: `packages/loop_skills/tests/test_docs.py`
   - Needs: T003
   - Wave: 3

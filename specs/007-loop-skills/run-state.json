@@ -19,6 +19,12 @@
     {
       "wave": 2,
       "base": "78af456fa4d01ebdce9466b3bf186dce83701e77",
+      "commit": "6288023a2e38105f764d303590d532d350234875",
+      "review": "pass"
+    },
+    {
+      "wave": 3,
+      "base": "6288023a2e38105f764d303590d532d350234875",
       "commit": null,
       "review": "pending"
     }
@@ -55,6 +61,62 @@
       }
     ],
     "T006": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T007": [
+      {
+        "model": "sonnet",
+        "result": "blocked: installed uv 0.11.8 rewrites uv.lock revision 5 as revision 3"
+      },
+      {
+        "model": "orchestrator",
+        "result": "pass: uvx uv lock (uv 0.13.7); lock diff also adds old trame docs-extra lines (master lock was already stale)"
+      }
+    ],
+    "T008": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T009": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T010": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T011": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T018": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T035": [
+      {
+        "model": "haiku",
+        "result": "pass"
+      }
+    ],
+    "T012": [
+      {
+        "model": "haiku",
+        "result": "fail: load_skill called with a folder"
+      },
       {
         "model": "haiku",
         "result": "pass"

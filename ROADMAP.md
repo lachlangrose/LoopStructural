@@ -548,6 +548,12 @@ just at release time.
   mechanical patch. Full detail in `INTRUSIONS.md`'s finding 1 and its
   Phase A-C status notes. Phase D remains the open item for the dedicated
   discussion.
+- [ ] **Stage 7 — Agent skills (`loop-skills`).** Agent skills for
+  LoopStructural and map2loop live in the separate package
+  `packages/loop_skills` (pip name `loop-skills`). The core never imports
+  it. Spec: `specs/007-loop-skills/`. There are four stages: S1 (library,
+  checks, release files), S2 (Claude Code and Codex installer), S3 (Copilot
+  block), S4 (skills, plugin, docs).
 
 ## Status log
 
@@ -831,3 +837,4 @@ just at release time.
   `loopstructuralvisualisation`, none warranted in `map2loop`), and the
   release-please/PyPI/ruff wiring. `tests/unit`: 695 passed/4 skipped, zero
   regressions.
+- **2026-11-10:** Stage 7 started: spec and plan written for `loop-skills`; S1 landed.
