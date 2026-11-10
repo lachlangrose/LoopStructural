@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import ast
+import importlib
+import inspect
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from types import ModuleType
 from typing import Literal
 
+from packaging.requirements import Requirement
+
+from ._pin import check_pin
 from ._skill import Skill
 
 
@@ -181,3 +187,236 @@ def check_syntax(skill: Skill) -> list[Problem]:
                 )
             )
     return problems
+
+
+@dataclass(frozen=True)
+class _Instance:
+    """An object made from a known class in a code block.
+
+    Attributes
+    ----------
+    cls : type
+        The class of the object.
+    """
+
+    cls: type
+
+
+class _NameChecker:
+    """Walk one parsed block and check the names that it uses.
+
+    Parameters
+    ----------
+    skill_name : str
+        Name of the skill. It is used in each problem.
+    index : int
+        Number of the block in the skill.
+    roots : Sequence[str]
+        First parts of the module names that the checker may import.
+    """
+
+    def __init__(self, skill_name: str, index: int, roots: Sequence[str]) -> None:
+        self.skill_name = skill_name
+        self.index = index
+        self.roots = roots
+        self.bindings: dict[str, object] = {}
+        self.problems: list[Problem] = []
+        self.checked = 0
+        self.unchecked = 0
+
+    def _problem(self, text: str) -> None:
+        """Record one name problem for this block."""
+        self.problems.append(Problem(self.skill_name, "name", f"block {self.index}: {text}"))
+
+    def _in_roots(self, module_name: str) -> bool:
+        """Tell if a module name starts with a root."""
+        return module_name.split(".")[0] in self.roots
+
+    def _import(self, module_name: str) -> ModuleType | None:
+        """Import a module. Record a problem if the import fails."""
+        try:
+            return importlib.import_module(module_name)
+        except Exception as err:  # noqa: BLE001 - any failure is a problem
+            self._problem(f"cannot import {module_name} ({type(err).__name__})")
+            return None
+
+    def visit(self, node: ast.AST) -> None:
+        """Visit a node and its children in source order."""
+        if isinstance(node, ast.Import):
+            self._visit_import(node)
+        elif isinstance(node, ast.ImportFrom):
+            self._visit_import_from(node)
+        elif isinstance(node, ast.Assign):
+            self.visit(node.value)
+            self._bind_targets(node)
+        elif isinstance(node, ast.Call) and self._is_instance_call(node):
+            self._visit_instance_call(node)
+        elif isinstance(node, ast.Attribute):
+            self._visit_attribute(node)
+        else:
+            for child in ast.iter_child_nodes(node):
+                self.visit(child)
+
+    def _visit_import(self, node: ast.Import) -> None:
+        """Handle ``import a.b`` and ``import a.b as c``."""
+        for alias in node.names:
+            if not self._in_roots(alias.name):
+                continue
+            module = self._import(alias.name)
+            if module is None:
+                continue
+            if alias.asname:
+                self.bindings[alias.asname] = module
+            else:
+                top = alias.name.split(".")[0]
+                self.bindings[top] = importlib.import_module(top)
+
+    def _visit_import_from(self, node: ast.ImportFrom) -> None:
+        """Handle ``from a.b import X as Y``."""
+        if node.level or not node.module or not self._in_roots(node.module):
+            return
+        module = self._import(node.module)
+        if module is None:
+            return
+        for alias in node.names:
+            if hasattr(module, alias.name):
+                value = getattr(module, alias.name)
+            else:
+                try:
+                    value = importlib.import_module(f"{node.module}.{alias.name}")
+                except Exception:  # noqa: BLE001 - a missing name is a problem
+                    self._problem(f"cannot import name {alias.name} from {node.module}")
+                    continue
+            bound_name = alias.asname or alias.name
+            if inspect.ismodule(value) or inspect.isclass(value):
+                self.bindings[bound_name] = value
+            else:
+                self.bindings.pop(bound_name, None)
+
+    def _bind_targets(self, node: ast.Assign) -> None:
+        """Update the bindings after an assignment."""
+        for target in node.targets:
+            for name in ast.walk(target):
+                if isinstance(name, ast.Name):
+                    self.bindings.pop(name.id, None)
+        value = node.value
+        if (
+            len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(value, ast.Call)
+        ):
+            bound = self._resolve(value.func)
+            if inspect.isclass(bound):
+                self.bindings[node.targets[0].id] = _Instance(bound)
+
+    def _resolve(self, node: ast.expr) -> object | None:
+        """Find the module or class that a name or attribute chain gives."""
+        names: list[str] = []
+        while isinstance(node, ast.Attribute):
+            names.append(node.attr)
+            node = node.value
+        if not isinstance(node, ast.Name):
+            return None
+        obj = self.bindings.get(node.id)
+        for attr in reversed(names):
+            if not (inspect.ismodule(obj) or inspect.isclass(obj)) or not hasattr(obj, attr):
+                return None
+            obj = getattr(obj, attr)
+        return obj
+
+    def _is_instance_call(self, node: ast.Call) -> bool:
+        """Tell if a call has the form ``v.m(...)`` with ``v`` an instance."""
+        func = node.func
+        return (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and isinstance(self.bindings.get(func.value.id), _Instance)
+        )
+
+    def _visit_instance_call(self, node: ast.Call) -> None:
+        """Check the method of a call on an instance. Keep the arguments."""
+        func = node.func
+        assert isinstance(func, ast.Attribute)
+        assert isinstance(func.value, ast.Name)
+        instance = self.bindings[func.value.id]
+        assert isinstance(instance, _Instance)
+        self.checked += 1
+        if not hasattr(instance.cls, func.attr):
+            self._problem(f"{instance.cls.__name__} has no method {func.attr}")
+        for child in [*node.args, *node.keywords]:
+            self.visit(child)
+
+    def _visit_attribute(self, node: ast.Attribute) -> None:
+        """Check one attribute chain, such as ``N.a.b``."""
+        names: list[str] = []
+        current: ast.expr = node
+        while isinstance(current, ast.Attribute):
+            names.append(current.attr)
+            current = current.value
+        names.reverse()
+        if not isinstance(current, ast.Name):
+            self.visit(current)
+            return
+        bound = self.bindings.get(current.id)
+        if isinstance(bound, _Instance):
+            self.unchecked += 1
+            return
+        if not (inspect.ismodule(bound) or inspect.isclass(bound)):
+            return
+        obj: object = bound
+        path = current.id
+        for attr in names:
+            path = f"{path}.{attr}"
+            if not hasattr(obj, attr):
+                self._problem(f"{path} does not exist (missing {attr})")
+                return
+            obj = getattr(obj, attr)
+            self.checked += 1
+
+
+def check_names(
+    skill: Skill,
+    roots: Sequence[str] = ("LoopStructural", "map2loop"),
+    lookup: Callable[[str], str | None] | None = None,
+) -> NameReport:
+    """Check that the names in the Python blocks of a skill exist.
+
+    The check imports only modules whose first part is in ``roots``. It runs
+    only when the pin of the skill names a root and the installed version
+    meets the pin.
+
+    Parameters
+    ----------
+    skill : Skill
+        The skill to check.
+    roots : Sequence[str]
+        Names of the packages that the check may import.
+    lookup : Callable[[str], str | None] | None
+        Version lookup that is passed to ``check_pin``.
+
+    Returns
+    -------
+    NameReport
+        The result of the check.
+    """
+    dist = Requirement(skill.requires).name
+    if dist not in roots:
+        return NameReport("skipped", "no pin on a checked package", [], 0, 0)
+    pin = check_pin(skill.requires, lookup)
+    if pin.status != "ok":
+        return NameReport("skipped", pin.message, [], 0, 0)
+
+    problems: list[Problem] = []
+    checked = 0
+    unchecked = 0
+    for block in python_blocks(skill):
+        try:
+            tree = ast.parse(block.source)
+        except SyntaxError:
+            continue
+        checker = _NameChecker(skill.name, block.index, roots)
+        checker.visit(tree)
+        problems.extend(checker.problems)
+        checked += checker.checked
+        unchecked += checker.unchecked
+    return NameReport("checked", "", problems, checked, unchecked)

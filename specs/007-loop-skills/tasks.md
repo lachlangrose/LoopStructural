@@ -114,7 +114,7 @@
   - Wave: 5
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_check_syntax.py` passes and `ruff check packages/loop_skills` exits 0.
   - Context: Types: `@dataclass(frozen=True) class CodeBlock: index: int; line: int; source: str`. `@dataclass(frozen=True) class Problem: skill: str; kind: Literal["frontmatter", "unique", "syntax", "name", "pin"]; detail: str`. `@dataclass(frozen=True) class NameReport: status: Literal["checked", "skipped"]; reason: str; problems: List[Problem]; checked: int; unchecked: int` (declare it now; T016 fills in `check_names`). Functions: `python_blocks(skill: Skill) -> List[CodeBlock]`: scan `skill.body` for fences; a block opens at a line that is exactly ```` ```python ```` and closes at the next line that is exactly ```` ``` ````; `index` counts from 1; `line` is the 1-based line of the opening fence in the SKILL.md file (add the frontmatter line count; compute it from `skill.path` text up to the start of the body). `check_frontmatter_set(skills: Sequence[Skill]) -> List[Problem]`: one `Problem(kind="unique")` for each repeated name, detail names it. `check_syntax(skill: Skill) -> List[Problem]`: `ast.parse` each block; on `SyntaxError` add `Problem(skill.name, "syntax", f"block {index} (line {line}): {err.msg}")`. Import `Skill` from `._skill`. Numpy docstrings and type hints.
-- [ ] T016 [Found] [M] Implement `check_names` in `_check.py`.
+- [x] T016 [Found] [M] Implement `check_names` in `_check.py`.
   - Files: `packages/loop_skills/src/loop_skills/_check.py`
   - Needs: T012, T014, T015
   - Wave: 6
@@ -138,7 +138,7 @@
   - Wave: 3
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_offline.py` fails (import error), then passes after T019.
   - Context: Use the fixtures `no_network` and `fixture_skills`. One test: with `no_network`, load `good-skill` with `load_skill`, run `install("claude", tmp_path/"p", [skill], lookup=lambda d: "1.0")`, run `uninstall("claude", tmp_path/"p")`, run `check_syntax(skill)` and `check_names(skill, roots=("json",), lookup=lambda d: "1.0")`. No exception means pass. Imports: `from loop_skills._install import install, uninstall`, `from loop_skills._check import check_names, check_syntax`, `from loop_skills._skill import load_skill`. Numpy docstring and type hints.
-- [ ] T019 [US1] [M] Implement the agent table and the folder install and uninstall.
+- [x] T019 [US1] [M] Implement the agent table and the folder install and uninstall.
   - Files: `packages/loop_skills/src/loop_skills/_agents.py`, `packages/loop_skills/src/loop_skills/_install.py`
   - Needs: T017, T018
   - Wave: 6
@@ -173,8 +173,8 @@
   - Context: Import `from loop_skills._copilot import BEGIN, END, install_block, render_block, uninstall_block` and `InstallError` from `loop_skills._install`. `BEGIN == "<!-- loop-skills:begin -->"`, `END == "<!-- loop-skills:end -->"`. Path: `base/.github/copilot-instructions.md`. Signature `install_block(base: Path, skills: Sequence[Skill], version: str) -> InstallReport`. Cases: (1) no file: the file is created and holds the block only; `report.created` has the file and the `.github` folder; (2) a file with the text `My rules\n`: after install the text outside the markers is byte-equal (`text.replace(block, "")` rule: the old text is a prefix) and the block follows after one blank line; (3) a second install replaces only the text between the markers (the text before and after is byte-equal; the outcome is `replaced`); (4) a file with `BEGIN` and no `END` raises `InstallError` with the text `markers` and the file is byte-equal after; (5) a CRLF file keeps CRLF in the block and in the old text; (6) the block holds `## Skill: good-skill`, the description and the body, and the line `<!-- Managed by loop-skills 0.1.0. Change text outside these markers only. -->` for `version="0.1.0"`; (7) `uninstall_block` removes the block and the blank line before it, keeps `My rules\n`, and leaves an empty file in place if only the block was there; (8) `uninstall_block` on a file with no markers or no file returns an empty report and changes nothing. Numpy docstrings and type hints.
 - [ ] T024 [US1] [M] Implement `_copilot.py`.
   - Files: `packages/loop_skills/src/loop_skills/_copilot.py`
-  - Needs: T023
-  - Wave: 6
+  - Needs: T019, T023
+  - Wave: 7
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_install_copilot.py` passes and `ruff check packages/loop_skills` exits 0.
   - Context: Constants `BEGIN`, `END` (exact text in T023). `render_block(skills, version, newline="\n") -> str` (split the description and the body with `splitlines()` and join EVERY line of the block with `newline`, so that a CRLF file has no lone LF): `BEGIN`, the line `<!-- Managed by loop-skills {version}. Change text outside these markers only. -->`, an empty line, then for each skill in the given order: `## Skill: {name}`, empty line, `{description}`, empty line, `{body}` (strip leading and trailing blank lines of the body), empty line; then `END`. Join with `newline`. `install_block(base, skills, version)`: path `base/".github"/"copilot-instructions.md"`; read with `open(path, newline="")` (empty text if the file is missing); newline is `"\r\n"` if the text contains it, else `"\n"`; if `BEGIN` and a later `END` are in the text, replace from the start of `BEGIN` to the end of `END` with the block (outcome `replaced`); if only one marker, or `END` before `BEGIN`, raise `InstallError(f"the markers in {path} are damaged. Nothing changed.")`; else append: the old text, then one blank line if the old text is not empty and does not end with a blank line, then the block and a final newline (outcome `installed`); write to `<path>.loop-skills-tmp` with `newline=""` and `os.replace` onto `path`; make `.github` if needed; record made paths in `created`; add pin warnings with `check_pin(skill.requires)` for each skill when not `ok`; one `SkillOutcome` per skill. `uninstall_block(base)`: remove from `BEGIN` to the end of `END` plus its line end, and one blank line before it if present; same temp-file write; keep the file; no markers or no file gives an empty report. Return `InstallReport("copilot", path, outcomes, warnings, created)`. Import `InstallReport`, `InstallError`, `SkillOutcome` from `._install`. Numpy docstrings and type hints.
 - [ ] T025 [US1] [S] Test: Copilot cases in the command line tests.
@@ -195,7 +195,7 @@
 **Goal**: Four skills ship in the package, with a Claude Code plugin manifest and full documentation.
 **Independent test**: `test_shipped_skills.py` finds exactly the four skills with valid frontmatter, pins, parsed code blocks and fewer than 500 lines. The name check passes in the Ubuntu CI job.
 
-- [ ] T027 [P] [US2] [M] Test: the shipped skills (spec scenario 1 and 6, stories 2 to 4 scenario 1, SC-001, SC-003, FR-016).
+- [x] T027 [P] [US2] [M] Test: the shipped skills (spec scenario 1 and 6, stories 2 to 4 scenario 1, SC-001, SC-003, FR-016).
   - Files: `packages/loop_skills/tests/test_shipped_skills.py`
   - Needs: T003, T013, T015
   - Wave: 6

@@ -38,7 +38,14 @@
       "wave": 5,
       "base": "864f5cf6248ac1ab63cccfc69a10737d814895d6",
       "commit": "2bb4ca86f5eab134a5a8431263693ab368fa7cb3",
-      "review": "changes needed; 3 major fixed (1 test line, 2 plan/task context); recheck pending"
+      "review": "pass (after 1 fix round)"
+    },
+    {
+      "wave": 6,
+      "base": "9f482b6339ac4202b0c128e8a5a8f938fa97b009",
+      "commit": null,
+      "review": "pending",
+      "note": "T024 moved from wave 6 to wave 7 (it imports from _install.py, which T019 builds in wave 6)"
     }
   ],
   "runs": {
@@ -171,6 +178,24 @@
       }
     ],
     "T023": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T016": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T019": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T027": [
       {
         "model": "sonnet",
         "result": "pass"
