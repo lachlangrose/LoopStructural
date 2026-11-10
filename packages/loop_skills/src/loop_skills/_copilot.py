@@ -95,6 +95,24 @@ def _read(path: Path) -> str:
         return ""
 
 
+def _split_bom(text: str) -> tuple[str, str]:
+    """Split a leading BOM from a text.
+
+    Parameters
+    ----------
+    text : str
+        The text that `_read` returns.
+
+    Returns
+    -------
+    tuple[str, str]
+        The BOM (an empty text if there is none) and the text without it.
+    """
+    if text.startswith("﻿"):
+        return "﻿", text[1:]
+    return "", text
+
+
 def _write(path: Path, text: str) -> None:
     """Write a file through a temporary file.
 
@@ -168,6 +186,7 @@ def install_block(base: Path, skills: Sequence[Skill], version: str) -> InstallR
         text = _read(path)
     except OSError as exc:
         raise InstallError(f"cannot read {path}: {exc}. Nothing changed.") from exc
+    bom, text = _split_bom(text)
     newline = "\r\n" if "\r\n" in text else "\n"
     block = render_block(skills, version, newline)
 
@@ -199,7 +218,7 @@ def install_block(base: Path, skills: Sequence[Skill], version: str) -> InstallR
     if not path.exists():
         made.append(path)
     try:
-        _write(path, new_text)
+        _write(path, bom + new_text)
     except InstallError:
         if folder in made:
             try:
@@ -241,6 +260,7 @@ def uninstall_block(base: Path) -> InstallReport:
         text = _read(path)
     except OSError as exc:
         raise InstallError(f"cannot read {path}: {exc}. Nothing changed.") from exc
+    bom, text = _split_bom(text)
     begin_match = _BEGIN_RE.search(text)
     end_match = _END_RE.search(text, begin_match.end()) if begin_match else None
     if not begin_match or not end_match:
@@ -253,6 +273,6 @@ def uninstall_block(base: Path) -> InstallReport:
     start = begin
     if text[:start].endswith(newline * 2):
         start -= len(newline)
-    _write(path, text[:start] + text[stop:])
+    _write(path, bom + text[:start] + text[stop:])
     report.outcomes.append(SkillOutcome("copilot-block", "removed"))
     return report

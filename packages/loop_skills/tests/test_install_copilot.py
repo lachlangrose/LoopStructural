@@ -240,6 +240,65 @@ def test_shipped_skills_round_trip_crlf(tmp_path: Path) -> None:
     assert target.read_bytes() == user
 
 
+BOM = b"\xef\xbb\xbf"
+
+
+def test_bom_block_at_start_round_trip(tmp_path: Path) -> None:
+    """A BOM added to a file that starts with the block does not damage it."""
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    target = _target(tmp_path)
+    once = target.read_bytes()
+    target.write_bytes(BOM + once)
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == BOM + once
+    uninstall_block(tmp_path)
+    assert target.is_file()
+    assert target.read_bytes() == BOM
+
+
+def test_bom_with_user_text_round_trip(tmp_path: Path) -> None:
+    """A BOM and the user text stay byte-equal through install and uninstall."""
+    user = BOM + b"# My rules\n\nUse tabs.\n"
+    target = _write_user_file(tmp_path, user)
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    again = target.read_bytes()
+    assert again.startswith(user)
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == again
+    uninstall_block(tmp_path)
+    assert target.read_bytes() == user
+
+
+def test_no_bom_is_not_added(tmp_path: Path) -> None:
+    """Install and uninstall add no BOM to a file that has none."""
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    target = _target(tmp_path)
+    assert not target.read_bytes().startswith(BOM)
+    uninstall_block(tmp_path)
+    target.write_bytes(b"# My rules\n")
+    install_block(tmp_path, shipped, "0.1.0")
+    assert not target.read_bytes().startswith(BOM)
+    uninstall_block(tmp_path)
+    assert not target.read_bytes().startswith(BOM)
+
+
+def test_bom_crlf_round_trip(tmp_path: Path) -> None:
+    """A BOM with CRLF text keeps the CRLF line ends and the BOM."""
+    user = BOM + b"# My rules\r\n\r\nUse tabs.\r\n"
+    target = _write_user_file(tmp_path, user)
+    shipped = iter_skills()
+    install_block(tmp_path, shipped, "0.1.0")
+    once = target.read_bytes()
+    assert once.count(b"\n") == once.count(b"\r\n")
+    install_block(tmp_path, shipped, "0.1.0")
+    assert target.read_bytes() == once
+    uninstall_block(tmp_path)
+    assert target.read_bytes() == user
+
+
 def _skill_with_body(fixture_skills: Path, tmp_path: Path, body: str) -> Skill:
     """Make a copy of the good fixture skill with a new body.
 
