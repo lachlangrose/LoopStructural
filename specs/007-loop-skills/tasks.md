@@ -264,7 +264,7 @@
   - Wave: 12
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_roadmap.py` passes and `grep -n "Stage 7" ROADMAP.md` shows a line that starts with `- [x]`.
   - Context: Change `- [ ] **Stage 7` to `- [x] **Stage 7`. Add a line to the bullet with the four stages done. Add one entry at the end of `## Status log` with the date of the day of the change: the four stages landed, the open points that the answers closed (OP1 to OP5, see `specs/007-loop-skills/plan.md`), and the number of tests from the last run. Do not change other text.
-- [ ] T038 [Finish] [M] Run all merge gates and the compatibility check.
+- [x] T038 [Finish] [M] Run all merge gates and the compatibility check.
   - Files: none
   - Needs: T037
   - Wave: 13

@@ -81,8 +81,14 @@
     {
       "wave": 12,
       "base": "686c7894a714f21f8e2c378c079ab1f348f3c212",
+      "commit": "9a43cff5d709dcc474700672b6ae1e947c991281",
+      "review": "pass"
+    },
+    {
+      "wave": 13,
+      "base": "9a43cff5d709dcc474700672b6ae1e947c991281",
       "commit": null,
-      "review": "pending"
+      "review": "covered by the end-of-spec review (no files changed except tasks.md and run-state.json)"
     }
   ],
   "runs": {
@@ -346,6 +352,12 @@
       {
         "model": "sonnet",
         "result": "pass"
+      }
+    ],
+    "T038": [
+      {
+        "model": "orchestrator",
+        "result": "pass with deviation: project-wide ruff has 475 old errors (same count as the baseline; the maintainer chose packages/loop_skills as the gate); test_shipped_names (3 cases) cannot run in this environment and run only in CI"
       }
     ]
   },
