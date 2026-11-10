@@ -31,6 +31,12 @@
     {
       "wave": 4,
       "base": "71ca2bf340e8a0a14c5572745b2e98eb64852317",
+      "commit": "864f5cf6248ac1ab63cccfc69a10737d814895d6",
+      "review": "pass"
+    },
+    {
+      "wave": 5,
+      "base": "864f5cf6248ac1ab63cccfc69a10737d814895d6",
       "commit": null,
       "review": "pending"
     }
@@ -145,13 +151,40 @@
         "model": "haiku",
         "result": "pass"
       }
+    ],
+    "T015": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T017": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T021": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
+    ],
+    "T023": [
+      {
+        "model": "sonnet",
+        "result": "pass"
+      }
     ]
   },
   "findings": {
-    "found": 0,
+    "found": 2,
     "rejected": 0,
     "dropped": 0,
     "fixed": 0,
-    "open_minor": []
+    "open_minor": [
+      "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
+      "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check"
+    ]
   }
 }

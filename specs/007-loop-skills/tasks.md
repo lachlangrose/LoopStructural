@@ -108,7 +108,7 @@
   - Wave: 4
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_pin.py` passes and `ruff check packages/loop_skills` exits 0.
   - Context: `@dataclass(frozen=True) class PinResult: requirement: str; distribution: str; installed: Optional[str]; status: Literal["ok", "outside", "missing"]; message: str`. `Literal` comes from `typing_extensions` only if needed; Python 3.9 has `typing.Literal`. `check_pin(requires: str, lookup: Optional[Callable[[str], Optional[str]]] = None) -> PinResult`. Parse with `packaging.requirements.Requirement(requires)`. Default `lookup`: `importlib.metadata.version(dist)`, returns `None` on `PackageNotFoundError`. Inside means `req.specifier.contains(installed, prereleases=True)`. Messages: missing: `f"{dist} is not installed. Install it with: pip install '{requires}'"`; outside: `f"{dist} {installed} is outside the pin '{requires}' of this skill"`; ok: `f"{dist} {installed} satisfies '{requires}'"`. `distribution` is `req.name` as written. Numpy docstrings and type hints.
-- [ ] T015 [Found] [M] Implement the syntax part of `_check.py`.
+- [x] T015 [Found] [M] Implement the syntax part of `_check.py`.
   - Files: `packages/loop_skills/src/loop_skills/_check.py`
   - Needs: T011, T013
   - Wave: 5
@@ -126,7 +126,7 @@
 **Goal**: A user installs the skills for Claude Code, Codex or Copilot with one command, and removes them.
 **Independent test**: Run the installer into an empty `tmp_path` for each agent with the fixture skills. Check the files, the warnings and the uninstall result.
 
-- [ ] T017 [P] [US1] [M] Test: folder install and uninstall for Claude Code and Codex (spec scenarios 2 to 5, 11 and 12; edge cases; SC-002).
+- [x] T017 [P] [US1] [M] Test: folder install and uninstall for Claude Code and Codex (spec scenarios 2 to 5, 11 and 12; edge cases; SC-002).
   - Files: `packages/loop_skills/tests/test_install_folders.py`
   - Needs: T003, T013, T014
   - Wave: 5
@@ -143,14 +143,14 @@
   - Needs: T017, T018
   - Wave: 6
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_install_folders.py packages/loop_skills/tests/test_offline.py -k "claude or offline"` passes and `ruff check packages/loop_skills` exits 0.
-  - Context: `_agents.py`: `@dataclass(frozen=True) class AgentTarget: kind: Literal["folders", "block"]; relpath: str`; `AGENTS: Dict[str, AgentTarget] = {"claude": AgentTarget("folders", ".claude/skills"), "copilot": AgentTarget("block", ".github/copilot-instructions.md")}` (the Codex row comes in T020). `_install.py`: `SkillOutcome(name, action: Literal["installed","replaced","skipped","removed"], detail: str = "")`; `InstallReport(agent, location: Path, outcomes: List[SkillOutcome], warnings: List[str], created: List[Path])` with property `any_skipped`; `class InstallError(RuntimeError)`. `install(agent, base, skills, *, force=False, confirm=None, lookup=None)`. For `kind == "block"` raise `InstallError("Copilot support is added in stage S3")` (T026 replaces this). Folder steps: (1) `target = base / relpath`; make missing parents with `mkdir(parents=True)` and add each new directory to `created` (collect them before you make them); (2) write test: make and remove a temp folder in `target`; on `OSError` remove `created` (deepest first, only if empty) and raise `InstallError(f"cannot write to {target}: {reason}. Nothing changed.")`; (3) for each skill in name order: warn from `check_pin(skill.requires, lookup)` when `status != "ok"` (add `result.message`); if `target/name` exists: replace when `force` or (`confirm` is not None and `confirm(name)`), else outcome `skipped` with detail `exists; use --force` and continue; `shutil.copytree` the folder to `target/.loop-skills-new-<name>`; write `.loop-skills.json` (`{"package": "loop-skills", "version": loop_skills.__version__}`) in it; if replacing: `os.rename` the old folder to `.loop-skills-old-<name>`, `os.rename` the new folder to `<name>`, `shutil.rmtree` the old; on failure restore the old folder, delete the new folder, raise `InstallError`; if new: `os.rename` the new folder to `<name>`; on failure delete the new folder and raise `InstallError`. Use `os.rename` through the module name `os` so that the test can patch it. `uninstall(agent, base)`: for each direct subfolder of the target with a valid `.loop-skills.json` whose `package == "loop-skills"`: `shutil.rmtree`, outcome `removed`; a missing target gives an empty report; for `kind == "block"` raise `InstallError("Copilot support is added in stage S3")`. Import `check_pin` from `._pin` and `Skill` from `._skill`. Numpy docstrings and type hints.
+  - Context: `_agents.py`: `@dataclass(frozen=True) class AgentTarget: kind: Literal["folders", "block"]; relpath: str`; `AGENTS: Dict[str, AgentTarget] = {"claude": AgentTarget("folders", ".claude/skills"), "copilot": AgentTarget("block", ".github/copilot-instructions.md")}` (the Codex row comes in T020). `_install.py`: `SkillOutcome(name, action: Literal["installed","replaced","skipped","removed"], detail: str = "")`; `InstallReport(agent, location: Path, outcomes: List[SkillOutcome], warnings: List[str], created: List[Path])` with property `any_skipped`; `class InstallError(RuntimeError)`. `install(agent, base, skills, *, force=False, confirm=None, lookup=None)`. For `kind == "block"` raise `InstallError("Copilot support is added in stage S3")` (T026 replaces this). Folder steps: (1) `target = base / relpath`; make missing parents with `mkdir(parents=True)` and add each new directory to `created` (collect them before you make them); (2) write test: make and remove a temp folder in `target`; on `OSError` remove `created` (deepest first, only if empty) and raise `InstallError(f"cannot write to {target}: {reason}. Nothing changed.")`; (3) for each skill in name order: warn from `check_pin(skill.requires, lookup)` when `status != "ok"` (add `result.message`); if `target/name` exists: replace when `force` or (`confirm` is not None and `confirm(name)`), else outcome `skipped` with detail `exists; use --force` and continue; `shutil.copytree` the folder to `target/.loop-skills-new-<name>`; write `.loop-skills.json` (`{"package": "loop-skills", "version": loop_skills.__version__}`) in it; if replacing: `os.rename` the old folder to `.loop-skills-old-<name>`, `os.rename` the new folder to `<name>`, `shutil.rmtree` the old; on failure restore the old folder, delete the new folder, raise `InstallError`; if new: `os.rename` the new folder to `<name>`; on failure delete the new folder and raise `InstallError`. Use `os.rename` through the module name `os` so that the test can patch it. `uninstall(agent, base)`: for each direct subfolder of the target with a valid `.loop-skills.json` whose `package == "loop-skills"`: `shutil.rmtree`, outcome `removed`; after the removals, delete `target` if it is empty, then delete each parent folder up to (but not including) `base` if it is empty (this makes install then uninstall restore the folder listing; never delete a folder that holds any entry); a missing target gives an empty report; for `kind == "block"` raise `InstallError("Copilot support is added in stage S3")`. Import `check_pin` from `._pin` and `Skill` from `._skill`. Numpy docstrings and type hints.
 - [ ] T020 [US1] [S] Add the Codex row to the agent table (spec FR-007).
   - Files: `packages/loop_skills/src/loop_skills/_agents.py`
   - Needs: T019
   - Wave: 7
   - Done when: `uv run --package loop-skills pytest packages/loop_skills/tests/test_install_folders.py -k codex` passes.
   - Context: In `AGENTS` add the key `"codex"` with `AgentTarget("folders", ".agents/skills")` between `claude` and `copilot`. OP3 is answered in `plan.md` ("Answers"): the folder is `.agents/skills`.
-- [ ] T021 [P] [US1] [M] Test: the command line for Claude Code and Codex (exit codes, output).
+- [x] T021 [P] [US1] [M] Test: the command line for Claude Code and Codex (exit codes, output).
   - Files: `packages/loop_skills/tests/test_cli.py`
   - Needs: T003, T013
   - Wave: 5
@@ -165,7 +165,7 @@
 
 ### Copilot
 
-- [ ] T023 [P] [US1] [M] Test: the Copilot block (spec scenarios 12 and 17, FR-018).
+- [x] T023 [P] [US1] [M] Test: the Copilot block (spec scenarios 12 and 17, FR-018).
   - Files: `packages/loop_skills/tests/test_install_copilot.py`
   - Needs: T003, T013
   - Wave: 5
