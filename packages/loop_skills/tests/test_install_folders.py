@@ -365,7 +365,7 @@ def test_unwritable_target(
     monkeypatch.setattr(pathlib.Path, "mkdir", _deny)
     with pytest.raises(InstallError, match="Nothing changed"):
         install(agent, base, [good])
-    assert _listing(base) == [p for p in _listing(base) if not p.endswith("good-skill")]
+    assert _listing(base) == []
     assert not target.exists()
 
 

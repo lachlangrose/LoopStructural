@@ -38,6 +38,12 @@
 
 - **OP3** (answered 2026-11-10 by the maintainer, at the start of the orchestrator run): use `.agents/skills` as the Codex project skills folder. The maintainer can check the Codex documentation later. T020 is free.
 
+**Clarifications from the wave 5 review (2026-11-10).** These close gaps between the tests and the plan. They add no feature.
+- The CLI imports the installer as a module and calls `_install.install` and `_install.uninstall` (so that tests can patch them).
+- `uninstall` for folder agents deletes the target folder if it is empty after the removals, then each empty parent up to (not including) the base folder.
+- `render_block` splits the description and the body with `splitlines()` and joins every line of the block with the detected newline, so a CRLF file has no lone LF.
+- Copilot install ends the block with one final newline after `END`. Copilot uninstall removes the line end of `END` and one blank line before `BEGIN`, so that install then uninstall restores the old text exactly.
+
 ## Summary
 
 The feature adds the package `packages/loop_skills` (pip name `loop-skills`).

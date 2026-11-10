@@ -37,8 +37,8 @@
     {
       "wave": 5,
       "base": "864f5cf6248ac1ab63cccfc69a10737d814895d6",
-      "commit": null,
-      "review": "pending"
+      "commit": "2bb4ca86f5eab134a5a8431263693ab368fa7cb3",
+      "review": "changes needed; 3 major fixed (1 test line, 2 plan/task context); recheck pending"
     }
   ],
   "runs": {
@@ -178,13 +178,16 @@
     ]
   },
   "findings": {
-    "found": 2,
+    "found": 9,
     "rejected": 0,
     "dropped": 0,
-    "fixed": 0,
+    "fixed": 3,
     "open_minor": [
       "wave 4, _pin.py:96 (T014): check_pin can raise packaging InvalidVersion for an invalid installed version string",
-      "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check"
+      "wave 4, _skill.py:78 (T013): a UTF-8 BOM or trailing spaces on the '---' line fail the frontmatter check",
+      "wave 5, T017: no test for the rollback path of a replace (second os.rename fails; old skill must stay)",
+      "wave 5, T017/T021/T023: plan rules without a test: foreign or invalid .loop-skills.json on uninstall, missing target on uninstall, several skills in name order, Copilot END before BEGIN or END alone, Copilot pin warnings, CLI warning and summary lines, CLI answers yes/n/empty",
+      "wave 5, test_cli.py:55: _set_tty patches sys.stdout.isatty on the current object; a later capsys would replace sys.stdout and lose the patch"
     ]
   }
 }
