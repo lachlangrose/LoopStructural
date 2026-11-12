@@ -413,6 +413,9 @@ class FaultSegment(StructuralFrame):
             # multiply displacement vector by the displacement magnitude for
             # step
 
+            # Where the frame gradient is undefined (outside the interpolation
+            # support) the point does not move; NaN * 0 would make it NaN.
+            g[~np.all(np.isfinite(g), axis=1)] = 0.0
             g *= (1.0 / steps) * d[:, None]
             # newp[mask, :].copy()
             # apply displacement

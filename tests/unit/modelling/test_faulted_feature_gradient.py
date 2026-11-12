@@ -39,6 +39,26 @@ def _model():
     return model, strati
 
 
+def test_apply_to_points_with_undefined_frame_gradient_is_finite(monkeypatch):
+    """A NaN slip direction (outside the frame support) must not make the point NaN."""
+    model, _ = _model()
+    fault = model["fault"]
+    frame1 = fault[1]
+    original = type(frame1).evaluate_gradient
+
+    def gradient_with_hole(pos, *args, **kwargs):
+        g = np.array(original(frame1, pos, *args, **kwargs), dtype=float)
+        g[np.asarray(pos)[:, 1] > 0.7] = np.nan
+        return g
+
+    monkeypatch.setattr(frame1, "evaluate_gradient", gradient_with_hole)
+    pts = np.array([[0.8, 0.5, 0.5], [0.8, 0.9, 0.5]])
+    moved = fault.apply_to_points(pts)
+    assert np.all(np.isfinite(moved))
+    assert not np.allclose(moved[0], pts[0])  # normal point still moves
+    assert np.allclose(moved[1], pts[1])  # undefined slip direction: no movement
+
+
 def test_faulted_feature_gradient_shape_and_direction():
     _, strati = _model()
     pts = np.array([[0.2, 0.5, 0.5], [0.8, 0.5, 0.5]])
