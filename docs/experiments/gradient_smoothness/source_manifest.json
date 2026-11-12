@@ -1,0 +1,6 @@
+{
+  "packages/loop_interpolation/src/loop_interpolation/experimental/__init__.py": "e9b02f3ff2425a515ec66c5253880af48a8d67208541f4bad4bfb09bfda45f5a",
+  "packages/loop_interpolation/src/loop_interpolation/experimental/benchmark_gradient_smoothness.py": "d1ddd20db8d0955cc011dc350aac48f793102fbd418d844d0e581fbe8bd28448",
+  "packages/loop_interpolation/src/loop_interpolation/experimental/gradient_smoothness.py": "44278e631edc5dde247e68504ee314c2857da6658dd98b006694b00725b8332d",
+  "packages/loop_interpolation/tests/test_gradient_smoothness_experiment.py": "05c711cf33d600df855a2969d5e26944925ca39bec5dd0ab497c52c41b50b3f2"
+}

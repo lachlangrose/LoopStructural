@@ -1,0 +1,45 @@
+{
+  "status": "passed",
+  "datasets": [
+    {
+      "dataset": "real_01_hamersley",
+      "contacts": 1661,
+      "bedding": 20,
+      "coordinate_geometry_dem_and_split_checks": "passed"
+    },
+    {
+      "dataset": "real_02_mcarthur_river",
+      "contacts": 4470,
+      "bedding": 149,
+      "coordinate_geometry_dem_and_split_checks": "passed"
+    },
+    {
+      "dataset": "synthetic_01_parallel_markers",
+      "contacts": 278,
+      "bedding": 100,
+      "coordinate_geometry_dem_and_split_checks": "passed",
+      "max_noiseless_contact_field_error_m": 0.0005894404550872423,
+      "max_round_trip_error_m": 0.0,
+      "slip_constraint_rank": 1
+    },
+    {
+      "dataset": "synthetic_02_variable_slip",
+      "contacts": 297,
+      "bedding": 100,
+      "coordinate_geometry_dem_and_split_checks": "passed",
+      "max_noiseless_contact_field_error_m": 0.010079575532813578,
+      "max_round_trip_error_m": 1.1368683772161603e-13,
+      "minimum_along_strike_jacobian": 0.8849588406896993
+    },
+    {
+      "dataset": "synthetic_03_reactivation",
+      "contacts": 312,
+      "bedding": 100,
+      "coordinate_geometry_dem_and_split_checks": "passed",
+      "max_noiseless_contact_field_error_m": 0.007656763462819072,
+      "max_round_trip_error_m": 0.0,
+      "history_equivalence": "old markers have the same net 100 m vertical forward slip"
+    }
+  ],
+  "scope": "Data and analytic-generator validation only; no inference benchmark has been run."
+}

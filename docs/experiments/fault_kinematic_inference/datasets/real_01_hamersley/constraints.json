@@ -1,0 +1,16 @@
+{
+  "status": "awaiting geologist review; no unmeasured slip or magnitude is asserted",
+  "known": {
+    "surface_fault_traces": "faults.geojson",
+    "bedding": "bedding.csv"
+  },
+  "to_elicit": [
+    "fault slip sense and pitch bounds",
+    "fault dip and event order",
+    "trusted unit-pair/contact correlations",
+    "true tips versus concealed continuation",
+    "plausible displacement ranges and profile complexity"
+  ],
+  "warning": "Do not treat missing or sentinel-valued displacement as zero; preserve source fields.",
+  "agent_access": "Use the selected training split and apply its map mask; raw sources reveal withheld geology."
+}

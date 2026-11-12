@@ -1,0 +1,24 @@
+{
+  "case": 2,
+  "seed": 20261114,
+  "fault_plane": "x=0",
+  "positive_wall": "x>0; hanging wall is not unique for the vertical limiting geometry",
+  "forward_slip_convention": "positive wall relative to negative wall",
+  "base_field": "z0 + 0.35*x0 + 0.2*y0 + 300*sin(y0/700) + 90*sin(x0/800)",
+  "terrain": "200 + .015*x + .02*y + 35*sin(x/850)*cos(y/1100)",
+  "contact_levels": [
+    -400,
+    -150,
+    100,
+    350,
+    600,
+    850
+  ],
+  "generator": "independent analytic coordinate transformation; no LoopStructural interpolation",
+  "forward_slip_m": "[0,120*g(y0),-180*g(y0)]",
+  "profile": "g(y0)=max(0,1-(y0/1800)^2)^2*(1+0.4*y0/1800)/normalisation within |y0|<1800; zero outside",
+  "profile_normalisation": 1.0193490714174307,
+  "maximum_magnitude_m": 216.33307652783935,
+  "pitch_degrees": 56.309932474020215,
+  "expected_identifiability": "varying marker orientations can constrain shared direction/profile; confidence remains conditional on stratigraphic model"
+}

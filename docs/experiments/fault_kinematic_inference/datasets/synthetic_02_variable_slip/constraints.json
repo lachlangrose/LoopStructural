@@ -1,0 +1,19 @@
+{
+  "E0": {
+    "status": "ready",
+    "fault_geometry": "known vertical plane",
+    "pitch": "unconstrained",
+    "amplitude_prior_m": [
+      0,
+      600
+    ],
+    "note": "all constraints refer to the net event unless explicitly scoped"
+  },
+  "E1": {
+    "status": "hypothetical expert input for a controlled experiment",
+    "slip_direction": "pitch 50-65 degrees",
+    "source": "synthetic independent expert knowledge, not inferred from contacts",
+    "fault_endpoints": "true tips"
+  },
+  "agent_access": "Use observations, constraints and training split only; truth directory is evaluator-only."
+}

@@ -1,0 +1,98 @@
+{
+  "dataset_id": "real_02_mcarthur_river",
+  "title": "NTGS McArthur River / Batten window",
+  "kind": "real survey extract",
+  "horizontal_epsg": 28353,
+  "bounds_xy_m": [
+    595000,
+    8185000,
+    615000,
+    8205000
+  ],
+  "map_scale_denominator": 100000,
+  "source_publication_year": 1991,
+  "source_gis_version": "2018-03-09",
+  "fault_feature_count": 150,
+  "geology_feature_count": 149,
+  "contact_trace_count": 370,
+  "contact_count": 4470,
+  "bedding_count": 149,
+  "licence": "CC BY 4.0; Northern Territory of Australia (Northern Territory Geological Survey).",
+  "slip_ground_truth": null,
+  "validation_status": "predictive benchmark; not verified slip truth",
+  "contact_status": "unit-pair boundary candidates, not asserted basal contacts; no invented scalar levels or unit thicknesses",
+  "orientation_convention": "dip direction clockwise from north; upward geometric poles; polarity unresolved",
+  "dem": {
+    "source": "Mapzen/Terrain Tiles on AWS; Australia terrain data copyright Commonwealth of Australia (Geoscience Australia) 2017",
+    "source_zoom": 11,
+    "output_spacing_m": 49.87531172069826,
+    "resampling": "bilinear",
+    "vertical_datum": "source terrain product; absolute vertical datum not independently reconciled with survey data",
+    "observation_Z": "sampled from packaged DEM; not surveyed contact elevations"
+  },
+  "uncertainty_assumptions": {
+    "position_sigma_m": 50,
+    "orientation_sigma_degrees": 10,
+    "status": "provisional sensitivity settings, not accuracy claims"
+  },
+  "sources": [
+    {
+      "url": "https://geoscience.nt.gov.au/gemis/server/api/pid/find?id=1/81583",
+      "resolved_url": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3",
+      "cache_file": "nt_item.json",
+      "bytes": 6440,
+      "sha256": "faa0d73a851ee6d0078019eb7b88520dfd9b01a6163ce20386334e4fe3655add",
+      "accessed_date": "2026-11-12"
+    },
+    {
+      "url": "https://geoscience.nt.gov.au/gemis/server/api/core/bitstreams/4de0f195-aa48-4f34-add7-37da1c767399/content",
+      "resolved_url": "https://geoscience.nt.gov.au/gemis/server/api/core/bitstreams/4de0f195-aa48-4f34-add7-37da1c767399/content",
+      "cache_file": "McArthurRvrGeol100kM.zip",
+      "bytes": 12993562,
+      "sha256": "4094bfa589d79dab792290e3129f957b4c765aa816b9f36d6ff2ea2a755f824c",
+      "accessed_date": "2026-11-12"
+    }
+  ],
+  "terrain_sources": [
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1117.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1117.tif",
+      "cache_file": "terrain_11_1797_1117.tif",
+      "bytes": 127343,
+      "sha256": "979ba1f6f8e4dbdb3c9737563a011b1de068e683210fcac0355421207b62d4fa",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28353
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1118.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1118.tif",
+      "cache_file": "terrain_11_1797_1118.tif",
+      "bytes": 134560,
+      "sha256": "c833e1ec258de2cf00b15f75723deb0feb74b0d5fcbbf2d7c8d79624a3484bbe",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28353
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1117.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1117.tif",
+      "cache_file": "terrain_11_1798_1117.tif",
+      "bytes": 125622,
+      "sha256": "fecc14567f0d799c859d63a8b3f27ae5d8a32816a41786eba0690395e6ba233a",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28353
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1118.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1118.tif",
+      "cache_file": "terrain_11_1798_1118.tif",
+      "bytes": 135858,
+      "sha256": "2bb9cadee18123c047764ee4104d3515b957bc414cd98d7c33a6361083b5dd15",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28353
+    }
+  ],
+  "source_links": [
+    "https://geoscience.nt.gov.au/gemis/ntgsjspui/handle/1/81583"
+  ],
+  "cutoff_candidate_count": 308
+}

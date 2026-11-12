@@ -1,0 +1,98 @@
+{
+  "dataset_id": "real_01_hamersley",
+  "title": "GSWA Hamersley / Rocklea window",
+  "kind": "real survey extract",
+  "horizontal_epsg": 28350,
+  "bounds_xy_m": [
+    535000,
+    7485000,
+    555000,
+    7505000
+  ],
+  "map_scale_denominator": 500000,
+  "source_publication_year": 2016,
+  "source_gis_version": null,
+  "fault_feature_count": 8,
+  "geology_feature_count": 20,
+  "contact_trace_count": 34,
+  "contact_count": 1661,
+  "bedding_count": 20,
+  "licence": "GSWA bedrock compilation DMIRS-016: CC BY-NC 4.0 per data.wa.gov.au catalogue; retain State of Western Australia attribution. Local snapshot extraction dates are in source attributes.",
+  "slip_ground_truth": null,
+  "validation_status": "predictive benchmark; not verified slip truth",
+  "contact_status": "unit-pair boundary candidates, not asserted basal contacts; no invented scalar levels or unit thicknesses",
+  "orientation_convention": "dip direction clockwise from north; upward geometric poles; polarity unresolved",
+  "dem": {
+    "source": "Mapzen/Terrain Tiles on AWS; Australia terrain data copyright Commonwealth of Australia (Geoscience Australia) 2017",
+    "source_zoom": 11,
+    "output_spacing_m": 49.87531172069826,
+    "resampling": "bilinear",
+    "vertical_datum": "source terrain product; absolute vertical datum not independently reconciled with survey data",
+    "observation_Z": "sampled from packaged DEM; not surveyed contact elevations"
+  },
+  "uncertainty_assumptions": {
+    "position_sigma_m": 150,
+    "orientation_sigma_degrees": 10,
+    "status": "provisional sensitivity settings, not accuracy claims"
+  },
+  "sources": [
+    {
+      "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/geology.geojson",
+      "sha256": "6664a763a7cf45e689772f2287b841837d550f79ff81f5a917c452bdb8a62ba8",
+      "bytes": 443101
+    },
+    {
+      "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/faults.geojson",
+      "sha256": "47977d89230df4a2437303bc7b763852f48cc084f7316876a6f9c23d74590961",
+      "bytes": 43132
+    },
+    {
+      "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/structures.geojson",
+      "sha256": "d78b39387892acc51144d334a95c9a493e53b669a7a964c32c57d46b09434379",
+      "bytes": 41573
+    }
+  ],
+  "terrain_sources": [
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1155.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1155.tif",
+      "cache_file": "terrain_11_1691_1155.tif",
+      "bytes": 146639,
+      "sha256": "0a26fe7d88ce75677bc450ff5c5b9e49bcd3658fe35095cf295c34e6151ff220",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28350
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1156.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1156.tif",
+      "cache_file": "terrain_11_1691_1156.tif",
+      "bytes": 131784,
+      "sha256": "ed645be000e9ab77165a708f22ac9691343071b942806de5d81b787dd618eedf",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28350
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1155.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1155.tif",
+      "cache_file": "terrain_11_1692_1155.tif",
+      "bytes": 137423,
+      "sha256": "d0a13d99bbd1a6c7ed8d965760a4f5b8f5d2ac3141b81d3d52487b4d5b32cc5f",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28350
+    },
+    {
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1156.tif",
+      "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1156.tif",
+      "cache_file": "terrain_11_1692_1156.tif",
+      "bytes": 131370,
+      "sha256": "a4936d2a553c30fc8d3e356bef5927698eed2a48414574e18a6368436b62f189",
+      "accessed_date": "2026-11-12",
+      "target_epsg": 28350
+    }
+  ],
+  "source_links": [
+    "https://doi.org/10.5194/gmd-14-5063-2021",
+    "https://catalogue.data.wa.gov.au/en/dataset/1-500-000-state-interpreted-bedrock-geology-dmirs-016"
+  ],
+  "cutoff_candidate_count": 37
+}

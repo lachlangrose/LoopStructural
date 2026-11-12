@@ -1,0 +1,24 @@
+{
+  "resolutions": [
+    32,
+    48
+  ],
+  "angles": [
+    0,
+    23
+  ],
+  "strengths": [
+    0.0001,
+    0.001,
+    0.01
+  ],
+  "max_evaluations": 1000,
+  "skip_sensitivity": false,
+  "epsilon_ratio": 0.03,
+  "fold_orientation_energy_coefficient": 0.1,
+  "fold_projection_energy_coefficient": 0.01,
+  "fold_projection_target": "inverse median observed contact gap = 0.815279297958106",
+  "fold_direction_prior": "flat below zero; height-blended between contacts; V-shaped directions persist above one",
+  "fold_quadrature": "one point per world-grid x/z cell, unit extrusion thickness",
+  "seed": null
+}

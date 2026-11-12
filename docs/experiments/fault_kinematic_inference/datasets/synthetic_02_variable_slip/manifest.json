@@ -1,0 +1,24 @@
+{
+  "dataset_id": "synthetic_02_variable_slip",
+  "title": "Folded markers and asymmetric variable slip",
+  "kind": "synthetic",
+  "seed": 20261114,
+  "horizontal_crs": "local Cartesian metres; not a geographic location",
+  "bounds_xy_m": [
+    -2000,
+    -2000,
+    2000,
+    2000
+  ],
+  "vertical_datum": "synthetic local height, metres",
+  "noise": {
+    "contact_xy_sigma_m": 10,
+    "bedding_noise": "isotropic Gaussian perturbation of unit normals, 3 degrees component scale; approximate angular error"
+  },
+  "contact_count": 297,
+  "bedding_count": 100,
+  "fault_count": 1,
+  "validation": "five y-strips with 150 m training exclusion buffer; no inference has been run",
+  "licence": "synthetic data and generator follow the repository MIT licence",
+  "truth_access": "Evaluator only; never include truth files in agent/inference context."
+}

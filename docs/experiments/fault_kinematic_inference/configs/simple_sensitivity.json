@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "calibration_seed": 20261112,
+  "trials": 200,
+  "interval_level": 0.9,
+  "screening_coverage": [
+    0.85,
+    0.95
+  ],
+  "prior_mean_ab_m": [
+    0,
+    0
+  ],
+  "prior_sd_ab_m": 200,
+  "noise_sd_m": 10,
+  "plane_draws": 100,
+  "plane_seed": 1701,
+  "scope": "Analytical independent-Gaussian prior-predictive calibration; dataset plane sensitivity is separate."
+}

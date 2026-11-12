@@ -1,0 +1,6 @@
+{
+  "packages/loop_interpolation/src/loop_interpolation/experimental/benchmark_fold_normalisation.py": "000ad17e23fdd9a69355aef48757aebbe6927e84193fe1990b01a89af2e2a82b",
+  "packages/loop_interpolation/src/loop_interpolation/experimental/benchmark_two_contacts.py": "03858b6f498bbc886cfece0edda5c55d1739671a7630f75f57fb925760b3004d",
+  "packages/loop_interpolation/src/loop_interpolation/experimental/gradient_smoothness.py": "44278e631edc5dde247e68504ee314c2857da6658dd98b006694b00725b8332d",
+  "packages/loop_interpolation/tests/test_fold_smoothness_combination.py": "2100f1afd916fe27351c9bed0909a801569b1772a9fd6feb7ec105c86cdb2c49"
+}

@@ -1,0 +1,270 @@
+[
+  {
+    "dataset_id": "real_01_hamersley",
+    "title": "GSWA Hamersley / Rocklea window",
+    "kind": "real survey extract",
+    "horizontal_epsg": 28350,
+    "bounds_xy_m": [
+      535000,
+      7485000,
+      555000,
+      7505000
+    ],
+    "map_scale_denominator": 500000,
+    "source_publication_year": 2016,
+    "source_gis_version": null,
+    "fault_feature_count": 8,
+    "geology_feature_count": 20,
+    "contact_trace_count": 34,
+    "contact_count": 1661,
+    "bedding_count": 20,
+    "licence": "GSWA bedrock compilation DMIRS-016: CC BY-NC 4.0 per data.wa.gov.au catalogue; retain State of Western Australia attribution. Local snapshot extraction dates are in source attributes.",
+    "slip_ground_truth": null,
+    "validation_status": "predictive benchmark; not verified slip truth",
+    "contact_status": "unit-pair boundary candidates, not asserted basal contacts; no invented scalar levels or unit thicknesses",
+    "orientation_convention": "dip direction clockwise from north; upward geometric poles; polarity unresolved",
+    "dem": {
+      "source": "Mapzen/Terrain Tiles on AWS; Australia terrain data copyright Commonwealth of Australia (Geoscience Australia) 2017",
+      "source_zoom": 11,
+      "output_spacing_m": 49.87531172069826,
+      "resampling": "bilinear",
+      "vertical_datum": "source terrain product; absolute vertical datum not independently reconciled with survey data",
+      "observation_Z": "sampled from packaged DEM; not surveyed contact elevations"
+    },
+    "uncertainty_assumptions": {
+      "position_sigma_m": 150,
+      "orientation_sigma_degrees": 10,
+      "status": "provisional sensitivity settings, not accuracy claims"
+    },
+    "sources": [
+      {
+        "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/geology.geojson",
+        "sha256": "6664a763a7cf45e689772f2287b841837d550f79ff81f5a917c452bdb8a62ba8",
+        "bytes": 443101
+      },
+      {
+        "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/faults.geojson",
+        "sha256": "47977d89230df4a2437303bc7b763852f48cc084f7316876a6f9c23d74590961",
+        "bytes": 43132
+      },
+      {
+        "repository_path": "packages/map2loop/src/map2loop/_datasets/geodata_files/hamersley/structures.geojson",
+        "sha256": "d78b39387892acc51144d334a95c9a493e53b669a7a964c32c57d46b09434379",
+        "bytes": 41573
+      }
+    ],
+    "terrain_sources": [
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1155.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1155.tif",
+        "cache_file": "terrain_11_1691_1155.tif",
+        "bytes": 146639,
+        "sha256": "0a26fe7d88ce75677bc450ff5c5b9e49bcd3658fe35095cf295c34e6151ff220",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28350
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1156.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1691/1156.tif",
+        "cache_file": "terrain_11_1691_1156.tif",
+        "bytes": 131784,
+        "sha256": "ed645be000e9ab77165a708f22ac9691343071b942806de5d81b787dd618eedf",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28350
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1155.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1155.tif",
+        "cache_file": "terrain_11_1692_1155.tif",
+        "bytes": 137423,
+        "sha256": "d0a13d99bbd1a6c7ed8d965760a4f5b8f5d2ac3141b81d3d52487b4d5b32cc5f",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28350
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1156.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1692/1156.tif",
+        "cache_file": "terrain_11_1692_1156.tif",
+        "bytes": 131370,
+        "sha256": "a4936d2a553c30fc8d3e356bef5927698eed2a48414574e18a6368436b62f189",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28350
+      }
+    ],
+    "source_links": [
+      "https://doi.org/10.5194/gmd-14-5063-2021",
+      "https://catalogue.data.wa.gov.au/en/dataset/1-500-000-state-interpreted-bedrock-geology-dmirs-016"
+    ],
+    "cutoff_candidate_count": 37
+  },
+  {
+    "dataset_id": "real_02_mcarthur_river",
+    "title": "NTGS McArthur River / Batten window",
+    "kind": "real survey extract",
+    "horizontal_epsg": 28353,
+    "bounds_xy_m": [
+      595000,
+      8185000,
+      615000,
+      8205000
+    ],
+    "map_scale_denominator": 100000,
+    "source_publication_year": 1991,
+    "source_gis_version": "2018-03-09",
+    "fault_feature_count": 150,
+    "geology_feature_count": 149,
+    "contact_trace_count": 370,
+    "contact_count": 4470,
+    "bedding_count": 149,
+    "licence": "CC BY 4.0; Northern Territory of Australia (Northern Territory Geological Survey).",
+    "slip_ground_truth": null,
+    "validation_status": "predictive benchmark; not verified slip truth",
+    "contact_status": "unit-pair boundary candidates, not asserted basal contacts; no invented scalar levels or unit thicknesses",
+    "orientation_convention": "dip direction clockwise from north; upward geometric poles; polarity unresolved",
+    "dem": {
+      "source": "Mapzen/Terrain Tiles on AWS; Australia terrain data copyright Commonwealth of Australia (Geoscience Australia) 2017",
+      "source_zoom": 11,
+      "output_spacing_m": 49.87531172069826,
+      "resampling": "bilinear",
+      "vertical_datum": "source terrain product; absolute vertical datum not independently reconciled with survey data",
+      "observation_Z": "sampled from packaged DEM; not surveyed contact elevations"
+    },
+    "uncertainty_assumptions": {
+      "position_sigma_m": 50,
+      "orientation_sigma_degrees": 10,
+      "status": "provisional sensitivity settings, not accuracy claims"
+    },
+    "sources": [
+      {
+        "url": "https://geoscience.nt.gov.au/gemis/server/api/pid/find?id=1/81583",
+        "resolved_url": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3",
+        "cache_file": "nt_item.json",
+        "bytes": 6440,
+        "sha256": "faa0d73a851ee6d0078019eb7b88520dfd9b01a6163ce20386334e4fe3655add",
+        "accessed_date": "2026-11-12"
+      },
+      {
+        "url": "https://geoscience.nt.gov.au/gemis/server/api/core/bitstreams/4de0f195-aa48-4f34-add7-37da1c767399/content",
+        "resolved_url": "https://geoscience.nt.gov.au/gemis/server/api/core/bitstreams/4de0f195-aa48-4f34-add7-37da1c767399/content",
+        "cache_file": "McArthurRvrGeol100kM.zip",
+        "bytes": 12993562,
+        "sha256": "4094bfa589d79dab792290e3129f957b4c765aa816b9f36d6ff2ea2a755f824c",
+        "accessed_date": "2026-11-12"
+      }
+    ],
+    "terrain_sources": [
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1117.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1117.tif",
+        "cache_file": "terrain_11_1797_1117.tif",
+        "bytes": 127343,
+        "sha256": "979ba1f6f8e4dbdb3c9737563a011b1de068e683210fcac0355421207b62d4fa",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28353
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1118.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1797/1118.tif",
+        "cache_file": "terrain_11_1797_1118.tif",
+        "bytes": 134560,
+        "sha256": "c833e1ec258de2cf00b15f75723deb0feb74b0d5fcbbf2d7c8d79624a3484bbe",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28353
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1117.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1117.tif",
+        "cache_file": "terrain_11_1798_1117.tif",
+        "bytes": 125622,
+        "sha256": "fecc14567f0d799c859d63a8b3f27ae5d8a32816a41786eba0690395e6ba233a",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28353
+      },
+      {
+        "url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1118.tif",
+        "resolved_url": "https://elevation-tiles-prod.s3.amazonaws.com/geotiff/11/1798/1118.tif",
+        "cache_file": "terrain_11_1798_1118.tif",
+        "bytes": 135858,
+        "sha256": "2bb9cadee18123c047764ee4104d3515b957bc414cd98d7c33a6361083b5dd15",
+        "accessed_date": "2026-11-12",
+        "target_epsg": 28353
+      }
+    ],
+    "source_links": [
+      "https://geoscience.nt.gov.au/gemis/ntgsjspui/handle/1/81583"
+    ],
+    "cutoff_candidate_count": 308
+  },
+  {
+    "dataset_id": "synthetic_01_parallel_markers",
+    "title": "Parallel markers: unresolved slip direction",
+    "kind": "synthetic",
+    "seed": 20261113,
+    "horizontal_crs": "local Cartesian metres; not a geographic location",
+    "bounds_xy_m": [
+      -2000,
+      -2000,
+      2000,
+      2000
+    ],
+    "vertical_datum": "synthetic local height, metres",
+    "noise": {
+      "contact_xy_sigma_m": 10,
+      "bedding_noise": "isotropic Gaussian perturbation of unit normals, 3 degrees component scale; approximate angular error"
+    },
+    "contact_count": 278,
+    "bedding_count": 100,
+    "fault_count": 1,
+    "validation": "five y-strips with 150 m training exclusion buffer; no inference has been run",
+    "licence": "synthetic data and generator follow the repository MIT licence",
+    "truth_access": "Evaluator only; never include truth files in agent/inference context."
+  },
+  {
+    "dataset_id": "synthetic_02_variable_slip",
+    "title": "Folded markers and asymmetric variable slip",
+    "kind": "synthetic",
+    "seed": 20261114,
+    "horizontal_crs": "local Cartesian metres; not a geographic location",
+    "bounds_xy_m": [
+      -2000,
+      -2000,
+      2000,
+      2000
+    ],
+    "vertical_datum": "synthetic local height, metres",
+    "noise": {
+      "contact_xy_sigma_m": 10,
+      "bedding_noise": "isotropic Gaussian perturbation of unit normals, 3 degrees component scale; approximate angular error"
+    },
+    "contact_count": 297,
+    "bedding_count": 100,
+    "fault_count": 1,
+    "validation": "five y-strips with 150 m training exclusion buffer; no inference has been run",
+    "licence": "synthetic data and generator follow the repository MIT licence",
+    "truth_access": "Evaluator only; never include truth files in agent/inference context."
+  },
+  {
+    "dataset_id": "synthetic_03_reactivation",
+    "title": "Reactivation: two histories, one net offset",
+    "kind": "synthetic",
+    "seed": 20261115,
+    "horizontal_crs": "local Cartesian metres; not a geographic location",
+    "bounds_xy_m": [
+      -2000,
+      -2000,
+      2000,
+      2000
+    ],
+    "vertical_datum": "synthetic local height, metres",
+    "noise": {
+      "contact_xy_sigma_m": 10,
+      "bedding_noise": "isotropic Gaussian perturbation of unit normals, 3 degrees component scale; approximate angular error"
+    },
+    "contact_count": 312,
+    "bedding_count": 100,
+    "fault_count": 1,
+    "validation": "five y-strips with 150 m training exclusion buffer; no inference has been run",
+    "licence": "synthetic data and generator follow the repository MIT licence",
+    "truth_access": "Evaluator only; never include truth files in agent/inference context."
+  }
+]

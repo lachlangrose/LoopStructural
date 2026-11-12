@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "case": "E2",
+  "dataset": "synthetic_01_parallel_markers",
+  "conventions": {
+    "units": "metres",
+    "fault": "x=0; positive wall x>0",
+    "strike": [
+      0,
+      1,
+      0
+    ],
+    "down_dip": [
+      0,
+      0,
+      -1
+    ],
+    "forward": "s=(0,a,-b), positive wall relative to negative wall",
+    "restoration": "p_restored=p-s on positive wall",
+    "pitch": "atan2(b,a) radians, [-pi,pi)"
+  },
+  "folds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "prior": {
+    "D_m": [
+      0,
+      600
+    ],
+    "density": "uniform_D_uniform_allowed_pitch"
+  },
+  "constraints": {
+    "pitch_half_width_degrees": 5
+  },
+  "model": {
+    "family": "shared_parallel_planes",
+    "horizon_levels": "training_fitted_categories",
+    "plane": "training_contacts_and_bedding_conditional",
+    "terrain": "known_bilinear_DEM",
+    "fault_geometry": "known_fixed"
+  },
+  "errors": {
+    "contact": "Gaussian_trace_mean",
+    "source_grouping": "one_effective_observation_per_trace",
+    "sigma": "reported_XY_sigma_times_DEM_surface_gradient",
+    "bedding": "Gaussian_slope_delta_method",
+    "dem_interpolation_floor_m": 0.05
+  },
+  "grid": {
+    "initial_D": 64,
+    "initial_pitch": 128,
+    "max_levels": 6,
+    "max_nodes": 2097152,
+    "seconds_per_fold": 90,
+    "mean_tolerance_sd": 0.025,
+    "sd_relative_tolerance": 0.025
+  },
+  "ensemble": {
+    "seeds": [
+      17,
+      29,
+      43
+    ],
+    "size": 2000
+  },
+  "prediction": {
+    "y_samples": 401,
+    "observation_xy_sigma_m": 10,
+    "missing_penalty_m": 5657,
+    "interval_level": 0.9,
+    "root_tolerance_m": 0.001
+  },
+  "mandatory_outputs": [
+    "manifest.json",
+    "configuration.json",
+    "posterior.npz",
+    "summary.json",
+    "geometric_ensemble.npz",
+    "prediction_state.json",
+    "predictions.csv",
+    "prediction_hashes.json",
+    "evaluation.json",
+    "report.md",
+    "diagnostics.png"
+  ],
+  "limitations": [
+    "Posterior conditional on training-estimated plane.",
+    "Conservative trace-mean Gaussian working model; not the generator independent-vertex likelihood.",
+    "Bilinear terrain and first-order surface error propagation.",
+    "No hard displacement observation; expert direction length is discarded."
+  ]
+}

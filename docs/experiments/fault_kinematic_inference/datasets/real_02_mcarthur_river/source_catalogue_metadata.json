@@ -1,0 +1,261 @@
+{
+  "id": "b5a3331f-69d8-46c5-8582-003f496cf3f3",
+  "uuid": "b5a3331f-69d8-46c5-8582-003f496cf3f3",
+  "name": "McArthur River Region, Northern Territory",
+  "handle": "1/81583",
+  "metadata": {
+    "dc.asset.count": [
+      {
+        "value": "3",
+        "language": "en",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.date.accessioned": [
+      {
+        "value": "2016-03-07T03:47:03Z",
+        "language": null,
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.date.available": [
+      {
+        "value": "2016-03-07T03:47:03Z",
+        "language": null,
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.date.issued": [
+      {
+        "value": "1991",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.description.mapscale": [
+      {
+        "value": "1:100 000",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.format.gis": [
+      {
+        "value": "MapInfo",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.identifier.collectionname": [
+      {
+        "value": "Maps and Explanatory Notes",
+        "language": null,
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.identifier.other": [
+      {
+        "value": "P2612",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.identifier.uri": [
+      {
+        "value": "https://geoscience.nt.gov.au/web/handle/1/81583",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.publisher": [
+      {
+        "value": "Northern Territory Geological Survey",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.relation.formatisgisversion": [
+      {
+        "value": "MapInfo, 09/03/2018",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.relation.isatgeolprovince": [
+      {
+        "value": "McArthur Basin",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.relation.isatmap100": [
+      {
+        "value": "Batten 6065",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      },
+      {
+        "value": "Borroloola 6165",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 1
+      }
+    ],
+    "dc.relation.isatmap250": [
+      {
+        "value": "Bauhinia Downs SE5303",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.relation.isgisversionof": [
+      {
+        "value": "09/03/2018",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.relation.isversionof": [
+      {
+        "value": "1st ed.",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.rights.uri": [
+      {
+        "value": "<a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\">Creative Commons Attribution 4.0 International</a> (CC BY 4.0). Please observe and retain any copyright or related notices that accompany this material and give attribution to: Northern Territory of Australia (Northern Territory Geological Survey).",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.subject.classification": [
+      {
+        "value": "Geology",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.title": [
+      {
+        "value": "McArthur River Region, Northern Territory",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      }
+    ],
+    "dc.type": [
+      {
+        "value": "100k Geological Map",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 0
+      },
+      {
+        "value": "GIS Data",
+        "language": "en_US",
+        "authority": null,
+        "confidence": -1,
+        "place": 1
+      }
+    ],
+    "dspace.entity.type": [
+      {
+        "value": "Publication",
+        "language": "en",
+        "authority": null,
+        "confidence": 5,
+        "place": 1
+      }
+    ],
+    "local.flag.notified": [
+      {
+        "value": "1",
+        "language": "",
+        "authority": null,
+        "confidence": 1,
+        "place": 0
+      }
+    ]
+  },
+  "inArchive": true,
+  "discoverable": true,
+  "withdrawn": false,
+  "lastModified": "2023-01-10T05:30:13.537Z",
+  "entityType": "Publication",
+  "type": "item",
+  "_links": {
+    "accessStatus": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/accessStatus"
+    },
+    "bundles": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/bundles"
+    },
+    "identifiers": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/identifiers"
+    },
+    "mappedCollections": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/mappedCollections"
+    },
+    "owningCollection": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/owningCollection"
+    },
+    "relationships": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/relationships"
+    },
+    "version": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/version"
+    },
+    "templateItemOf": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/templateItemOf"
+    },
+    "thumbnail": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/thumbnail"
+    },
+    "submitter": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3/submitter"
+    },
+    "self": {
+      "href": "https://geoscience.nt.gov.au/gemis/server/api/core/items/b5a3331f-69d8-46c5-8582-003f496cf3f3"
+    }
+  }
+}

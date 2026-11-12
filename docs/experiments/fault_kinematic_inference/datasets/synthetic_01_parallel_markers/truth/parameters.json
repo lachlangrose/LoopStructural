@@ -1,0 +1,26 @@
+{
+  "case": 1,
+  "seed": 20261113,
+  "fault_plane": "x=0",
+  "positive_wall": "x>0; hanging wall is not unique for the vertical limiting geometry",
+  "forward_slip_convention": "positive wall relative to negative wall",
+  "base_field": "z0 + 0.35*x0 + 0.2*y0",
+  "terrain": "200 + .015*x + .02*y + 35*sin(x/850)*cos(y/1100)",
+  "contact_levels": [
+    -400,
+    -150,
+    100,
+    350,
+    600,
+    850
+  ],
+  "generator": "independent analytic coordinate transformation; no LoopStructural interpolation",
+  "forward_slip_m": [
+    0,
+    150,
+    -100
+  ],
+  "magnitude_m": 180.27756377319946,
+  "pitch_degrees": 33.690067525979785,
+  "expected_identifiability": "parallel marker normals constrain only 0.2*a-b; repeated contacts do not add an independent direction"
+}

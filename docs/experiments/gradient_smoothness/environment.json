@@ -1,0 +1,10 @@
+{
+  "python": "3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:05:56) [MSC v.1942 64 bit (AMD64)]",
+  "numpy": "2.4.6",
+  "scipy": "1.18.0",
+  "skimage": "0.26.0",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "git_commit": "d4157a3e37f945f8b1570cc9b2eef9278c1ae086",
+  "matplotlib": "3.11.1",
+  "source_note": "git_commit identifies the base checkout; source_manifest.json hashes the new experiment and tests"
+}

@@ -1,0 +1,9 @@
+{
+  "python": "3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:05:56) [MSC v.1942 64 bit (AMD64)]",
+  "numpy": "2.4.6",
+  "scipy": "1.18.0",
+  "matplotlib": "3.11.1",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "base_git_commit": "d4157a3e37f945f8b1570cc9b2eef9278c1ae086",
+  "source_note": "Experimental code is uncommitted; source_manifest hashes the implementation and test"
+}
