@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loop-link"
+description = "A link between Python and other Loop software, with a GeoViewer client"
+version = "0.1.0"
+requires-python = ">=3.9"
+authors = [{ name = "Lachlan Grose", email = "lachlan.grose@monash.edu" }]
+readme = "README.md"
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+tests = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["loop_link", "loop_link.*"]
