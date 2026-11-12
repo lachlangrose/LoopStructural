@@ -313,6 +313,8 @@ class FaultSegment(StructuralFrame):
         Parameters
         ----------
         points - numpy array Nx3
+        reverse : bool, optional
+            Reverse the movement at every integration step, by default False.
         precomputed_gx - optional pre-evaluated gx values (same points, avoids duplicate evaluation)
 
         Returns
@@ -401,6 +403,8 @@ class FaultSegment(StructuralFrame):
             if self.faultfunction is not None:
                 d[mask2] = self.faultfunction(gx[mask2], gy[mask2], gz[mask2])
             d *= self.displacement
+            if reverse:
+                d *= -1.0
             # normalise when length is >0
             g_mag = np.zeros(g.shape[0])
             g_mag[mask2] = np.linalg.norm(g[mask2], axis=1)

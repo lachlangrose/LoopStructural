@@ -212,8 +212,11 @@ class GeologicalFeature(BaseFeature):
             # this should work...
             resolved = False
             tetrahedron = regular_tetraherdron_for_points(pos, element_scale_parameter)
-
-            while not resolved:
+            # A point exactly on a fault can never be enclosed on one side,
+            # so limit the number of refinements.
+            max_refinements = 20
+            refinements = 0
+            while not resolved and refinements < max_refinements:
                 resolved = True
                 for f in self.faults:
                     side = (
@@ -223,6 +226,7 @@ class GeologicalFeature(BaseFeature):
                     )
                     flag = np.logical_or(np.all(side > 0, axis=1), np.all(side < 0, axis=1))
                     if np.any(~flag):
+                        refinements += 1
                         logger.warning(
                             f"Points are too close to fault {f[0].name}. Refining the tetrahedron"
                         )
