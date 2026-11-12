@@ -28,6 +28,17 @@ Evidence: `ROADMAP.md`, `packages/`, `pyproject.toml`.
   forward. Evidence: `pyproject.toml` `[tool.ruff.lint]`.
 - Lint target Python version is py39.
 
+## Module structure
+- Do not write monolith files. Each module has one clear responsibility.
+- Keep concerns separate: for example, data input and output, numerical
+  algorithms, model assembly and visualisation go in different modules.
+- When a file gets more than one responsibility, split it before you add
+  more code to it.
+- A module depends only on the modules it needs. Do not add a dependency
+  from lower-level code (for example, interpolation) to higher-level code
+  (for example, model assembly or visualisation).
+- Specs and plans must name the module that owns each new responsibility.
+
 ## Architecture and compatibility
 - `ROADMAP.md` is the architecture reference and the source of truth for
   stages and decisions. Update it when a stage completes or a decision changes.
@@ -42,6 +53,7 @@ Evidence: `ROADMAP.md`, `packages/`, `pyproject.toml`.
 
 ## Amendments
 The maintainer accepted this constitution on 2026-11-01.
+Amended on 2026-11-04: added the "Module structure" section.
 
 Propose a change in a pull request that edits this file. The repository
 maintainer accepts or rejects it.
