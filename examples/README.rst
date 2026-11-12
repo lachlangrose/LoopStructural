@@ -12,6 +12,8 @@ learn them:
    and updating fault geometry after a model has been built.
 4. **Advanced use** - building models directly from geological map data,
    logging, controlling data weighting, and comparing interpolators.
+5. **Real case studies** - modelling published geological contacts,
+   orientations, faults and terrain, including the Alès and Mexico basins.
 
 Each example is a standalone, runnable Python script. Most examples load
 one of the sample datasets bundled in :code:`LoopStructural.datasets`, so
