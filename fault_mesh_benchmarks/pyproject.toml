@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fault-mesh-benchmarks"
+version = "0.1.0"
+description = "LoopStructural benchmark suite of faulted implicit models for fault-aware surface meshing"
+requires-python = ">=3.11"
+dependencies = [
+    "LoopStructural",
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "pyvista>=0.44",
+    "vtk>=9.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+conforming = ["loop-cgal>=0.1.8", "scipy>=1.11"]
+
+[project.scripts]
+generate-fault-benchmarks = "fault_benchmarks.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
