@@ -383,16 +383,17 @@ class FeatureRelationshipManager:
         from ...utils.regions import NegativeRegion, PositiveRegion
 
         def faults_of(feature):
-            builder = getattr(feature, "builder", None)
-            faults = getattr(builder, "faults", None)
-            if faults is None:
-                faults = feature.faults
-            return [f.name for f in faults]
+            return [f.name for f in FeatureRelationshipManager._displaced_by(feature)]
 
         def truncations(regions):
             out = []
             for r in regions:
-                if isinstance(r, UnconformityFeature):
+                # a domain fault crops with an UnconformityFeature region too,
+                # but it is not an unconformity
+                if (
+                    isinstance(r, UnconformityFeature)
+                    and getattr(r.parent, "type", None) != FeatureType.DOMAINFAULT
+                ):
                     out.append(
                         {
                             "unconformity": r.name,
@@ -438,6 +439,10 @@ class FeatureRelationshipManager:
         for name, entry in list(faults.items()) + list(features.items()):
             for t in entry["truncated_by"]:
                 for u in unconformities.values():
+                    # the series of the unconformity is not truncated by it:
+                    # it has the inverse region (the part above)
+                    if name == u["feature"]:
+                        continue
                     if u["feature"] == t["feature"] and u["value"] == t["value"]:
                         u["truncates"].append(name)
         return {

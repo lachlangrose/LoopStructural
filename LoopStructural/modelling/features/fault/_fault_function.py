@@ -153,16 +153,24 @@ class CubicFunction(FaultProfileFunction):
                 ends.append(end)
         return tuple(ends)
 
+    # A value constraint at a limit replaces the cubic there only when the
+    # fit already honours it to this tolerance, so the clamp stays continuous.
+    _LIMIT_SNAP_TOLERANCE = 1e-9
+
     def _limit_value(self, x: float) -> float:
-        """Value at a limit: the value constraint there if there is one, else the cubic.
+        """Value at a limit: the cubic, snapped to a value constraint there.
 
         The least squares fit leaves about 1e-14 where a constraint asks for 0;
-        using the constraint makes a profile that ends at 0 exactly 0 beyond it.
+        snapping to the constraint makes a profile that ends at 0 exactly 0
+        beyond it. When the fit does not honour the constraint (more
+        constraints than the cubic can fit), the cubic is used, so the profile
+        does not jump at the limit.
         """
+        value = float(self.w[0] * x**3 + self.w[1] * x**2 + self.w[2] * x + self.w[3])
         for cx, cy in self.value_points:
-            if cx == x:
+            if cx == x and abs(value - cy) <= self._LIMIT_SNAP_TOLERANCE:
                 return float(cy)
-        return self.w[0] * x**3 + self.w[1] * x**2 + self.w[2] * x + self.w[3]
+        return value
 
     def __call__(self, v):
         self.solve()
@@ -230,7 +238,15 @@ class Composite(FaultProfileFunction):
         self.positive = positive
         self.negative = negative
 
-    tip_ends = ()
+    @property
+    def tip_ends(self) -> tuple:
+        """The +1 end from the positive part and the -1 end from the negative part."""
+        ends = []
+        if 1 in _profile_tip_ends(self.positive):
+            ends.append(1)
+        if -1 in _profile_tip_ends(self.negative):
+            ends.append(-1)
+        return tuple(ends)
 
     def __call__(self, v: np.ndarray) -> np.ndarray:
         """calculate the displacement for the input coordinate
@@ -533,7 +549,7 @@ def continue_profile(profile, x: np.ndarray, side: int) -> np.ndarray:
     return _taylor(scalar, x, side)
 
 
-def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray:
+def block_displacement(faultfunction, gx, forced_gx, gy, gz, side, offset=0.0) -> np.ndarray:
     """The displacement profile of a fault in the block that has the side ``side``.
 
     On the block's own side (``side * gx >= 0``) this is the profile itself.
@@ -551,6 +567,11 @@ def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray
     the other side takes the mirror image (the profile at ``side * |gx|``),
     which has a kink where the profile has a slope at the fault.
 
+    The side of a point is the side of the fault surface (the sign of
+    ``gx``). ``offset`` shifts the profile only: the profile is read at
+    ``gx + offset``, and the continuation is the continuation of the
+    shifted profile about gx = 0.
+
     Parameters
     ----------
     faultfunction : callable
@@ -562,6 +583,8 @@ def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray
     gy, gz : np.ndarray
     side : int or None
         +1, -1, or None (no block side: the profile at gx)
+    offset : float
+        added to gx in the profile (``FaultSegment.fault_offset``)
 
     Returns
     -------
@@ -569,7 +592,7 @@ def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray
     """
     from ....utils import _fault_block
 
-    out = faultfunction(forced_gx, gy, gz)
+    out = faultfunction(forced_gx + offset, gy, gz)
     if side not in (-1, 1) or _fault_block.BLOCK_EXTENSION != "smooth":
         return out
     other = side * gx < 0
@@ -579,7 +602,13 @@ def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray
     x, y, z = gx[other], gy[other], gz[other]
     if isinstance(faultfunction, FaultDisplacement):
         profile = faultfunction.gx
-        if isinstance(profile, Composite):
+        if offset != 0.0:
+            gx_profile = profile
+
+            def profile(v):
+                return gx_profile(np.asarray(v, dtype=float) + offset)
+
+        elif isinstance(profile, Composite):
             profile = profile.positive if side > 0 else profile.negative
         out[other] = (
             faultfunction.scale
@@ -591,7 +620,7 @@ def block_displacement(faultfunction, gx, forced_gx, gy, gz, side) -> np.ndarray
         x = -side * _saturate(np.abs(x))
 
         def at(v):
-            return np.asarray(faultfunction(np.full(x.shape, v), y, z), dtype=float)
+            return np.asarray(faultfunction(np.full(x.shape, v + offset), y, z), dtype=float)
 
         out[other] = _taylor(at, x, side)
     return out

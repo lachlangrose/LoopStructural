@@ -46,18 +46,26 @@ class BaseSignRegion(BaseRegion):
     and calculate the distance from this. Alternatively, a point and vector can be used to save computational time
     """
 
+    # _calculate_mask passes restored_through to a region with this flag
+    takes_restored_through = True
+
     def __init__(self, feature, vector=None, point=None):
         super().__init__(feature, vector, point)
         self.name = 'PositiveRegion'
         self.parent = feature
 
     def _calculate_value_and_distance(
-        self, xyz, precomputed_val=None, block=None
+        self, xyz, precomputed_val=None, block=None, restored_through=()
     ) -> tuple[np.ndarray, np.ndarray]:
         if precomputed_val is not None:
             val = precomputed_val
         else:
-            val = self.feature.evaluate_value(xyz, **block_kwargs(block))
+            kwargs = block_kwargs(block)
+            if restored_through:
+                # the points are already restored through these faults; the
+                # feature must not apply them again
+                kwargs["restored_through"] = tuple(restored_through)
+            val = self.feature.evaluate_value(xyz, **kwargs)
         # find a point on/near 0 isosurface — compute once and cache on self
         if self.point is None:
             mask = np.zeros(xyz.shape[0], dtype="bool")
@@ -93,9 +101,11 @@ class PositiveRegion(BaseSignRegion):
         self.name = 'PositiveRegion'
         self.parent = feature
 
-    def __call__(self, xyz, precomputed_val=None, *, block=None) -> np.ndarray:
+    def __call__(
+        self, xyz, precomputed_val=None, *, block=None, restored_through=()
+    ) -> np.ndarray:
         val, distance = self._calculate_value_and_distance(
-            xyz, precomputed_val=precomputed_val, block=block
+            xyz, precomputed_val=precomputed_val, block=block, restored_through=restored_through
         )
         return np.logical_or(
             np.logical_and(~np.isnan(val), val > 0),
@@ -114,9 +124,11 @@ class NegativeRegion(BaseSignRegion):
         self.name = 'NegativeRegion'
         self.parent = feature
 
-    def __call__(self, xyz, precomputed_val=None, *, block=None) -> np.ndarray:
+    def __call__(
+        self, xyz, precomputed_val=None, *, block=None, restored_through=()
+    ) -> np.ndarray:
         val, distance = self._calculate_value_and_distance(
-            xyz, precomputed_val=precomputed_val, block=block
+            xyz, precomputed_val=precomputed_val, block=block, restored_through=restored_through
         )
         return np.logical_or(
             np.logical_and(~np.isnan(val), val < 0),

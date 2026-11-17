@@ -83,8 +83,9 @@ def assert_truncated_by_cover(model, name):
     regions = truncations(f)
     assert [r.parent.name for r in regions] == ["cover"]
     assert regions[0].value == 0.0 and regions[0].sign is True
-    # the three frame features share the regions of the fault
-    assert all(f[i].regions is f[0].regions for i in range(3))
+    # the three frame features have the region of the fault (each in its own
+    # list, so a region of one coordinate, such as an abutting region, is kept)
+    assert all(any(r is regions[0] for r in f[i].regions) for i in range(3))
     above, below = probes()
     # the fault surface and frame end on the unconformity
     assert np.all(np.isnan(f[0].evaluate_value(above)))

@@ -100,9 +100,19 @@ class StructuralFrame(BaseFeature):
             f.model = model
 
     def add_region(self, region):
-        self.regions.append(region)
-        for i in range(3):
-            self.features[i].regions = self.regions
+        """Add a region to the frame and to each of its coordinates.
+
+        The region is appended to the list of each coordinate, so a region
+        that one coordinate already has (for example the abutting region of
+        a fault, which is only on gx) is kept.
+        """
+        if not any(r is region for r in self.regions):
+            self.regions.append(region)
+        for f in self.features:
+            if f is None:
+                continue
+            if not any(r is region for r in f.regions):
+                f.regions.append(region)
 
     def get_feature(self, i):
         """

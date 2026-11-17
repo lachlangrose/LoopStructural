@@ -246,6 +246,11 @@ class GeologicalFeature(BaseFeature):
             tetrahedron = regular_tetraherdron_for_points(pos, element_scale_parameter)
             # A fault that the block names has no jump, so a tetrahedron may cross it.
             jumping = [f for f in faults if not block or f.name not in block]
+            # the tetrahedra are at the points as given, which already have
+            # the restoration of restored_through: gx must not apply it again
+            side_kwargs = block_kwargs(block)
+            if restored_through:
+                side_kwargs["restored_through"] = tuple(restored_through)
 
             while not resolved:
                 resolved = True
@@ -253,7 +258,7 @@ class GeologicalFeature(BaseFeature):
                     side = (
                         f[0]
                         .evaluate_value(
-                            tetrahedron.reshape(-1, 3), fillnan='nearest', **block_kwargs(block)
+                            tetrahedron.reshape(-1, 3), fillnan='nearest', **side_kwargs
                         )
                         .reshape(tetrahedron.shape[0], 4)
                     )

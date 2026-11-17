@@ -211,7 +211,7 @@ class FaultSegment(StructuralFrame):
         return np.abs(v) > threshold
         # return np.all(np.logical_and(v > -1,v<1),axis=1)
 
-    def evaluate_value(self, locations, ignore_regions=False, *, block=None):
+    def evaluate_value(self, locations, ignore_regions=False, *, block=None, restored_through=()):
         """
         Return the value of the fault surface scalar field
 
@@ -227,6 +227,9 @@ class FaultSegment(StructuralFrame):
             If the block names this fault with +1 or -1, the value is put on that
             side (``side * |gx|``), so a region defined by this fault gives the
             same answer at every point.
+        restored_through : sequence of FaultSegment, optional
+            faults whose restoration the points already have; gx does not
+            apply them again (see :meth:`GeologicalFeature.evaluate_value`)
 
         Returns
         -------
@@ -245,8 +248,11 @@ class FaultSegment(StructuralFrame):
         #         logger.error("nan slicing")
         # v[mask] = self.__getitem__(0).evaluate_value(locations[mask, :])
         block = check_block(block)
+        kwargs = block_kwargs(block)
+        if restored_through:
+            kwargs["restored_through"] = tuple(restored_through)
         v = self.__getitem__(0).evaluate_value(
-            locations, ignore_regions=ignore_regions, **block_kwargs(block)
+            locations, ignore_regions=ignore_regions, **kwargs
         )
         return force_side(v, block_side(block, self.name))
 
@@ -369,8 +375,8 @@ class FaultSegment(StructuralFrame):
         d[gx_mask] = 1.0
         if self.faultfunction is not None:
             d[mask] = block_displacement(
-                self.faultfunction, gx[mask] + offset, forced[mask] + offset, gy[mask], gz[mask],
-                side,
+                self.faultfunction, gx[mask], forced[mask], gy[mask], gz[mask], side,
+                offset=offset,
             )
         return d
 
